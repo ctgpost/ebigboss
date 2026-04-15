@@ -42,6 +42,24 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
     },
   });
 
+  const { data: suppliers } = useQuery({
+    queryKey: ["suppliers-dashboard"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("suppliers").select("*");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: supplierPayments } = useQuery({
+    queryKey: ["supplier-payments-dashboard"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("supplier_payments").select("*");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const totalProducts = products?.length || 0;
   const inStockProducts = products?.filter(p => p.stock_quantity > 0).length || 0;
   const outOfStockProducts = products?.filter(p => p.stock_quantity <= 0).length || 0;
