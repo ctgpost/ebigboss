@@ -9,12 +9,20 @@ interface BarcodeScannerProps {
   isOpen: boolean;
   onClose: () => void;
   onScan: (barcode: string) => void;
+  title?: string;
 }
 
-export function BarcodeScanner({ isOpen, onClose, onScan }: BarcodeScannerProps) {
+export function BarcodeScanner({ isOpen, onClose, onScan, title = "বারকোড / IMEI স্ক্যান করুন" }: BarcodeScannerProps) {
   const [isScanning, setIsScanning] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
-  const qrboxSize = 250;
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (isOpen && !isScanning) {
@@ -30,33 +38,31 @@ export function BarcodeScanner({ isOpen, onClose, onScan }: BarcodeScannerProps)
     try {
       setIsScanning(true);
       
-      // Initialize scanner
       scannerRef.current = new Html5Qrcode("barcode-reader");
 
       const config = {
-        fps: 10,
-        qrbox: { width: qrboxSize, height: qrboxSize },
-        aspectRatio: 1.0,
+        fps: 15,
+        qrbox: { width: 280, height: 160 },
+        aspectRatio: 1.5,
+        formatsToSupport: undefined, // support all formats including CODE_128, EAN_13 etc.
       };
 
       await scannerRef.current.start(
         { facingMode: "environment" },
         config,
         (decodedText) => {
-          // Success callback
-          toast.success("Barcode scanned!");
+          toast.success("স্ক্যান সফল!");
           onScan(decodedText);
           stopScanner();
           onClose();
         },
-        (errorMessage) => {
-          // Error callback (we can ignore most scanning errors)
-          // console.log("Scan error:", errorMessage);
+        () => {
+          // Ignore scan errors
         }
       );
     } catch (error: any) {
       console.error("Scanner error:", error);
-      toast.error("Failed to start scanner. Please check camera permissions.");
+      toast.error("ক্যামেরা চালু করতে ব্যর্থ। ক্যামেরার অনুমতি দিন।");
       setIsScanning(false);
       onClose();
     }
@@ -64,10 +70,15 @@ export function BarcodeScanner({ isOpen, onClose, onScan }: BarcodeScannerProps)
 
   const stopScanner = async () => {
     try {
-      if (scannerRef.current && isScanning) {
-        await scannerRef.current.stop();
+      if (scannerRef.current) {
+        const state = scannerRef.current.getState();
+        if (state === 2) { // SCANNING state
+          await scannerRef.current.stop();
+        }
         scannerRef.current = null;
-        setIsScanning(false);
+        if (mountedRef.current) {
+          setIsScanning(false);
+        }
       }
     } catch (error) {
       console.error("Error stopping scanner:", error);
@@ -83,7 +94,7 @@ export function BarcodeScanner({ isOpen, onClose, onScan }: BarcodeScannerProps)
     }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Scan Barcode</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         
         <Card className="p-4">
@@ -91,17 +102,17 @@ export function BarcodeScanner({ isOpen, onClose, onScan }: BarcodeScannerProps)
             <div 
               id="barcode-reader" 
               className="w-full rounded-lg overflow-hidden bg-black"
-              style={{ minHeight: "300px" }}
+              style={{ minHeight: "280px" }}
             />
             
             <div className="text-center space-y-2">
               <p className="text-sm text-muted-foreground">
-                Position the barcode within the frame
+                📱 মোবাইলের ক্যামেরা দিয়ে বারকোড / IMEI বারকোড স্ক্যান করুন
               </p>
               {isScanning && (
                 <div className="flex items-center justify-center gap-2">
                   <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
-                  <span className="text-xs text-muted-foreground">Scanning...</span>
+                  <span className="text-xs text-muted-foreground">স্ক্যান চলছে...</span>
                 </div>
               )}
             </div>
@@ -114,7 +125,7 @@ export function BarcodeScanner({ isOpen, onClose, onScan }: BarcodeScannerProps)
               }}
               className="w-full"
             >
-              Cancel
+              বাতিল
             </Button>
           </div>
         </Card>
