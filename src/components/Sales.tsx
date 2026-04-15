@@ -17,6 +17,8 @@ interface SaleDetail {
   id: string;
   created_at: string;
   total_amount: number;
+  paid_amount: number;
+  due_amount: number;
   payment_method: string;
   status: string;
   notes: string | null;
@@ -438,6 +440,11 @@ export function Sales() {
                       <div className="text-xl md:text-2xl font-bold text-accent">
                         ৳{Number(sale.total_amount).toLocaleString()}
                       </div>
+                      {Number(sale.due_amount) > 0 && (
+                        <div className="text-xs font-semibold text-destructive">
+                          বাকি: ৳{Number(sale.due_amount).toLocaleString()}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
