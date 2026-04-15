@@ -64,6 +64,29 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
   });
 
   const totalDue = sales?.reduce((sum, s) => sum + Number(s.due_amount), 0) || 0;
+  const totalPaid = sales?.reduce((sum, s) => sum + Number(s.paid_amount), 0) || 0;
+
+  const { data: purchases } = useQuery({
+    queryKey: ["purchases"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("purchases").select("*");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: supplierPayments } = useQuery({
+    queryKey: ["supplier-payments-all"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("supplier_payments").select("*");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const totalPurchaseAmount = purchases?.reduce((sum, p) => sum + Number(p.total_amount), 0) || 0;
+  const totalSupplierPaid = supplierPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+  const totalSupplierDue = totalPurchaseAmount - totalSupplierPaid;
 
   const newProductsInvestment = products?.filter(p => p.condition === 'new').reduce((sum, p) => sum + (Number(p.cost) * p.stock_quantity), 0) || 0;
   const usedProductsInvestment = products?.filter(p => p.condition === 'used').reduce((sum, p) => sum + (Number(p.cost) * p.stock_quantity), 0) || 0;
