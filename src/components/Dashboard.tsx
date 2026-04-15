@@ -42,6 +42,15 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
     },
   });
 
+  const { data: suppliers } = useQuery({
+    queryKey: ["suppliers-dashboard"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("suppliers").select("*");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const totalProducts = products?.length || 0;
   const inStockProducts = products?.filter(p => p.stock_quantity > 0).length || 0;
   const outOfStockProducts = products?.filter(p => p.stock_quantity <= 0).length || 0;
@@ -91,6 +100,39 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
   const newProductsInvestment = products?.filter(p => p.condition === 'new').reduce((sum, p) => sum + (Number(p.cost) * p.stock_quantity), 0) || 0;
   const usedProductsInvestment = products?.filter(p => p.condition === 'used').reduce((sum, p) => sum + (Number(p.cost) * p.stock_quantity), 0) || 0;
   const totalInvestment = newProductsInvestment + usedProductsInvestment;
+
+  // Top 5 supplier dues - calculated from products' cost linked to each supplier
+  const top5SupplierDues = useMemo(() => {
+    if (!suppliers || !products || !supplierPayments) return [];
+    
+    return suppliers.map(supplier => {
+      // Sum cost of all products from this supplier (by name match)
+      const supplierProducts = products.filter(p => 
+        p.supplier_name && p.supplier_name.toLowerCase().trim() === supplier.name.toLowerCase().trim()
+      );
+      const totalProductCost = supplierProducts.reduce((sum, p) => sum + Number(p.cost), 0);
+      
+      // Sum payments made to this supplier
+      const paidAmount = supplierPayments
+        .filter(sp => sp.supplier_id === supplier.id)
+        .reduce((sum, sp) => sum + Number(sp.amount), 0);
+      
+      const dueAmount = totalProductCost - paidAmount;
+      
+      return {
+        id: supplier.id,
+        name: supplier.name,
+        phone: supplier.phone,
+        totalCost: totalProductCost,
+        paid: paidAmount,
+        due: dueAmount,
+        productCount: supplierProducts.length,
+      };
+    })
+    .filter(s => s.due > 0)
+    .sort((a, b) => b.due - a.due)
+    .slice(0, 5);
+  }, [suppliers, products, supplierPayments]);
 
   // Weekly sales chart data
   const weeklySalesData = useMemo(() => {
@@ -445,6 +487,32 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
           </Card>
         )}
 
+
+        {/* Top 5 Supplier Dues Widget */}
+        {top5SupplierDues.length > 0 && (
+          <Card className="p-5">
+            <h2 className="text-lg font-semibold mb-4 text-foreground">🏪 টপ ৫ বাকিদার সাপ্লায়ার</h2>
+            <div className="space-y-3">
+              {top5SupplierDues.map((supplier, index) => (
+                <div key={supplier.id} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-destructive/10 text-destructive font-bold text-sm">
+                    {index + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-foreground text-sm truncate">{supplier.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {supplier.productCount}টি প্রোডাক্ট • মোট ৳{supplier.totalCost.toLocaleString('bn-BD')} • পরিশোধিত ৳{supplier.paid.toLocaleString('bn-BD')}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-destructive">৳{supplier.due.toLocaleString('bn-BD')}</p>
+                    <p className="text-xs text-muted-foreground">বাকি</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
         <Card className="p-5">
           <h2 className="text-lg font-semibold mb-4 text-foreground">💰 বিনিয়োগ বিশ্লেষণ</h2>
