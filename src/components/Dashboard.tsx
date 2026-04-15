@@ -488,8 +488,32 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
         )}
 
 
-        <Card className="p-5">
-          <h2 className="text-lg font-semibold mb-4 text-foreground">💰 বিনিয়োগ বিশ্লেষণ</h2>
+        {/* Top 5 Supplier Dues Widget */}
+        {top5SupplierDues.length > 0 && (
+          <Card className="p-5">
+            <h2 className="text-lg font-semibold mb-4 text-foreground">🏪 টপ ৫ বাকিদার সাপ্লায়ার</h2>
+            <div className="space-y-3">
+              {top5SupplierDues.map((supplier, index) => (
+                <div key={supplier.id} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-destructive/10 text-destructive font-bold text-sm">
+                    {index + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-foreground text-sm truncate">{supplier.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {supplier.productCount}টি প্রোডাক্ট • মোট ৳{supplier.totalCost.toLocaleString('bn-BD')} • পরিশোধিত ৳{supplier.paid.toLocaleString('bn-BD')}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-destructive">৳{supplier.due.toLocaleString('bn-BD')}</p>
+                    <p className="text-xs text-muted-foreground">বাকি</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card className="p-4 bg-green-50 dark:bg-green-950/20 border-green-200">
               <p className="text-sm text-muted-foreground">নতুন প্রোডাক্ট</p>
