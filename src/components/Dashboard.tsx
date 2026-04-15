@@ -514,6 +514,8 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
           </Card>
         )}
 
+        <Card className="p-5">
+          <h2 className="text-lg font-semibold mb-4 text-foreground">💰 বিনিয়োগ বিশ্লেষণ</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card className="p-4 bg-green-50 dark:bg-green-950/20 border-green-200">
               <p className="text-sm text-muted-foreground">নতুন প্রোডাক্ট</p>
