@@ -282,15 +282,17 @@ export function Products() {
   }, [products, searchTerm, filterCondition, filterCategory, showOutOfStock]);
 
   const handleBarcodeScanned = (barcode: string) => {
-    // Search for product by barcode or IMEI
     const product = products?.find(p => 
       p.barcode === barcode || p.imei === barcode
     );
 
     if (product) {
       setDetailProduct(product);
+      toast.success(`"${product.name}" পাওয়া গেছে`);
     } else {
-      toast.error("Product not found with this barcode");
+      // Set search term so user can see no results
+      setSearchTerm(barcode);
+      toast.error("এই বারকোড/IMEI দিয়ে প্রোডাক্ট পাওয়া যায়নি");
     }
   };
 
