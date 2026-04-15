@@ -384,7 +384,68 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
           </Card>
         </div>
 
-        {/* Investment Analysis */}
+        {/* Cash Flow Summary */}
+        <Card className="p-5 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border-green-200">
+          <h2 className="text-lg font-semibold mb-3 text-foreground">💸 ক্যাশ ফ্লো সামারি</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Card className="p-3 bg-white/80 dark:bg-gray-800/80">
+              <p className="text-xs text-muted-foreground">মোট আয় (গ্রাহক)</p>
+              <p className="text-xl font-bold text-green-600">৳{totalPaid.toLocaleString('bn-BD')}</p>
+            </Card>
+            <Card className="p-3 bg-white/80 dark:bg-gray-800/80">
+              <p className="text-xs text-muted-foreground">মোট ব্যয় (সাপ্লায়ার)</p>
+              <p className="text-xl font-bold text-red-600">৳{totalSupplierPaid.toLocaleString('bn-BD')}</p>
+            </Card>
+            <Card className="p-3 bg-white/80 dark:bg-gray-800/80">
+              <p className="text-xs text-muted-foreground">গ্রাহক বাকি</p>
+              <p className="text-xl font-bold text-orange-600">৳{totalDue.toLocaleString('bn-BD')}</p>
+            </Card>
+            <Card className="p-3 bg-white/80 dark:bg-gray-800/80">
+              <p className="text-xs text-muted-foreground">সাপ্লায়ার বাকি</p>
+              <p className="text-xl font-bold text-purple-600">৳{totalSupplierDue.toLocaleString('bn-BD')}</p>
+            </Card>
+          </div>
+          <div className="mt-3 p-3 bg-white/80 dark:bg-gray-800/80 rounded-lg">
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium">নেট ক্যাশ ফ্লো:</span>
+              <span className={`text-xl font-bold ${(totalPaid - totalSupplierPaid) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                ৳{(totalPaid - totalSupplierPaid).toLocaleString('bn-BD')}
+              </span>
+            </div>
+          </div>
+        </Card>
+
+        {/* Monthly Income vs Expense Pie Chart */}
+        {monthlyPieData.length > 0 && (
+          <Card className="p-5">
+            <h2 className="text-lg font-semibold mb-4 text-foreground">🥧 এই মাসের আয়-ব্যয় বিশ্লেষণ</h2>
+            <div className="flex flex-col md:flex-row items-center gap-6">
+              <div className="h-64 w-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={monthlyPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                      {monthlyPieData.map((entry, idx) => (
+                        <Cell key={idx} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: number) => `৳${value.toLocaleString('bn-BD')}`} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="space-y-3 flex-1">
+                {monthlyPieData.map((item, idx) => (
+                  <div key={idx} className="flex items-center gap-3">
+                    <div className="w-4 h-4 rounded-full" style={{ backgroundColor: item.color }}></div>
+                    <span className="text-sm font-medium">{item.name}</span>
+                    <span className="ml-auto text-sm font-bold">৳{item.value.toLocaleString('bn-BD')}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Card>
+        )}
+
+
         <Card className="p-5">
           <h2 className="text-lg font-semibold mb-4 text-foreground">💰 বিনিয়োগ বিশ্লেষণ</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
