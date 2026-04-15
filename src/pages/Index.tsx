@@ -27,7 +27,8 @@ import {
   TrendingUp, 
   RefreshCcw, 
   FileText, 
-  Settings as SettingsIcon 
+  Settings as SettingsIcon,
+  Truck
 } from "lucide-react";
 
 interface IndexProps {
@@ -113,6 +114,7 @@ export default function Index({ user }: IndexProps) {
     { id: "products", label: "Products", icon: Package, permission: 'canManageProducts' },
     { id: "pos", label: "POS", icon: ShoppingCart, permission: 'canAccessPOS' },
     { id: "sales", label: "Sales", icon: TrendingUp, permission: 'canAccessSales' },
+    { id: "suppliers", label: "Suppliers", icon: Truck, permission: 'canManageSuppliers' },
     { id: "reports", label: "Reports", icon: FileText, permission: 'canAccessReports' },
     { id: "settings", label: "Settings", icon: SettingsIcon, permission: 'canAccessSettings' },
   ];

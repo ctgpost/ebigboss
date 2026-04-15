@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
+import { generateSupplierReport } from "@/utils/supplierPdfReport";
+import { useShopSettings } from "@/hooks/useShopSettings";
 
 interface SupplierPaymentDialogProps {
   open: boolean;
@@ -17,6 +19,7 @@ interface SupplierPaymentDialogProps {
 
 export function SupplierPaymentDialog({ open, onOpenChange, supplier }: SupplierPaymentDialogProps) {
   const queryClient = useQueryClient();
+  const { settings } = useShopSettings();
   const [amount, setAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [notes, setNotes] = useState("");
@@ -104,7 +107,27 @@ export function SupplierPaymentDialog({ open, onOpenChange, supplier }: Supplier
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle>💰 {supplier.name} — হিসাব নিকাশ</DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle>💰 {supplier.name} — হিসাব নিকাশ</DialogTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                generateSupplierReport({
+                  supplier,
+                  purchases: supplierPurchases || [],
+                  payments: supplierPayments || [],
+                  totalPurchase: totalPurchaseAmount,
+                  totalPaid: totalPaid,
+                  totalDue,
+                  shopName: settings.shop_name,
+                });
+                toast.success("PDF রিপোর্ট ডাউনলোড হচ্ছে!");
+              }}
+            >
+              📄 PDF রিপোর্ট
+            </Button>
+          </div>
         </DialogHeader>
 
         {/* Summary */}
