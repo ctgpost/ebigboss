@@ -136,6 +136,8 @@ export function Products() {
   });
 
   const resetForm = () => {
+    setSupplierMode("existing");
+    setSelectedSupplierId("");
     setFormData({
       name: "",
       category_id: "",
