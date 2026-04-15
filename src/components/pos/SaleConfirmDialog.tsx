@@ -15,6 +15,7 @@ interface SaleConfirmDialogProps {
   onOpenChange: (open: boolean) => void;
   cart: CartItem[];
   total: number;
+  paidAmount: number;
   onConfirm: () => void;
 }
 
@@ -23,8 +24,10 @@ export function SaleConfirmDialog({
   onOpenChange,
   cart,
   total,
+  paidAmount,
   onConfirm,
 }: SaleConfirmDialogProps) {
+  const dueAmount = Math.max(0, total - (paidAmount > 0 ? paidAmount : total));
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className="max-w-md">
@@ -61,6 +64,18 @@ export function SaleConfirmDialog({
                 <span className="font-semibold text-foreground">মোট:</span>
                 <span className="text-xl font-bold text-primary">৳{total.toFixed(0)}</span>
               </div>
+              {paidAmount > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-foreground">পরিশোধ:</span>
+                  <span className="text-sm font-semibold text-green-600">৳{Math.min(paidAmount, total).toFixed(0)}</span>
+                </div>
+              )}
+              {dueAmount > 0 && (
+                <div className="flex justify-between items-center bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded">
+                  <span className="text-sm font-bold text-destructive">বাকি:</span>
+                  <span className="text-sm font-bold text-destructive">৳{dueAmount.toFixed(0)}</span>
+                </div>
+              )}
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
