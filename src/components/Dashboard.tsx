@@ -25,7 +25,7 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
   const { data: sales, isLoading: salesLoading } = useQuery({
     queryKey: ["sales"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("sales").select("*, sale_items(*, products(condition))");
+      const { data, error } = await supabase.from("sales").select("*, sale_items(*, products(condition, cost))");
       if (error) throw error;
       return data;
     },
