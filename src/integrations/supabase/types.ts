@@ -110,6 +110,54 @@ export type Database = {
         }
         Relationships: []
       }
+      payments: {
+        Row: {
+          amount: number
+          collected_by: string | null
+          created_at: string
+          customer_id: string | null
+          id: string
+          notes: string | null
+          payment_method: string
+          sale_id: string
+        }
+        Insert: {
+          amount: number
+          collected_by?: string | null
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          notes?: string | null
+          payment_method?: string
+          sale_id: string
+        }
+        Update: {
+          amount?: number
+          collected_by?: string | null
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          notes?: string | null
+          payment_method?: string
+          sale_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           barcode: string | null
@@ -127,6 +175,7 @@ export type Database = {
           model: string | null
           name: string
           price: number
+          product_entry_date: string | null
           ram: string | null
           sku: string | null
           stock_quantity: number
@@ -136,7 +185,6 @@ export type Database = {
           supplier_nid: string | null
           unit: string | null
           updated_at: string
-          warranty_expiry_date: string | null
           warranty_status: string | null
         }
         Insert: {
@@ -155,6 +203,7 @@ export type Database = {
           model?: string | null
           name: string
           price?: number
+          product_entry_date?: string | null
           ram?: string | null
           sku?: string | null
           stock_quantity?: number
@@ -164,7 +213,6 @@ export type Database = {
           supplier_nid?: string | null
           unit?: string | null
           updated_at?: string
-          warranty_expiry_date?: string | null
           warranty_status?: string | null
         }
         Update: {
@@ -183,6 +231,7 @@ export type Database = {
           model?: string | null
           name?: string
           price?: number
+          product_entry_date?: string | null
           ram?: string | null
           sku?: string | null
           stock_quantity?: number
@@ -192,7 +241,6 @@ export type Database = {
           supplier_nid?: string | null
           unit?: string | null
           updated_at?: string
-          warranty_expiry_date?: string | null
           warranty_status?: string | null
         }
         Relationships: [
@@ -446,10 +494,12 @@ export type Database = {
         Row: {
           created_at: string
           customer_id: string | null
+          due_amount: number
           id: string
           instant_customer_name: string | null
           instant_customer_phone: string | null
           notes: string | null
+          paid_amount: number
           payment_method: string | null
           status: string | null
           total_amount: number
@@ -459,10 +509,12 @@ export type Database = {
         Insert: {
           created_at?: string
           customer_id?: string | null
+          due_amount?: number
           id?: string
           instant_customer_name?: string | null
           instant_customer_phone?: string | null
           notes?: string | null
+          paid_amount?: number
           payment_method?: string | null
           status?: string | null
           total_amount?: number
@@ -472,10 +524,12 @@ export type Database = {
         Update: {
           created_at?: string
           customer_id?: string | null
+          due_amount?: number
           id?: string
           instant_customer_name?: string | null
           instant_customer_phone?: string | null
           notes?: string | null
+          paid_amount?: number
           payment_method?: string | null
           status?: string | null
           total_amount?: number

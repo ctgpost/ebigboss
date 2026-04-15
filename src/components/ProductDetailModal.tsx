@@ -51,11 +51,11 @@ export function ProductDetailModal({ product, isOpen, onClose }: ProductDetailMo
   if (!product) return null;
 
   const getWarrantyStatus = () => {
-    if (!product.warranty_expiry_date || product.warranty_status === 'no_warranty') {
+    if (!product.product_entry_date || product.warranty_status === 'no_warranty') {
       return { text: 'No Warranty', color: 'bg-muted text-muted-foreground' };
     }
     
-    const expiryDate = new Date(product.warranty_expiry_date);
+    const expiryDate = new Date(product.product_entry_date);
     const today = new Date();
     
     if (product.warranty_status === 'void') {
@@ -170,11 +170,11 @@ export function ProductDetailModal({ product, isOpen, onClose }: ProductDetailMo
                 <p className="text-muted-foreground">Status</p>
                 <Badge className={warrantyStatus.color}>{warrantyStatus.text}</Badge>
               </div>
-              {product.warranty_expiry_date && (
+              {product.product_entry_date && (
                 <div>
-                  <p className="text-muted-foreground">Expiry Date</p>
+                  <p className="text-muted-foreground">Product Entry Date</p>
                   <p className="font-medium">
-                    {format(new Date(product.warranty_expiry_date), "PPP")}
+                    {format(new Date(product.product_entry_date), "PPP")}
                   </p>
                 </div>
               )}

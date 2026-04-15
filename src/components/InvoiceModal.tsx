@@ -38,6 +38,10 @@ export function InvoiceModal({ isOpen, sale, onClose }: InvoiceModalProps) {
     }
   };
 
+  const totalAmount = Number(sale.total_amount);
+  const paidAmount = Number(sale.paid_amount || totalAmount);
+  const dueAmount = Number(sale.due_amount || 0);
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -112,11 +116,21 @@ export function InvoiceModal({ isOpen, sale, onClose }: InvoiceModalProps) {
             <div className="w-64">
               <div className="flex justify-between py-2 border-t">
                 <span className="font-semibold">সাবটোটাল:</span>
-                <span>৳{Number(sale.total_amount).toLocaleString('bn-BD')}</span>
+                <span>৳{totalAmount.toLocaleString('bn-BD')}</span>
               </div>
+              <div className="flex justify-between py-2">
+                <span className="font-semibold">পরিশোধিত:</span>
+                <span className="text-green-700">৳{paidAmount.toLocaleString('bn-BD')}</span>
+              </div>
+              {dueAmount > 0 && (
+                <div className="flex justify-between py-2 bg-red-50 px-2 rounded">
+                  <span className="font-bold text-red-600">বাকি:</span>
+                  <span className="font-bold text-red-600">৳{dueAmount.toLocaleString('bn-BD')}</span>
+                </div>
+              )}
               <div className="flex justify-between py-2 border-t-2 border-gray-800">
                 <span className="font-bold text-lg">সর্বমোট:</span>
-                <span className="font-bold text-lg">৳{Number(sale.total_amount).toLocaleString('bn-BD')}</span>
+                <span className="font-bold text-lg">৳{totalAmount.toLocaleString('bn-BD')}</span>
               </div>
             </div>
           </div>

@@ -18,6 +18,8 @@ interface PaymentSectionProps {
   onInstantCustomerNameChange: (name: string) => void;
   instantCustomerPhone: string;
   onInstantCustomerPhoneChange: (phone: string) => void;
+  paidAmount: number;
+  onPaidAmountChange: (amount: number) => void;
 }
 
 export function PaymentSection({
@@ -34,8 +36,12 @@ export function PaymentSection({
   onInstantCustomerNameChange,
   instantCustomerPhone,
   onInstantCustomerPhoneChange,
+  paidAmount,
+  onPaidAmountChange,
 }: PaymentSectionProps) {
   const [useInstantCustomer, setUseInstantCustomer] = useState(false);
+
+  const dueAmount = Math.max(0, total - paidAmount);
 
   return (
     <div className="space-y-3 lg:space-y-4 pt-4 border-t border-border">
@@ -117,13 +123,33 @@ export function PaymentSection({
         </Select>
       </div>
 
-      <div className="bg-primary/10 p-3 lg:p-4 rounded-lg">
+      <div className="bg-primary/10 p-3 lg:p-4 rounded-lg space-y-2">
         <div className="flex justify-between items-center">
           <span className="text-base lg:text-lg font-semibold text-foreground">সর্বমোট:</span>
           <span className="text-xl lg:text-2xl font-bold text-primary">
             ৳{total.toLocaleString('bn-BD')}
           </span>
         </div>
+
+        {/* Paid Amount */}
+        <div className="flex items-center gap-2">
+          <label className="text-xs lg:text-sm font-medium text-foreground whitespace-nowrap">পরিশোধ:</label>
+          <Input
+            type="number"
+            value={paidAmount || ""}
+            onChange={(e) => onPaidAmountChange(Math.max(0, Number(e.target.value)))}
+            className="h-8 text-sm flex-1"
+            placeholder="পরিশোধিত টাকা"
+          />
+        </div>
+
+        {/* Due Amount */}
+        {dueAmount > 0 && (
+          <div className="flex justify-between items-center text-destructive">
+            <span className="text-sm font-semibold">বাকি:</span>
+            <span className="text-lg font-bold">৳{dueAmount.toLocaleString('bn-BD')}</span>
+          </div>
+        )}
       </div>
 
       <Button
@@ -131,7 +157,7 @@ export function PaymentSection({
         onClick={onCompleteSale}
         disabled={cartEmpty || isProcessing}
       >
-        {isProcessing ? "প্রক্রিয়াকরণ..." : "💰 বিক্রয় সম্পন্ন করুন"}
+        {isProcessing ? "প্রক্রিয়াকরণ..." : dueAmount > 0 ? "💰 বাকিতে বিক্রয় করুন" : "💰 বিক্রয় সম্পন্ন করুন"}
       </Button>
     </div>
   );

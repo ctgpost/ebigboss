@@ -5,11 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { format } from "date-fns";
 
 export function Customers() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<any>(null);
+  const [selectedCustomerDue, setSelectedCustomerDue] = useState<any>(null);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentNotes, setPaymentNotes] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -29,6 +36,33 @@ export function Customers() {
     },
   });
 
+  // Fetch sales with dues for all customers
+  const { data: salesWithDues } = useQuery({
+    queryKey: ["sales-with-dues"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sales")
+        .select("id, customer_id, total_amount, paid_amount, due_amount, created_at, instant_customer_name, instant_customer_phone, sale_items(quantity, unit_price, products(name))")
+        .gt("due_amount", 0)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch payment history
+  const { data: payments } = useQuery({
+    queryKey: ["payments"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("payments")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const addMutation = useMutation({
     mutationFn: async (data: any) => {
       const { error } = await supabase.from("customers").insert([data]);
@@ -36,12 +70,12 @@ export function Customers() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
-      toast.success("Customer added successfully!");
+      toast.success("কাস্টমার সফলভাবে যুক্ত হয়েছে!");
       setIsAddDialogOpen(false);
       resetForm();
     },
     onError: (error: any) => {
-      toast.error(error.message || "Failed to add customer");
+      toast.error(error.message || "কাস্টমার যুক্ত করতে ব্যর্থ");
     },
   });
 
@@ -52,12 +86,12 @@ export function Customers() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
-      toast.success("Customer updated successfully!");
+      toast.success("কাস্টমার আপডেট হয়েছে!");
       setEditingCustomer(null);
       resetForm();
     },
     onError: (error: any) => {
-      toast.error(error.message || "Failed to update customer");
+      toast.error(error.message || "আপডেট করতে ব্যর্থ");
     },
   });
 
@@ -68,21 +102,62 @@ export function Customers() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
-      toast.success("Customer deleted successfully!");
+      toast.success("কাস্টমার মুছে ফেলা হয়েছে!");
     },
     onError: (error: any) => {
-      toast.error(error.message || "Failed to delete customer");
+      toast.error(error.message || "মুছতে ব্যর্থ");
+    },
+  });
+
+  // Collect due payment
+  const collectPaymentMutation = useMutation({
+    mutationFn: async ({ saleId, customerId, amount, method, notes }: any) => {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      // Insert payment record
+      const { error: paymentError } = await supabase.from("payments").insert([{
+        sale_id: saleId,
+        customer_id: customerId,
+        amount,
+        payment_method: method,
+        notes,
+        collected_by: user?.id,
+      }]);
+      if (paymentError) throw paymentError;
+
+      // Update sale paid_amount and due_amount
+      const { data: sale, error: fetchError } = await supabase
+        .from("sales")
+        .select("paid_amount, due_amount, total_amount")
+        .eq("id", saleId)
+        .single();
+      if (fetchError) throw fetchError;
+
+      const newPaid = Number(sale.paid_amount) + amount;
+      const newDue = Math.max(0, Number(sale.total_amount) - newPaid);
+
+      const { error: updateError } = await supabase
+        .from("sales")
+        .update({ paid_amount: newPaid, due_amount: newDue })
+        .eq("id", saleId);
+      if (updateError) throw updateError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sales-with-dues"] });
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
+      toast.success("বাকি আদায় সফল হয়েছে!");
+      setPaymentAmount("");
+      setPaymentNotes("");
+      setSelectedCustomerDue(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "বাকি আদায় করতে ব্যর্থ");
     },
   });
 
   const resetForm = () => {
-    setFormData({
-      name: "",
-      email: "",
-      phone: "",
-      address: "",
-      notes: "",
-    });
+    setFormData({ name: "", email: "", phone: "", address: "", notes: "" });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -105,150 +180,313 @@ export function Customers() {
     });
   };
 
+  const handleCollectPayment = (sale: any) => {
+    const amount = parseFloat(paymentAmount);
+    if (!amount || amount <= 0) {
+      toast.error("সঠিক পরিমাণ লিখুন");
+      return;
+    }
+    if (amount > Number(sale.due_amount)) {
+      toast.error("বাকির চেয়ে বেশি আদায় করা যাবে না");
+      return;
+    }
+    collectPaymentMutation.mutate({
+      saleId: sale.id,
+      customerId: sale.customer_id,
+      amount,
+      method: paymentMethod,
+      notes: paymentNotes,
+    });
+  };
+
+  // Calculate customer-level dues
+  const getCustomerDues = (customerId: string) => {
+    const customerSales = salesWithDues?.filter(s => s.customer_id === customerId) || [];
+    return customerSales.reduce((sum, s) => sum + Number(s.due_amount), 0);
+  };
+
+  // Get total transactions for a customer
+  const getCustomerTotalTransactions = (customerId: string) => {
+    return Number(customers?.find(c => c.id === customerId)?.total_purchases || 0);
+  };
+
   return (
     <div className="flex flex-col h-screen animate-fade-in">
       {/* Fixed Header */}
       <div className="sticky top-0 z-10 bg-white dark:bg-gray-950 border-b border-border pb-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Customers</h1>
-            <p className="text-muted-foreground mt-1">Manage your customer database</p>
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground">কাস্টমার</h1>
+            <p className="text-sm text-muted-foreground mt-1">কাস্টমার ও বাকি হিসাব ব্যবস্থাপনা</p>
           </div>
-        <Dialog open={isAddDialogOpen || !!editingCustomer} onOpenChange={(open) => {
-          if (!open) {
-            setIsAddDialogOpen(false);
-            setEditingCustomer(null);
-            resetForm();
-          }
-        }}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setIsAddDialogOpen(true)} className="bg-gradient-to-r from-primary to-accent">
-              ➕ Add Customer
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editingCustomer ? "Edit Customer" : "Add New Customer"}</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Name *</label>
-                <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Email</label>
-                <Input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Phone</label>
-                <Input
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Address</label>
-                <Input
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Notes</label>
-                <Input
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                />
-              </div>
-              <div className="flex gap-2 justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setIsAddDialogOpen(false);
-                    setEditingCustomer(null);
-                    resetForm();
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" className="bg-gradient-to-r from-primary to-accent">
-                  {editingCustomer ? "Update" : "Add"} Customer
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+          <Dialog open={isAddDialogOpen || !!editingCustomer} onOpenChange={(open) => {
+            if (!open) {
+              setIsAddDialogOpen(false);
+              setEditingCustomer(null);
+              resetForm();
+            }
+          }}>
+            <DialogTrigger asChild>
+              <Button onClick={() => setIsAddDialogOpen(true)} className="bg-gradient-to-r from-primary to-accent">
+                ➕ কাস্টমার যুক্ত
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editingCustomer ? "কাস্টমার সম্পাদনা" : "নতুন কাস্টমার যুক্ত"}</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">নাম *</label>
+                  <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">ইমেইল</label>
+                  <Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">ফোন</label>
+                  <Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">ঠিকানা</label>
+                  <Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">নোট</label>
+                  <Input value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} />
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button type="button" variant="outline" onClick={() => { setIsAddDialogOpen(false); setEditingCustomer(null); resetForm(); }}>
+                    বাতিল
+                  </Button>
+                  <Button type="submit" className="bg-gradient-to-r from-primary to-accent">
+                    {editingCustomer ? "আপডেট" : "যুক্ত"} করুন
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-6">
-        {customers?.map((customer) => (
-          <Card key={customer.id} className="p-6 card-hover">
-            <div className="space-y-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="font-semibold text-lg text-foreground">{customer.name}</h3>
-                  {customer.email && (
-                    <p className="text-sm text-muted-foreground mt-1">📧 {customer.email}</p>
-                  )}
-                  {customer.phone && (
-                    <p className="text-sm text-muted-foreground">📞 {customer.phone}</p>
-                  )}
-                </div>
-                <div className="text-3xl">👤</div>
+      <div className="flex-1 overflow-y-auto pb-6 space-y-6">
+        {/* Due Summary */}
+        {salesWithDues && salesWithDues.length > 0 && (
+          <Card className="p-4 md:p-6 border-destructive/30 bg-destructive/5">
+            <h2 className="text-lg font-bold text-foreground mb-4">📋 বাকি হিসাব সারাংশ</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div className="text-center p-3 bg-background rounded-lg">
+                <p className="text-2xl font-bold text-destructive">
+                  ৳{salesWithDues.reduce((sum, s) => sum + Number(s.due_amount), 0).toLocaleString('bn-BD')}
+                </p>
+                <p className="text-xs text-muted-foreground">মোট বাকি</p>
               </div>
-              {customer.address && (
-                <p className="text-sm text-muted-foreground">📍 {customer.address}</p>
-              )}
-              {customer.notes && (
-                <p className="text-sm text-muted-foreground italic">"{customer.notes}"</p>
-              )}
-              <div className="flex gap-2 pt-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => startEdit(customer)}
-                  className="flex-1"
-                >
-                  ✏️ Edit
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => {
-                    if (confirm("Are you sure you want to delete this customer?")) {
-                      deleteMutation.mutate(customer.id);
-                    }
-                  }}
-                  className="flex-1"
-                >
-                  🗑️ Delete
-                </Button>
+              <div className="text-center p-3 bg-background rounded-lg">
+                <p className="text-2xl font-bold text-primary">{salesWithDues.length}</p>
+                <p className="text-xs text-muted-foreground">বাকি বিক্রয়</p>
               </div>
             </div>
           </Card>
-        ))}
+        )}
 
-        {(!customers || customers.length === 0) && (
-          <Card className="p-12 text-center">
-            <div className="text-6xl mb-4">👥</div>
-            <h3 className="text-xl font-semibold mb-2 text-foreground">No customers yet</h3>
-            <p className="text-muted-foreground">Add your first customer to get started!</p>
+        {/* Due Sales List */}
+        {salesWithDues && salesWithDues.length > 0 && (
+          <Card className="p-4 md:p-6">
+            <h2 className="text-lg font-bold text-foreground mb-4">💰 বাকি আদায়</h2>
+            <div className="space-y-3">
+              {salesWithDues.map((sale) => {
+                const customerName = customers?.find(c => c.id === sale.customer_id)?.name || sale.instant_customer_name || "অজানা";
+                const customerPhone = customers?.find(c => c.id === sale.customer_id)?.phone || sale.instant_customer_phone || "";
+
+                return (
+                  <div key={sale.id} className="border border-border rounded-lg p-3 md:p-4">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-foreground">{customerName}</span>
+                          {customerPhone && <span className="text-xs text-muted-foreground">📞 {customerPhone}</span>}
+                          <Badge variant="outline" className="text-xs">#{sale.id.slice(0, 8)}</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(sale.created_at), "dd MMM yyyy")} •
+                          মোট: ৳{Number(sale.total_amount).toLocaleString('bn-BD')} •
+                          পরিশোধিত: ৳{Number(sale.paid_amount).toLocaleString('bn-BD')}
+                        </p>
+                        <div className="text-sm">
+                          {(sale.sale_items as any[])?.map((item: any, idx: number) => (
+                            <span key={idx} className="text-muted-foreground">
+                              {item.products?.name}{idx < (sale.sale_items as any[]).length - 1 ? ", " : ""}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-destructive">৳{Number(sale.due_amount).toLocaleString('bn-BD')}</p>
+                          <p className="text-xs text-muted-foreground">বাকি</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setSelectedCustomerDue(sale);
+                            setPaymentAmount(String(sale.due_amount));
+                          }}
+                          className="bg-green-600 hover:bg-green-700 whitespace-nowrap"
+                        >
+                          💵 আদায়
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </Card>
         )}
+
+        {/* Customer Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+          {customers?.map((customer) => {
+            const totalDue = getCustomerDues(customer.id);
+            return (
+              <Card key={customer.id} className="p-4 md:p-6 card-hover">
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-semibold text-lg text-foreground">{customer.name}</h3>
+                      {customer.phone && <p className="text-sm text-muted-foreground">📞 {customer.phone}</p>}
+                      {customer.email && <p className="text-sm text-muted-foreground">📧 {customer.email}</p>}
+                    </div>
+                    <div className="text-3xl">👤</div>
+                  </div>
+                  {customer.address && <p className="text-sm text-muted-foreground">📍 {customer.address}</p>}
+
+                  {/* Due Badge */}
+                  <div className="flex gap-2 flex-wrap">
+                    {totalDue > 0 && (
+                      <Badge variant="destructive" className="text-xs">
+                        বাকি: ৳{totalDue.toLocaleString('bn-BD')}
+                      </Badge>
+                    )}
+                    {Number(customer.total_purchases || 0) > 0 && (
+                      <Badge variant="secondary" className="text-xs">
+                        লেনদেন: ৳{Number(customer.total_purchases).toLocaleString('bn-BD')}
+                      </Badge>
+                    )}
+                    {Number(customer.purchase_count || 0) > 0 && (
+                      <Badge variant="outline" className="text-xs">
+                        {customer.purchase_count} বার ক্রয়
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <Button variant="outline" size="sm" onClick={() => startEdit(customer)} className="flex-1">
+                      ✏️ সম্পাদনা
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        if (confirm("আপনি কি নিশ্চিত এই কাস্টমার মুছে ফেলতে চান?")) {
+                          deleteMutation.mutate(customer.id);
+                        }
+                      }}
+                      className="flex-1"
+                    >
+                      🗑️ মুছুন
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+
+          {(!customers || customers.length === 0) && (
+            <Card className="p-12 text-center col-span-full">
+              <div className="text-6xl mb-4">👥</div>
+              <h3 className="text-xl font-semibold mb-2 text-foreground">কোনো কাস্টমার নেই</h3>
+              <p className="text-muted-foreground">প্রথম কাস্টমার যুক্ত করুন!</p>
+            </Card>
+          )}
         </div>
       </div>
+
+      {/* Collect Payment Dialog */}
+      <Dialog open={!!selectedCustomerDue} onOpenChange={(open) => {
+        if (!open) {
+          setSelectedCustomerDue(null);
+          setPaymentAmount("");
+          setPaymentNotes("");
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>💰 বাকি আদায়</DialogTitle>
+          </DialogHeader>
+          {selectedCustomerDue && (
+            <div className="space-y-4">
+              <div className="bg-muted/50 p-3 rounded-lg space-y-1">
+                <p className="text-sm">
+                  <span className="font-semibold">ইনভয়েস:</span> #{selectedCustomerDue.id.slice(0, 8)}
+                </p>
+                <p className="text-sm">
+                  <span className="font-semibold">মোট:</span> ৳{Number(selectedCustomerDue.total_amount).toLocaleString('bn-BD')}
+                </p>
+                <p className="text-sm">
+                  <span className="font-semibold">পূর্বে পরিশোধিত:</span> ৳{Number(selectedCustomerDue.paid_amount).toLocaleString('bn-BD')}
+                </p>
+                <p className="text-sm font-bold text-destructive">
+                  বাকি: ৳{Number(selectedCustomerDue.due_amount).toLocaleString('bn-BD')}
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">আদায়ের পরিমাণ *</label>
+                <Input
+                  type="number"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                  placeholder="টাকার পরিমাণ"
+                  max={Number(selectedCustomerDue.due_amount)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">পেমেন্ট পদ্ধতি</label>
+                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">💵 নগদ</SelectItem>
+                    <SelectItem value="card">💳 কার্ড</SelectItem>
+                    <SelectItem value="mobile">📱 মোবাইল</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">নোট (ঐচ্ছিক)</label>
+                <Input
+                  value={paymentNotes}
+                  onChange={(e) => setPaymentNotes(e.target.value)}
+                  placeholder="আদায়ের নোট"
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setSelectedCustomerDue(null)}>বাতিল</Button>
+                <Button
+                  onClick={() => handleCollectPayment(selectedCustomerDue)}
+                  className="bg-green-600 hover:bg-green-700"
+                  disabled={collectPaymentMutation.isPending}
+                >
+                  {collectPaymentMutation.isPending ? "প্রক্রিয়াকরণ..." : "✓ আদায় করুন"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
