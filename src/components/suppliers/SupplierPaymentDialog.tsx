@@ -31,13 +31,29 @@ export function SupplierPaymentDialog({ open, onOpenChange, supplier }: Supplier
       if (!supplier?.id) return [];
       const { data, error } = await supabase
         .from("purchases")
-        .select("*, purchase_items(*, products(name))")
+        .select("*, purchase_items(*, products(name, cost, price, imei, condition, stock_quantity))")
         .eq("supplier_id", supplier.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
     enabled: !!supplier?.id,
+  });
+
+  // Products directly linked to this supplier by name
+  const { data: supplierProducts } = useQuery({
+    queryKey: ["supplier-products-direct", supplier?.name],
+    queryFn: async () => {
+      if (!supplier?.name) return [];
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, name, cost, price, imei, condition, stock_quantity")
+        .eq("supplier_name", supplier.name)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!supplier?.name,
   });
 
   const { data: supplierPayments } = useQuery({
