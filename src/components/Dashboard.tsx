@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMemo, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,6 +14,24 @@ interface DashboardProps {
 
 export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardProps = {}) {
   const { settings, logoSrc } = useShopSettings();
+  const queryClient = useQueryClient();
+
+  // Realtime: auto-refresh when supplier_payments or payments change
+  useEffect(() => {
+    const channel = supabase
+      .channel('dashboard-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'supplier_payments' }, () => {
+        queryClient.invalidateQueries({ queryKey: ["supplier-payments-all"] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => {
+        queryClient.invalidateQueries({ queryKey: ["sales"] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales' }, () => {
+        queryClient.invalidateQueries({ queryKey: ["sales"] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient]);
 
   const { data: products, isLoading: productsLoading } = useQuery({
     queryKey: ["products"],
@@ -202,6 +220,27 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
     ].filter(d => d.value > 0);
   }, [sales, purchases, supplierPayments]);
 
+
+  // Top 5 customer dues
+  const top5CustomerDues = useMemo(() => {
+    if (!sales || !customers) return [];
+    const customerDueMap: Record<string, { name: string; phone: string | null; totalSales: number; totalPaid: number; due: number; orderCount: number }> = {};
+    sales.forEach(sale => {
+      const cid = sale.customer_id;
+      if (!cid) return;
+      const customer = customers.find(c => c.id === cid);
+      if (!customer) return;
+      if (!customerDueMap[cid]) customerDueMap[cid] = { name: customer.name, phone: customer.phone, totalSales: 0, totalPaid: 0, due: 0, orderCount: 0 };
+      customerDueMap[cid].totalSales += Number(sale.total_amount);
+      customerDueMap[cid].totalPaid += Number(sale.paid_amount);
+      customerDueMap[cid].due += Number(sale.due_amount);
+      customerDueMap[cid].orderCount++;
+    });
+    return Object.values(customerDueMap)
+      .filter(c => c.due > 0)
+      .sort((a, b) => b.due - a.due)
+      .slice(0, 5);
+  }, [sales, customers]);
 
   const topProducts = useMemo(() => {
     if (!sales) return [];
@@ -488,31 +527,58 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
         )}
 
 
-        {/* Top 5 Supplier Dues Widget */}
-        {top5SupplierDues.length > 0 && (
-          <Card className="p-5">
-            <h2 className="text-lg font-semibold mb-4 text-foreground">🏪 টপ ৫ বাকিদার সাপ্লায়ার</h2>
-            <div className="space-y-3">
-              {top5SupplierDues.map((supplier, index) => (
-                <div key={supplier.id} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">
-                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-destructive/10 text-destructive font-bold text-sm">
-                    {index + 1}
+        {/* Top 5 Dues - Supplier & Customer side by side */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {top5SupplierDues.length > 0 && (
+            <Card className="p-5">
+              <h2 className="text-lg font-semibold mb-4 text-foreground">🏪 টপ ৫ বাকিদার সাপ্লায়ার</h2>
+              <div className="space-y-3">
+                {top5SupplierDues.map((supplier, index) => (
+                  <div key={supplier.id} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-destructive/10 text-destructive font-bold text-sm">
+                      {index + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-foreground text-sm truncate">{supplier.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {supplier.productCount}টি প্রোডাক্ট • পরিশোধিত ৳{supplier.paid.toLocaleString('bn-BD')}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-destructive">৳{supplier.due.toLocaleString('bn-BD')}</p>
+                      <p className="text-xs text-muted-foreground">বাকি</p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-foreground text-sm truncate">{supplier.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {supplier.productCount}টি প্রোডাক্ট • মোট ৳{supplier.totalCost.toLocaleString('bn-BD')} • পরিশোধিত ৳{supplier.paid.toLocaleString('bn-BD')}
-                    </p>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {top5CustomerDues.length > 0 && (
+            <Card className="p-5">
+              <h2 className="text-lg font-semibold mb-4 text-foreground">👤 টপ ৫ বাকিদার কাস্টমার</h2>
+              <div className="space-y-3">
+                {top5CustomerDues.map((customer, index) => (
+                  <div key={index} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 font-bold text-sm">
+                      {index + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-foreground text-sm truncate">{customer.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {customer.orderCount}টি অর্ডার • {customer.phone || 'ফোন নেই'}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-orange-600">৳{customer.due.toLocaleString('bn-BD')}</p>
+                      <p className="text-xs text-muted-foreground">বাকি</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-destructive">৳{supplier.due.toLocaleString('bn-BD')}</p>
-                    <p className="text-xs text-muted-foreground">বাকি</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
+                ))}
+              </div>
+            </Card>
+          )}
+        </div>
 
         <Card className="p-5">
           <h2 className="text-lg font-semibold mb-4 text-foreground">💰 বিনিয়োগ বিশ্লেষণ</h2>
