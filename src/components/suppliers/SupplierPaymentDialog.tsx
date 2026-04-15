@@ -230,6 +230,83 @@ export function SupplierPaymentDialog({ open, onOpenChange, supplier }: Supplier
           )}
         </div>
 
+        {/* Products from this supplier */}
+        <div>
+          <h3 className="font-semibold mb-2">📦 সাপ্লায়ারের প্রোডাক্টসমূহ</h3>
+          {(() => {
+            // Combine products from purchase_items and direct supplier_name link
+            const productMap = new Map<string, any>();
+            
+            // From purchase orders
+            supplierPurchases?.forEach((p: any) => {
+              (p.purchase_items as any[])?.forEach((item: any) => {
+                const prod = item.products;
+                if (prod && !productMap.has(prod.name)) {
+                  productMap.set(prod.name, {
+                    name: prod.name,
+                    cost: item.unit_cost || prod.cost,
+                    price: prod.price,
+                    imei: prod.imei,
+                    condition: prod.condition,
+                    stock: prod.stock_quantity,
+                    qty: item.quantity,
+                  });
+                }
+              });
+            });
+
+            // From products table directly
+            supplierProducts?.forEach((prod: any) => {
+              if (!productMap.has(prod.name)) {
+                productMap.set(prod.name, {
+                  name: prod.name,
+                  cost: prod.cost,
+                  price: prod.price,
+                  imei: prod.imei,
+                  condition: prod.condition,
+                  stock: prod.stock_quantity,
+                  qty: 1,
+                });
+              }
+            });
+
+            const allProducts = Array.from(productMap.values());
+
+            if (allProducts.length === 0) {
+              return <p className="text-sm text-muted-foreground text-center py-4">কোনো প্রোডাক্ট নেই</p>;
+            }
+
+            const totalCost = allProducts.reduce((sum, p) => sum + Number(p.cost) * p.qty, 0);
+
+            return (
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs text-muted-foreground px-1">
+                  <span>মোট {allProducts.length}টি প্রোডাক্ট</span>
+                  <span>মোট ক্রয়মূল্য: ৳{totalCost.toLocaleString('bn-BD')}</span>
+                </div>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {allProducts.map((prod, idx) => (
+                    <div key={idx} className="flex justify-between items-center p-2 bg-muted rounded text-sm">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{prod.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {prod.imei && `IMEI: ${prod.imei} • `}
+                          {prod.condition && `${prod.condition === 'new' ? 'নতুন' : prod.condition === 'used' ? 'সেকেন্ড হ্যান্ড' : prod.condition} • `}
+                          স্টক: {prod.stock}
+                        </p>
+                      </div>
+                      <div className="text-right ml-2">
+                        <p className="font-medium text-primary">৳{Number(prod.cost).toLocaleString('bn-BD')}</p>
+                        <p className="text-xs text-muted-foreground">ক্রয়মূল্য</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+
         {/* Purchase History */}
         <div>
           <h3 className="font-semibold mb-2">ক্রয় ইতিহাস</h3>
