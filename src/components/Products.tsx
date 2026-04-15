@@ -25,6 +25,7 @@ export function Products() {
   const [filterCondition, setFilterCondition] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [showScanner, setShowScanner] = useState(false);
+  const [showImeiScanner, setShowImeiScanner] = useState(false);
   const [showOutOfStock, setShowOutOfStock] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -281,15 +282,17 @@ export function Products() {
   }, [products, searchTerm, filterCondition, filterCategory, showOutOfStock]);
 
   const handleBarcodeScanned = (barcode: string) => {
-    // Search for product by barcode or IMEI
     const product = products?.find(p => 
       p.barcode === barcode || p.imei === barcode
     );
 
     if (product) {
       setDetailProduct(product);
+      toast.success(`"${product.name}" পাওয়া গেছে`);
     } else {
-      toast.error("Product not found with this barcode");
+      // Set search term so user can see no results
+      setSearchTerm(barcode);
+      toast.error("এই বারকোড/IMEI দিয়ে প্রোডাক্ট পাওয়া যায়নি");
     }
   };
 
@@ -559,19 +562,31 @@ export function Products() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">IMEI * (15 digits)</label>
-                  <Input
-                    value={formData.imei}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, '').slice(0, 15);
-                      setFormData({ ...formData, imei: value });
-                    }}
-                    placeholder="Enter 15-digit IMEI"
-                    required
-                    pattern="[0-9]{15}"
-                    minLength={15}
-                    maxLength={15}
-                    title="IMEI must be exactly 15 digits"
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      value={formData.imei}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, '').slice(0, 15);
+                        setFormData({ ...formData, imei: value });
+                      }}
+                      placeholder="Enter 15-digit IMEI"
+                      required
+                      pattern="[0-9]{15}"
+                      minLength={15}
+                      maxLength={15}
+                      title="IMEI must be exactly 15 digits"
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowImeiScanner(true)}
+                      className="shrink-0"
+                      title="IMEI বারকোড স্ক্যান করুন"
+                    >
+                      <ScanBarcode className="w-4 h-4" />
+                    </Button>
+                  </div>
                   {formData.imei && formData.imei.length !== 15 && (
                     <p className="text-xs text-red-500 mt-1">IMEI must be exactly 15 digits</p>
                   )}
@@ -989,6 +1004,20 @@ export function Products() {
         isOpen={showScanner}
         onClose={() => setShowScanner(false)}
         onScan={handleBarcodeScanned}
+        title="প্রোডাক্ট খুঁজুন (বারকোড/IMEI স্ক্যান)"
+      />
+
+      <BarcodeScanner
+        isOpen={showImeiScanner}
+        onClose={() => setShowImeiScanner(false)}
+        onScan={(scannedCode) => {
+          // Extract only digits for IMEI, take last 15 digits
+          const digits = scannedCode.replace(/\D/g, '');
+          const imei = digits.length >= 15 ? digits.slice(-15) : digits;
+          setFormData(prev => ({ ...prev, imei }));
+          toast.success(`IMEI স্ক্যান হয়েছে: ${imei}`);
+        }}
+        title="IMEI বারকোড স্ক্যান করুন"
       />
 
       <ProductQuickView
