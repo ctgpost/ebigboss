@@ -32,11 +32,30 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
   });
 
   const totalProducts = products?.length || 0;
+  const inStockProducts = products?.filter(p => p.stock_quantity > 0).length || 0;
   const outOfStockProducts = products?.filter(p => p.stock_quantity <= 0).length || 0;
+  const lowStockProducts = products?.filter(p => p.stock_quantity > 0 && p.stock_quantity <= p.low_stock_threshold) || [];
   const totalSales = sales?.reduce((sum, sale) => sum + Number(sale.total_amount), 0) || 0;
-  const todaySales = sales?.filter(s => 
-    new Date(s.created_at).toDateString() === new Date().toDateString()
-  ).length || 0;
+  
+  const today = new Date().toDateString();
+  const todaySalesList = sales?.filter(s => new Date(s.created_at).toDateString() === today) || [];
+  const todaySalesCount = todaySalesList.length;
+  const todaySalesRevenue = todaySalesList.reduce((sum, s) => sum + Number(s.total_amount), 0);
+  const todayPaidAmount = todaySalesList.reduce((sum, s) => sum + Number(s.paid_amount), 0);
+  const todayDueAmount = todaySalesList.reduce((sum, s) => sum + Number(s.due_amount), 0);
+  
+  // Today's profit calculation
+  let todayProfit = 0;
+  todaySalesList.forEach(sale => {
+    sale.sale_items?.forEach((item: any) => {
+      const cost = Number(item.products?.cost || 0);
+      const revenue = Number(item.unit_price);
+      todayProfit += (revenue - cost) * item.quantity;
+    });
+  });
+
+  // Total due across all sales
+  const totalDue = sales?.reduce((sum, s) => sum + Number(s.due_amount), 0) || 0;
 
   const newProducts = products?.filter(p => p.condition === 'new').length || 0;
   const usedProducts = products?.filter(p => p.condition === 'used').length || 0;
@@ -67,9 +86,9 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
 
   const stats = [
     { label: "মোট প্রোডাক্ট", value: totalProducts, icon: "📦", color: "from-teal-500 to-teal-600" },
-    { label: "আউট অফ স্টক", value: outOfStockProducts, icon: "🚫", color: "from-red-500 to-red-600" },
+    { label: "স্টকে আছে", value: inStockProducts, icon: "✅", color: "from-emerald-500 to-emerald-600" },
     { label: "মোট বিক্রয়", value: `৳${totalSales.toLocaleString('bn-BD')}`, icon: "💰", color: "from-green-500 to-green-600" },
-    { label: "আজকের বিক্রয়", value: todaySales, icon: "📈", color: "from-blue-500 to-blue-600" },
+    { label: "মোট বাকি", value: `৳${totalDue.toLocaleString('bn-BD')}`, icon: "⏳", color: "from-orange-500 to-orange-600" },
   ];
 
   const isLoading = productsLoading || salesLoading;
