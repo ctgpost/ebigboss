@@ -16,6 +16,8 @@ import { Eye, ScanBarcode, Download, FileSpreadsheet, FileText } from "lucide-re
 import { ActivityLogger } from "@/hooks/useActivityLog";
 import * as XLSX from "xlsx";
 export function Products() {
+  const [supplierMode, setSupplierMode] = useState<"existing" | "custom">("existing");
+  const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [historyProduct, setHistoryProduct] = useState<{ imei: string; name: string } | null>(null);
@@ -67,6 +69,15 @@ export function Products() {
     queryKey: ["categories"],
     queryFn: async () => {
       const { data, error } = await supabase.from("categories").select("*").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: suppliers } = useQuery({
+    queryKey: ["suppliers"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("suppliers").select("*").order("name");
       if (error) throw error;
       return data;
     },
@@ -125,6 +136,8 @@ export function Products() {
   });
 
   const resetForm = () => {
+    setSupplierMode("existing");
+    setSelectedSupplierId("");
     setFormData({
       name: "",
       category_id: "",
@@ -233,6 +246,18 @@ export function Products() {
 
   const startEdit = (product: any) => {
     setEditingProduct(product);
+    // Check if supplier_name matches an existing supplier
+    const matchedSupplier = suppliers?.find(s => s.name === product.supplier_name);
+    if (matchedSupplier) {
+      setSupplierMode("existing");
+      setSelectedSupplierId(matchedSupplier.id);
+    } else if (product.supplier_name) {
+      setSupplierMode("custom");
+      setSelectedSupplierId("");
+    } else {
+      setSupplierMode("existing");
+      setSelectedSupplierId("");
+    }
     setFormData({
       name: product.name || "",
       category_id: product.category_id || "",
@@ -680,32 +705,80 @@ export function Products() {
               {/* Supplier Information (Optional) */}
               <div className="pt-4 border-t border-border">
                 <h3 className="text-sm font-semibold mb-3 text-foreground">Supplier Information (Optional)</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Supplier Name</label>
-                    <Input
-                      value={formData.supplier_name}
-                      onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
-                      placeholder="Enter supplier name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Supplier Mobile</label>
-                    <Input
-                      value={formData.supplier_mobile}
-                      onChange={(e) => setFormData({ ...formData, supplier_mobile: e.target.value })}
-                      placeholder="Enter mobile number"
-                    />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium mb-2">Supplier NID</label>
-                    <Input
-                      value={formData.supplier_nid}
-                      onChange={(e) => setFormData({ ...formData, supplier_nid: e.target.value })}
-                      placeholder="Enter NID number"
-                    />
-                  </div>
+                <div className="flex gap-2 mb-3">
+                  <Button type="button" size="sm" variant={supplierMode === "existing" ? "default" : "outline"} onClick={() => setSupplierMode("existing")}>
+                    📋 তালিকা থেকে
+                  </Button>
+                  <Button type="button" size="sm" variant={supplierMode === "custom" ? "default" : "outline"} onClick={() => { setSupplierMode("custom"); setSelectedSupplierId(""); }}>
+                    ✏️ কাস্টম/লোকাল
+                  </Button>
                 </div>
+
+                {supplierMode === "existing" ? (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">সাপ্লায়ার নির্বাচন করুন</label>
+                    <Select value={selectedSupplierId} onValueChange={(value) => {
+                      setSelectedSupplierId(value);
+                      const supplier = suppliers?.find(s => s.id === value);
+                      if (supplier) {
+                        setFormData({ ...formData, supplier_name: supplier.name, supplier_mobile: supplier.phone || "", supplier_nid: "" });
+                      }
+                    }}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="সাপ্লায়ার বাছাই করুন..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {suppliers?.map(s => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name} {s.phone ? `(${s.phone})` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedSupplierId && (
+                      <div className="mt-2 p-2 bg-muted rounded text-xs space-y-1">
+                        {(() => {
+                          const s = suppliers?.find(sup => sup.id === selectedSupplierId);
+                          return s ? (
+                            <>
+                              <p>📦 {s.name}</p>
+                              {s.phone && <p>📞 {s.phone}</p>}
+                              {s.email && <p>📧 {s.email}</p>}
+                              {s.address && <p>📍 {s.address}</p>}
+                            </>
+                          ) : null;
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">সাপ্লায়ার নাম</label>
+                      <Input
+                        value={formData.supplier_name}
+                        onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
+                        placeholder="সাপ্লায়ার নাম লিখুন"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">সাপ্লায়ার মোবাইল</label>
+                      <Input
+                        value={formData.supplier_mobile}
+                        onChange={(e) => setFormData({ ...formData, supplier_mobile: e.target.value })}
+                        placeholder="মোবাইল নম্বর"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-sm font-medium mb-2">সাপ্লায়ার NID</label>
+                      <Input
+                        value={formData.supplier_nid}
+                        onChange={(e) => setFormData({ ...formData, supplier_nid: e.target.value })}
+                        placeholder="NID নম্বর"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Warranty Information (Optional) */}
