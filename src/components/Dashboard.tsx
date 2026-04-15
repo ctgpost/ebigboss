@@ -137,7 +137,30 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
     return months;
   }, [sales]);
 
-  // Top sold products
+  // Monthly income vs expense pie chart data
+  const monthlyPieData = useMemo(() => {
+    if (!sales && !purchases) return [];
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    const monthIncome = sales?.filter(s => {
+      const sd = new Date(s.created_at);
+      return sd.getMonth() === currentMonth && sd.getFullYear() === currentYear;
+    }).reduce((sum, s) => sum + Number(s.paid_amount), 0) || 0;
+
+    const monthExpense = supplierPayments?.filter((p: any) => {
+      const pd = new Date(p.created_at);
+      return pd.getMonth() === currentMonth && pd.getFullYear() === currentYear;
+    }).reduce((sum, p: any) => sum + Number(p.amount), 0) || 0;
+
+    return [
+      { name: "আয় (গ্রাহক থেকে)", value: monthIncome, color: "#10b981" },
+      { name: "ব্যয় (সাপ্লায়ার)", value: monthExpense, color: "#ef4444" },
+    ].filter(d => d.value > 0);
+  }, [sales, purchases, supplierPayments]);
+
+
   const topProducts = useMemo(() => {
     if (!sales) return [];
     const productMap: Record<string, { name: string; count: number; revenue: number }> = {};
