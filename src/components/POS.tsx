@@ -303,6 +303,8 @@ export function POS() {
                 onInstantCustomerNameChange={setInstantCustomerName}
                 instantCustomerPhone={instantCustomerPhone}
                 onInstantCustomerPhoneChange={setInstantCustomerPhone}
+                paidAmount={paidAmount}
+                onPaidAmountChange={setPaidAmount}
               />
             </div>
           </div>
