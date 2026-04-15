@@ -170,6 +170,38 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
         ))}
         </div>
 
+      {/* আজকের বিক্রয় সামারি */}
+      <Card className="p-6 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-blue-200">
+        <h2 className="text-xl font-semibold mb-4 text-foreground flex items-center">
+          <span className="text-2xl mr-2">📊</span>
+          আজকের বিক্রয় সামারি
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card className="p-4 bg-white/80 dark:bg-gray-800/80 border-blue-100">
+            <p className="text-xs text-muted-foreground">বিক্রয় সংখ্যা</p>
+            <p className="text-2xl font-bold text-blue-600">{todaySalesCount.toLocaleString('bn-BD')}</p>
+          </Card>
+          <Card className="p-4 bg-white/80 dark:bg-gray-800/80 border-green-100">
+            <p className="text-xs text-muted-foreground">মোট আয়</p>
+            <p className="text-2xl font-bold text-green-600">৳{todaySalesRevenue.toLocaleString('bn-BD')}</p>
+          </Card>
+          <Card className="p-4 bg-white/80 dark:bg-gray-800/80 border-emerald-100">
+            <p className="text-xs text-muted-foreground">আজকের লাভ</p>
+            <p className={`text-2xl font-bold ${todayProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              ৳{todayProfit.toLocaleString('bn-BD')}
+            </p>
+          </Card>
+          <Card className="p-4 bg-white/80 dark:bg-gray-800/80 border-orange-100">
+            <p className="text-xs text-muted-foreground">আজকের বাকি</p>
+            <p className="text-2xl font-bold text-orange-600">৳{todayDueAmount.toLocaleString('bn-BD')}</p>
+          </Card>
+        </div>
+        {todaySalesCount === 0 && (
+          <p className="text-center text-muted-foreground mt-4 text-sm">আজ এখনো কোনো বিক্রয় হয়নি।</p>
+        )}
+      </Card>
+
+      {/* স্টক অ্যালার্ট */}
       {outOfStockProducts > 0 && (
         <Card className="p-6 border-red-200 bg-red-50 dark:bg-red-950/20">
           <div className="flex items-center space-x-3">
@@ -180,6 +212,30 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
                 {outOfStockProducts}টি প্রোডাক্ট আউট অফ স্টক (বিক্রয় হয়েছে বা অনুপলব্ধ)।
               </p>
             </div>
+          </div>
+        </Card>
+      )}
+
+      {lowStockProducts.length > 0 && (
+        <Card className="p-6 border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+          <div className="flex items-center space-x-3 mb-4">
+            <span className="text-2xl">⚠️</span>
+            <div>
+              <h3 className="font-semibold text-amber-900 dark:text-amber-100">লো স্টক সতর্কতা</h3>
+              <p className="text-sm text-amber-700 dark:text-amber-300">
+                {lowStockProducts.length}টি প্রোডাক্টের স্টক কমে যাচ্ছে।
+              </p>
+            </div>
+          </div>
+          <div className="space-y-2 max-h-40 overflow-y-auto">
+            {lowStockProducts.slice(0, 10).map((p) => (
+              <div key={p.id} className="flex items-center justify-between text-sm bg-white/60 dark:bg-gray-800/60 rounded px-3 py-2">
+                <span className="font-medium text-foreground">{p.name}</span>
+                <span className="text-amber-700 dark:text-amber-300 font-semibold">
+                  স্টক: {p.stock_quantity}
+                </span>
+              </div>
+            ))}
           </div>
         </Card>
       )}
