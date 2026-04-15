@@ -44,7 +44,7 @@ export function Products() {
     supplier_name: "",
     supplier_mobile: "",
     supplier_nid: "",
-    warranty_expiry_date: "",
+    product_entry_date: new Date().toISOString().split('T')[0],
     warranty_status: "no_warranty",
   });
 
@@ -142,7 +142,7 @@ export function Products() {
       supplier_name: "",
       supplier_mobile: "",
       supplier_nid: "",
-      warranty_expiry_date: "",
+      product_entry_date: new Date().toISOString().split('T')[0],
       warranty_status: "no_warranty",
     });
   };
@@ -250,7 +250,7 @@ export function Products() {
       supplier_name: product.supplier_name || "",
       supplier_mobile: product.supplier_mobile || "",
       supplier_nid: product.supplier_nid || "",
-      warranty_expiry_date: product.warranty_expiry_date || "",
+      product_entry_date: product.product_entry_date || new Date().toISOString().split('T')[0],
       warranty_status: product.warranty_status || "no_warranty",
     });
   };
@@ -320,7 +320,7 @@ export function Products() {
       'সাপ্লায়ার মোবাইল': product.supplier_mobile || '',
       'সাপ্লায়ার NID': product.supplier_nid || '',
       'ওয়ারেন্টি স্ট্যাটাস': product.warranty_status === 'active' ? 'সক্রিয়' : product.warranty_status === 'expired' ? 'মেয়াদোত্তীর্ণ' : 'নেই',
-      'ওয়ারেন্টি মেয়াদ': product.warranty_expiry_date || '',
+      'প্রোডাক্ট এন্ট্রি তারিখ': product.product_entry_date || '',
       'যুক্ত হয়েছে': new Date(product.created_at).toLocaleDateString('bn-BD'),
     }));
 
@@ -712,11 +712,11 @@ export function Products() {
                     </Select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Warranty Expiry Date</label>
+                    <label className="block text-sm font-medium mb-2">Product Entry Date</label>
                     <Input
                       type="date"
-                      value={formData.warranty_expiry_date}
-                      onChange={(e) => setFormData({ ...formData, warranty_expiry_date: e.target.value })}
+                      value={formData.product_entry_date}
+                      onChange={(e) => setFormData({ ...formData, product_entry_date: e.target.value })}
                     />
                   </div>
                 </div>
