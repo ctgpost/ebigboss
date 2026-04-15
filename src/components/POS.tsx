@@ -28,6 +28,7 @@ export function POS() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [instantCustomerName, setInstantCustomerName] = useState("");
   const [instantCustomerPhone, setInstantCustomerPhone] = useState("");
+  const [paidAmount, setPaidAmount] = useState<number>(0);
 
   const queryClient = useQueryClient();
 
