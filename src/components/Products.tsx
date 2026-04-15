@@ -1002,6 +1002,20 @@ export function Products() {
         isOpen={showScanner}
         onClose={() => setShowScanner(false)}
         onScan={handleBarcodeScanned}
+        title="প্রোডাক্ট খুঁজুন (বারকোড/IMEI স্ক্যান)"
+      />
+
+      <BarcodeScanner
+        isOpen={showImeiScanner}
+        onClose={() => setShowImeiScanner(false)}
+        onScan={(scannedCode) => {
+          // Extract only digits for IMEI, take last 15 digits
+          const digits = scannedCode.replace(/\D/g, '');
+          const imei = digits.length >= 15 ? digits.slice(-15) : digits;
+          setFormData(prev => ({ ...prev, imei }));
+          toast.success(`IMEI স্ক্যান হয়েছে: ${imei}`);
+        }}
+        title="IMEI বারকোড স্ক্যান করুন"
       />
 
       <ProductQuickView
