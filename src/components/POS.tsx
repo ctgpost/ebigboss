@@ -325,6 +325,7 @@ export function POS() {
         onOpenChange={setShowConfirmDialog}
         cart={cart}
         total={total}
+        paidAmount={paidAmount}
         onConfirm={confirmSale}
       />
 
