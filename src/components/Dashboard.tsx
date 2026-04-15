@@ -101,6 +101,39 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
   const usedProductsInvestment = products?.filter(p => p.condition === 'used').reduce((sum, p) => sum + (Number(p.cost) * p.stock_quantity), 0) || 0;
   const totalInvestment = newProductsInvestment + usedProductsInvestment;
 
+  // Top 5 supplier dues - calculated from products' cost linked to each supplier
+  const top5SupplierDues = useMemo(() => {
+    if (!suppliers || !products || !supplierPayments) return [];
+    
+    return suppliers.map(supplier => {
+      // Sum cost of all products from this supplier (by name match)
+      const supplierProducts = products.filter(p => 
+        p.supplier_name && p.supplier_name.toLowerCase().trim() === supplier.name.toLowerCase().trim()
+      );
+      const totalProductCost = supplierProducts.reduce((sum, p) => sum + Number(p.cost), 0);
+      
+      // Sum payments made to this supplier
+      const paidAmount = supplierPayments
+        .filter(sp => sp.supplier_id === supplier.id)
+        .reduce((sum, sp) => sum + Number(sp.amount), 0);
+      
+      const dueAmount = totalProductCost - paidAmount;
+      
+      return {
+        id: supplier.id,
+        name: supplier.name,
+        phone: supplier.phone,
+        totalCost: totalProductCost,
+        paid: paidAmount,
+        due: dueAmount,
+        productCount: supplierProducts.length,
+      };
+    })
+    .filter(s => s.due > 0)
+    .sort((a, b) => b.due - a.due)
+    .slice(0, 5);
+  }, [suppliers, products, supplierPayments]);
+
   // Weekly sales chart data
   const weeklySalesData = useMemo(() => {
     if (!sales) return [];
