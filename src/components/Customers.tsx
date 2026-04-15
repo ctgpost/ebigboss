@@ -9,8 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { generateCustomerReport } from "@/utils/customerPdfReport";
+import { useShopSettings } from "@/hooks/useShopSettings";
 
 export function Customers() {
+  const { settings } = useShopSettings();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<any>(null);
   const [selectedCustomerDue, setSelectedCustomerDue] = useState<any>(null);
@@ -31,6 +34,20 @@ export function Customers() {
     queryKey: ["customers"],
     queryFn: async () => {
       const { data, error } = await supabase.from("customers").select("*").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch ALL sales for customers (for PDF reports)
+  const { data: allCustomerSales } = useQuery({
+    queryKey: ["all-customer-sales"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sales")
+        .select("id, customer_id, total_amount, paid_amount, due_amount, created_at, instant_customer_name, instant_customer_phone, sale_items(quantity, unit_price, products(name))")
+        .not("customer_id", "is", null)
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -387,6 +404,30 @@ export function Customers() {
                       ✏️ সম্পাদনা
                     </Button>
                     <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const custSales = allCustomerSales?.filter(s => s.customer_id === customer.id) || [];
+                        const custPayments = payments?.filter(p => p.customer_id === customer.id) || [];
+                        const totalSales = custSales.reduce((sum, s) => sum + Number(s.total_amount), 0);
+                        const totalPaid = custPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+                        const totalDue = custSales.reduce((sum, s) => sum + Number(s.due_amount), 0);
+                        generateCustomerReport({
+                          customer,
+                          sales: custSales,
+                          payments: custPayments,
+                          totalSales,
+                          totalPaid,
+                          totalDue,
+                          shopName: settings.shop_name,
+                        });
+                        toast.success("PDF রিপোর্ট ডাউনলোড হচ্ছে!");
+                      }}
+                      className="flex-1"
+                    >
+                      📄 PDF
+                    </Button>
+                    <Button
                       variant="destructive"
                       size="sm"
                       onClick={() => {
@@ -394,9 +435,8 @@ export function Customers() {
                           deleteMutation.mutate(customer.id);
                         }
                       }}
-                      className="flex-1"
                     >
-                      🗑️ মুছুন
+                      🗑️
                     </Button>
                   </div>
                 </div>
