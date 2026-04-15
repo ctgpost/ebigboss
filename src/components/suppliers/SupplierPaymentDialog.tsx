@@ -72,8 +72,11 @@ export function SupplierPaymentDialog({ open, onOpenChange, supplier }: Supplier
   });
 
   const totalPurchaseAmount = supplierPurchases?.reduce((sum, p) => sum + Number(p.total_amount), 0) || 0;
+  // Also include product costs directly linked by supplier_name (not via purchase orders)
+  const directProductCost = supplierProducts?.reduce((sum, p) => sum + Number(p.cost), 0) || 0;
+  const totalOwed = Math.max(totalPurchaseAmount, directProductCost); // Use the higher value to avoid double-counting
   const totalPaid = supplierPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-  const totalDue = totalPurchaseAmount - totalPaid;
+  const totalDue = totalOwed - totalPaid;
   const purchasesWithDue = supplierPurchases?.filter(p => Number(p.due_amount) > 0) || [];
 
   // Monthly summary calculation
