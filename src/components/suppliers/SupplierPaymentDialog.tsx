@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
+import { generateSupplierReport } from "@/utils/supplierPdfReport";
+import { useShopSettings } from "@/hooks/useShopSettings";
 
 interface SupplierPaymentDialogProps {
   open: boolean;
