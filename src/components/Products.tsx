@@ -16,6 +16,8 @@ import { Eye, ScanBarcode, Download, FileSpreadsheet, FileText } from "lucide-re
 import { ActivityLogger } from "@/hooks/useActivityLog";
 import * as XLSX from "xlsx";
 export function Products() {
+  const [supplierMode, setSupplierMode] = useState<"existing" | "custom">("existing");
+  const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [historyProduct, setHistoryProduct] = useState<{ imei: string; name: string } | null>(null);
@@ -67,6 +69,15 @@ export function Products() {
     queryKey: ["categories"],
     queryFn: async () => {
       const { data, error } = await supabase.from("categories").select("*").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: suppliers } = useQuery({
+    queryKey: ["suppliers"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("suppliers").select("*").order("name");
       if (error) throw error;
       return data;
     },
