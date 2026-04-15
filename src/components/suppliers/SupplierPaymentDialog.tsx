@@ -107,7 +107,27 @@ export function SupplierPaymentDialog({ open, onOpenChange, supplier }: Supplier
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle>💰 {supplier.name} — হিসাব নিকাশ</DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle>💰 {supplier.name} — হিসাব নিকাশ</DialogTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                generateSupplierReport({
+                  supplier,
+                  purchases: supplierPurchases || [],
+                  payments: supplierPayments || [],
+                  totalPurchase: totalPurchaseAmount,
+                  totalPaid: totalPaid,
+                  totalDue,
+                  shopName: settings.shop_name,
+                });
+                toast.success("PDF রিপোর্ট ডাউনলোড হচ্ছে!");
+              }}
+            >
+              📄 PDF রিপোর্ট
+            </Button>
+          </div>
         </DialogHeader>
 
         {/* Summary */}
