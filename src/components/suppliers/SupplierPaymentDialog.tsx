@@ -19,6 +19,7 @@ interface SupplierPaymentDialogProps {
 
 export function SupplierPaymentDialog({ open, onOpenChange, supplier }: SupplierPaymentDialogProps) {
   const queryClient = useQueryClient();
+  const { settings } = useShopSettings();
   const [amount, setAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [notes, setNotes] = useState("");
