@@ -61,6 +61,8 @@ export function POS() {
           user_id: user.id,
           customer_id: saleData.customer_id,
           total_amount: saleData.total_amount,
+          paid_amount: saleData.paid_amount,
+          due_amount: saleData.due_amount,
           payment_method: saleData.payment_method,
           status: "completed",
           instant_customer_name: saleData.instant_customer_name,
@@ -132,6 +134,7 @@ export function POS() {
       setPaymentMethod("cash");
       setInstantCustomerName("");
       setInstantCustomerPhone("");
+      setPaidAmount(0);
     },
     onError: (error: any) => {
       toast.error(error.message || "বিক্রয় সম্পন্ন করতে ব্যর্থ");
@@ -204,9 +207,15 @@ export function POS() {
       return;
     }
 
+    const totalAmount = getTotal();
+    const currentPaidAmount = paidAmount > 0 ? Math.min(paidAmount, totalAmount) : totalAmount;
+    const currentDueAmount = Math.max(0, totalAmount - currentPaidAmount);
+
     const saleData = {
       customer_id: selectedCustomer || null,
-      total_amount: getTotal(),
+      total_amount: totalAmount,
+      paid_amount: currentPaidAmount,
+      due_amount: currentDueAmount,
       payment_method: paymentMethod,
       instant_customer_name: instantCustomerName || null,
       instant_customer_phone: instantCustomerPhone || null,
