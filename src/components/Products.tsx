@@ -560,19 +560,31 @@ export function Products() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">IMEI * (15 digits)</label>
-                  <Input
-                    value={formData.imei}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, '').slice(0, 15);
-                      setFormData({ ...formData, imei: value });
-                    }}
-                    placeholder="Enter 15-digit IMEI"
-                    required
-                    pattern="[0-9]{15}"
-                    minLength={15}
-                    maxLength={15}
-                    title="IMEI must be exactly 15 digits"
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      value={formData.imei}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, '').slice(0, 15);
+                        setFormData({ ...formData, imei: value });
+                      }}
+                      placeholder="Enter 15-digit IMEI"
+                      required
+                      pattern="[0-9]{15}"
+                      minLength={15}
+                      maxLength={15}
+                      title="IMEI must be exactly 15 digits"
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowImeiScanner(true)}
+                      className="shrink-0"
+                      title="IMEI বারকোড স্ক্যান করুন"
+                    >
+                      <ScanBarcode className="w-4 h-4" />
+                    </Button>
+                  </div>
                   {formData.imei && formData.imei.length !== 15 && (
                     <p className="text-xs text-red-500 mt-1">IMEI must be exactly 15 digits</p>
                   )}
