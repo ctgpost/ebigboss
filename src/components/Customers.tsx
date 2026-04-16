@@ -39,6 +39,7 @@ export function Customers() {
     phone: "",
     address: "",
     notes: "",
+    image_url: "",
   });
 
   const queryClient = useQueryClient();
@@ -225,7 +226,7 @@ export function Customers() {
   });
 
   const resetForm = () => {
-    setFormData({ name: "", email: "", phone: "", address: "", notes: "" });
+    setFormData({ name: "", email: "", phone: "", address: "", notes: "", image_url: "" });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -245,6 +246,7 @@ export function Customers() {
       phone: customer.phone || "",
       address: customer.address || "",
       notes: customer.notes || "",
+      image_url: customer.image_url || "",
     });
   };
 
