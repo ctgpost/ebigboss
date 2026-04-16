@@ -29,6 +29,10 @@ export function Products() {
   const [showScanner, setShowScanner] = useState(false);
   const [showImeiScanner, setShowImeiScanner] = useState(false);
   const [showOutOfStock, setShowOutOfStock] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [sortBy, setSortBy] = useState<string>("name-asc");
+  const [viewMode, setViewMode] = useState<"grid" | "compact">("grid");
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState({
     name: "",
     category_id: "",
