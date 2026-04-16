@@ -184,6 +184,44 @@ export function Customers() {
     },
   });
 
+  // Bulk payment mutation
+  const bulkCollectMutation = useMutation({
+    mutationFn: async ({ saleIds, method, notes }: { saleIds: string[], method: string, notes: string }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      for (const saleId of saleIds) {
+        const sale = salesWithDues?.find(s => s.id === saleId);
+        if (!sale) continue;
+        const amount = Number(sale.due_amount);
+
+        await supabase.from("payments").insert([{
+          sale_id: saleId,
+          customer_id: sale.customer_id,
+          amount,
+          payment_method: method,
+          notes,
+          collected_by: user?.id,
+        }]);
+
+        await supabase.from("sales").update({
+          paid_amount: Number(sale.total_amount),
+          due_amount: 0,
+        }).eq("id", saleId);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sales-with-dues"] });
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
+      toast.success(`${selectedDueSales.size}টি বিক্রয়ের বাকি সম্পূর্ণ আদায় হয়েছে!`);
+      setSelectedDueSales(new Set());
+      setShowBulkPayment(false);
+      setBulkPaymentNotes("");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "বাল্ক আদায় করতে ব্যর্থ");
+    },
+  });
+
   const resetForm = () => {
     setFormData({ name: "", email: "", phone: "", address: "", notes: "" });
   };
