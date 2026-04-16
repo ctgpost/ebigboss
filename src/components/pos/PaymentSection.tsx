@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Customer } from "./types";
+import { CloudinaryImageUpload } from "@/components/CloudinaryImageUpload";
 
 interface PaymentSectionProps {
   customers: Customer[] | undefined;
@@ -20,6 +21,8 @@ interface PaymentSectionProps {
   onInstantCustomerPhoneChange: (phone: string) => void;
   paidAmount: number;
   onPaidAmountChange: (amount: number) => void;
+  saleImageUrl: string;
+  onSaleImageUrlChange: (url: string) => void;
 }
 
 export function PaymentSection({
