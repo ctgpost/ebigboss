@@ -157,6 +157,16 @@ export function PaymentSection({
         )}
       </div>
 
+      {/* Optional Sale Image */}
+      <div className="pt-2 border-t border-border">
+        <CloudinaryImageUpload
+          currentImageUrl={saleImageUrl}
+          onUpload={onSaleImageUrlChange}
+          folder="sales"
+          label="📷 বিক্রয়ের ছবি (ঐচ্ছিক)"
+        />
+      </div>
+
       <Button
         className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 py-5 lg:py-6 text-base lg:text-lg font-semibold"
         onClick={onCompleteSale}
