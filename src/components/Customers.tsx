@@ -363,6 +363,14 @@ export function Customers() {
                   <label className="block text-sm font-medium mb-2">নোট</label>
                   <Input value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} />
                 </div>
+                <div>
+                  <CloudinaryImageUpload
+                    currentImageUrl={formData.image_url}
+                    onUpload={(url) => setFormData({ ...formData, image_url: url })}
+                    folder="customers"
+                    label="📷 কাস্টমারের ছবি"
+                  />
+                </div>
                 <div className="flex gap-2 justify-end">
                   <Button type="button" variant="outline" onClick={() => { setIsAddDialogOpen(false); setEditingCustomer(null); resetForm(); }}>
                     বাতিল
