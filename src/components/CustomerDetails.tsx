@@ -9,9 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { bn } from "date-fns/locale";
 import { generateCustomerReport } from "@/utils/customerPdfReport";
 import { useShopSettings } from "@/hooks/useShopSettings";
-import { ChevronDown, ChevronUp, FileText, Search, User, Wallet, CreditCard, ArrowDownLeft } from "lucide-react";
+import { ChevronDown, ChevronUp, FileText, User, Wallet, CreditCard, ArrowDownLeft, BarChart3 } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 
 export function CustomerDetails() {
   const { settings } = useShopSettings();
@@ -147,6 +149,25 @@ export function CustomerDetails() {
   const totalPaymentsCollected = useMemo(() => {
     return customerPayments?.reduce((s, p) => s + Number(p.amount), 0) || 0;
   }, [customerPayments]);
+
+  // Monthly chart data
+  const monthlyChartData = useMemo(() => {
+    if (!customerSales) return [];
+    const monthMap: Record<string, { month: string, sales: number, paid: number, due: number }> = {};
+    customerSales.forEach(sale => {
+      const monthKey = format(new Date(sale.created_at), "yyyy-MM");
+      const monthLabel = format(new Date(sale.created_at), "MMM yy", { locale: bn });
+      if (!monthMap[monthKey]) {
+        monthMap[monthKey] = { month: monthLabel, sales: 0, paid: 0, due: 0 };
+      }
+      monthMap[monthKey].sales += Number(sale.total_amount);
+      monthMap[monthKey].paid += Number(sale.paid_amount);
+      monthMap[monthKey].due += Number(sale.due_amount);
+    });
+    return Object.entries(monthMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, v]) => v);
+  }, [customerSales]);
 
   return (
     <div className="flex flex-col h-screen animate-fade-in">
