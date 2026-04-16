@@ -847,7 +847,17 @@ export function Products() {
                 </div>
               </div>
 
-              <div className="flex gap-2 justify-end pt-4">
+              {/* Product Image */}
+              <div className="pt-4 border-t border-border">
+                <CloudinaryImageUpload
+                  currentImageUrl={formData.image_url}
+                  onUpload={(url) => setFormData({ ...formData, image_url: url })}
+                  folder="products"
+                  label="📷 প্রোডাক্টের ছবি"
+                />
+              </div>
+
+
                 <Button
                   type="button"
                   variant="outline"
