@@ -225,8 +225,8 @@ export function Sales() {
       <div className="sticky top-0 z-10 bg-white dark:bg-gray-950 border-b border-border pb-4 space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Sales History</h1>
-            <p className="text-sm md:text-base text-muted-foreground mt-1">View and manage all sales transactions</p>
+           <h1 className="text-2xl md:text-3xl font-bold text-foreground">📋 বিক্রয় ইতিহাস</h1>
+            <p className="text-sm md:text-base text-muted-foreground mt-1">সকল বিক্রয় লেনদেন দেখুন ও পরিচালনা করুন</p>
           </div>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -253,23 +253,31 @@ export function Sales() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         <Card className="card-hover">
           <CardHeader className="pb-3 p-4 md:p-6">
-            <CardDescription className="text-xs md:text-sm">Total Sales</CardDescription>
+            <CardDescription className="text-xs md:text-sm">মোট বিক্রয়</CardDescription>
             <CardTitle className="text-2xl md:text-3xl text-primary">{totalSales}</CardTitle>
           </CardHeader>
         </Card>
-        <Card className="card-hover hidden lg:block">
+        <Card className="card-hover">
           <CardHeader className="pb-3 p-4 md:p-6">
-            <CardDescription className="text-xs md:text-sm">Total Revenue</CardDescription>
-            <CardTitle className="text-2xl md:text-3xl text-accent">৳{totalRevenue.toLocaleString()}</CardTitle>
+            <CardDescription className="text-xs md:text-sm">মোট আয়</CardDescription>
+            <CardTitle className="text-xl md:text-2xl text-accent">৳{totalRevenue.toLocaleString('bn-BD')}</CardTitle>
           </CardHeader>
         </Card>
         <Card className="card-hover hidden lg:block">
           <CardHeader className="pb-3 p-4 md:p-6">
-            <CardDescription className="text-xs md:text-sm">Average Sale</CardDescription>
-            <CardTitle className="text-2xl md:text-3xl text-secondary">৳{averageSale.toFixed(0)}</CardTitle>
+            <CardDescription className="text-xs md:text-sm">গড় বিক্রয়</CardDescription>
+            <CardTitle className="text-xl md:text-2xl text-secondary">৳{averageSale.toFixed(0)}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card className="card-hover hidden lg:block">
+          <CardHeader className="pb-3 p-4 md:p-6">
+            <CardDescription className="text-xs md:text-sm">মোট বাকি</CardDescription>
+            <CardTitle className="text-xl md:text-2xl text-destructive">
+              ৳{filteredSales.reduce((sum, s) => sum + Number(s.due_amount), 0).toLocaleString('bn-BD')}
+            </CardTitle>
           </CardHeader>
         </Card>
         </div>
@@ -283,7 +291,7 @@ export function Sales() {
               className="flex items-center gap-2 text-left"
             >
               <Filter className="h-4 w-4 md:h-5 md:w-5 text-primary" />
-              <CardTitle className="text-base md:text-lg">Filters & Search</CardTitle>
+              <CardTitle className="text-base md:text-lg">ফিল্টার ও সার্চ</CardTitle>
               <span className="text-sm text-muted-foreground ml-2">
                 {showFilters ? "▼" : "▶"}
               </span>
@@ -295,9 +303,9 @@ export function Sales() {
                 onClick={clearFilters}
                 className="text-destructive hover:text-destructive text-sm self-start sm:self-auto"
               >
-                <X className="h-4 w-4 mr-1" />
-                <span className="hidden sm:inline">Clear Filters</span>
-                <span className="sm:hidden">Clear</span>
+               <X className="h-4 w-4 mr-1" />
+                <span className="hidden sm:inline">ফিল্টার মুছুন</span>
+                <span className="sm:hidden">মুছুন</span>
               </Button>
             )}
           </div>
@@ -347,7 +355,7 @@ export function Sales() {
                   <SelectValue placeholder="All Customers" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Customers</SelectItem>
+                  <SelectItem value="all">সকল কাস্টমার</SelectItem>
                   {customers.map((customer) => (
                     <SelectItem key={customer.id} value={customer.id}>
                       {customer.name}
@@ -363,12 +371,12 @@ export function Sales() {
                 <SelectTrigger className="text-sm md:text-base">
                   <SelectValue placeholder="All Payment Methods" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Methods</SelectItem>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="card">Card</SelectItem>
-                  <SelectItem value="mobile">Mobile Banking</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                 <SelectContent>
+                  <SelectItem value="all">সকল পদ্ধতি</SelectItem>
+                  <SelectItem value="cash">💵 নগদ</SelectItem>
+                  <SelectItem value="card">💳 কার্ড</SelectItem>
+                  <SelectItem value="mobile">📱 মোবাইল</SelectItem>
+                  <SelectItem value="other">অন্যান্য</SelectItem>
                 </SelectContent>
               </Select>
             </div>
