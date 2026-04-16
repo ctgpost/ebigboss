@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { generateCustomerReport } from "@/utils/customerPdfReport";
 import { useShopSettings } from "@/hooks/useShopSettings";
+import { ChevronDown, ChevronUp, Filter, Search } from "lucide-react";
 
 export function Customers() {
   const { settings } = useShopSettings();
@@ -20,6 +21,10 @@ export function Customers() {
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentNotes, setPaymentNotes] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<string>("name-asc");
+  const [showDueSection, setShowDueSection] = useState(true);
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState({
     name: "",
     email: "",
