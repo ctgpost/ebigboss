@@ -358,7 +358,6 @@ export function Customers() {
             </button>
             {showDueSection && (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               <div className="text-center p-3 bg-background rounded-lg">
                 <p className="text-2xl font-bold text-destructive">
                   ৳{salesWithDues.reduce((sum, s) => sum + Number(s.due_amount), 0).toLocaleString('bn-BD')}
@@ -370,6 +369,7 @@ export function Customers() {
                 <p className="text-xs text-muted-foreground">বাকি বিক্রয়</p>
               </div>
             </div>
+            )}
           </Card>
         )}
 
