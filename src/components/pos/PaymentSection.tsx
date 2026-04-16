@@ -41,6 +41,8 @@ export function PaymentSection({
   onInstantCustomerPhoneChange,
   paidAmount,
   onPaidAmountChange,
+  saleImageUrl,
+  onSaleImageUrlChange,
 }: PaymentSectionProps) {
   const [useInstantCustomer, setUseInstantCustomer] = useState(false);
 

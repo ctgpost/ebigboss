@@ -29,6 +29,7 @@ export function POS() {
   const [instantCustomerName, setInstantCustomerName] = useState("");
   const [instantCustomerPhone, setInstantCustomerPhone] = useState("");
   const [paidAmount, setPaidAmount] = useState<number>(0);
+  const [saleImageUrl, setSaleImageUrl] = useState("");
 
   const queryClient = useQueryClient();
 
