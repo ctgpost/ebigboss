@@ -74,7 +74,7 @@ export function Sales() {
             unit_price,
             total_price,
             condition,
-            products (name, sku, imei, brand, model)
+            products (name, sku, imei, brand, model, image_url)
           )
         `)
         .order("created_at", { ascending: false });
