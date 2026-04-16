@@ -227,6 +227,34 @@ export function Customers() {
     return customerSales.reduce((sum, s) => sum + Number(s.due_amount), 0);
   };
 
+  const toggleCardExpand = (id: string) => {
+    setExpandedCards(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const filteredCustomers = useMemo(() => {
+    if (!customers) return [];
+    let filtered = customers.filter(c =>
+      !searchQuery ||
+      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.email?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    const [field, dir] = sortBy.split("-");
+    filtered.sort((a, b) => {
+      let cmp = 0;
+      if (field === "name") cmp = a.name.localeCompare(b.name);
+      else if (field === "due") cmp = getCustomerDues(a.id) - getCustomerDues(b.id);
+      else if (field === "purchases") cmp = Number(a.total_purchases || 0) - Number(b.total_purchases || 0);
+      return dir === "desc" ? -cmp : cmp;
+    });
+    return filtered;
+  }, [customers, searchQuery, sortBy, salesWithDues]);
+
   // Get total transactions for a customer
   const getCustomerTotalTransactions = (customerId: string) => {
     return Number(customers?.find(c => c.id === customerId)?.total_purchases || 0);
