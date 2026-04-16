@@ -285,10 +285,18 @@ export function Products() {
     });
   };
 
+  const toggleCardExpand = (id: string) => {
+    setExpandedCards(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
   const filteredProducts = useMemo(() => {
     if (!products) return [];
     
-    return products.filter((product) => {
+    let filtered = products.filter((product) => {
       const matchesSearch = 
         searchTerm === "" ||
         product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -308,7 +316,21 @@ export function Products() {
 
       return matchesSearch && matchesCondition && matchesCategory && hasStock;
     });
-  }, [products, searchTerm, filterCondition, filterCategory, showOutOfStock]);
+
+    // Sort
+    const [field, dir] = sortBy.split("-");
+    filtered.sort((a, b) => {
+      let cmp = 0;
+      if (field === "name") cmp = a.name.localeCompare(b.name);
+      else if (field === "price") cmp = (a.price || 0) - (b.price || 0);
+      else if (field === "cost") cmp = (a.cost || 0) - (b.cost || 0);
+      else if (field === "date") cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      else if (field === "stock") cmp = a.stock_quantity - b.stock_quantity;
+      return dir === "desc" ? -cmp : cmp;
+    });
+
+    return filtered;
+  }, [products, searchTerm, filterCondition, filterCategory, showOutOfStock, sortBy]);
 
   const handleBarcodeScanned = (barcode: string) => {
     const product = products?.find(p => 
