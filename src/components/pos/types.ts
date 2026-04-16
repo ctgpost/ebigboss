@@ -16,6 +16,7 @@ export interface Product {
   cost: number;
   stock_quantity: number;
   condition?: string;
+  image_url?: string;
 }
 
 export interface Customer {

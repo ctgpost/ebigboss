@@ -13,6 +13,8 @@ import { generateCustomerReport } from "@/utils/customerPdfReport";
 import { useShopSettings } from "@/hooks/useShopSettings";
 import { ChevronDown, ChevronUp, Filter, Search, CheckSquare } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CloudinaryImageUpload } from "./CloudinaryImageUpload";
+import { getCloudinaryThumbnail } from "@/utils/cloudinary";
 
 export function Customers() {
   const { settings } = useShopSettings();
@@ -37,6 +39,7 @@ export function Customers() {
     phone: "",
     address: "",
     notes: "",
+    image_url: "",
   });
 
   const queryClient = useQueryClient();
@@ -223,7 +226,7 @@ export function Customers() {
   });
 
   const resetForm = () => {
-    setFormData({ name: "", email: "", phone: "", address: "", notes: "" });
+    setFormData({ name: "", email: "", phone: "", address: "", notes: "", image_url: "" });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -243,6 +246,7 @@ export function Customers() {
       phone: customer.phone || "",
       address: customer.address || "",
       notes: customer.notes || "",
+      image_url: customer.image_url || "",
     });
   };
 
@@ -358,6 +362,14 @@ export function Customers() {
                 <div>
                   <label className="block text-sm font-medium mb-2">নোট</label>
                   <Input value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} />
+                </div>
+                <div>
+                  <CloudinaryImageUpload
+                    currentImageUrl={formData.image_url}
+                    onUpload={(url) => setFormData({ ...formData, image_url: url })}
+                    folder="customers"
+                    label="📷 কাস্টমারের ছবি"
+                  />
                 </div>
                 <div className="flex gap-2 justify-end">
                   <Button type="button" variant="outline" onClick={() => { setIsAddDialogOpen(false); setEditingCustomer(null); resetForm(); }}>

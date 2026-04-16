@@ -15,6 +15,8 @@ import { ProductQuickView } from "./ProductQuickView";
 import { Eye, ScanBarcode, Download, FileSpreadsheet, FileText, ChevronDown, ChevronUp, Filter, ArrowUpDown, LayoutGrid, List } from "lucide-react";
 import { ActivityLogger } from "@/hooks/useActivityLog";
 import * as XLSX from "xlsx";
+import { CloudinaryImageUpload } from "./CloudinaryImageUpload";
+import { getCloudinaryThumbnail } from "@/utils/cloudinary";
 export function Products() {
   const [supplierMode, setSupplierMode] = useState<"existing" | "custom">("existing");
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
@@ -54,6 +56,7 @@ export function Products() {
     supplier_nid: "",
     product_entry_date: new Date().toISOString().split('T')[0],
     warranty_status: "no_warranty",
+    image_url: "",
   });
 
   const queryClient = useQueryClient();
@@ -163,6 +166,7 @@ export function Products() {
       supplier_nid: "",
       product_entry_date: new Date().toISOString().split('T')[0],
       warranty_status: "no_warranty",
+      image_url: "",
     });
   };
 
@@ -240,6 +244,7 @@ export function Products() {
       stock_quantity: 1,
       low_stock_threshold: 0,
       category_id: formData.category_id || null,
+      image_url: formData.image_url || null,
     };
 
     if (editingProduct) {
@@ -283,6 +288,7 @@ export function Products() {
       supplier_nid: product.supplier_nid || "",
       product_entry_date: product.product_entry_date || new Date().toISOString().split('T')[0],
       warranty_status: product.warranty_status || "no_warranty",
+      image_url: product.image_url || "",
     });
   };
 
@@ -841,6 +847,17 @@ export function Products() {
                 </div>
               </div>
 
+              {/* Product Image */}
+              <div className="pt-4 border-t border-border">
+                <CloudinaryImageUpload
+                  currentImageUrl={formData.image_url}
+                  onUpload={(url) => setFormData({ ...formData, image_url: url })}
+                  folder="products"
+                  label="📷 প্রোডাক্টের ছবি"
+                />
+              </div>
+
+
               <div className="flex gap-2 justify-end pt-4">
                 <Button
                   type="button"
@@ -1010,8 +1027,16 @@ export function Products() {
           <Card key={product.id} className="p-4 md:p-6 card-hover">
             <div className="space-y-3">
               <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-base md:text-lg text-foreground">{product.name}</h3>
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  {product.image_url && (
+                    <img
+                      src={getCloudinaryThumbnail(product.image_url, 100, 100)}
+                      alt={product.name}
+                      className="w-14 h-14 rounded-lg object-cover border border-border shrink-0"
+                    />
+                  )}
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-base md:text-lg text-foreground">{product.name}</h3>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {product.brand && (
                       <span className="inline-block text-xs bg-accent/10 text-accent px-2 py-0.5 rounded-full">{product.brand}</span>
@@ -1024,6 +1049,7 @@ export function Products() {
                     {product.categories && (
                       <span className="inline-block text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{product.categories.name}</span>
                     )}
+                  </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-1">

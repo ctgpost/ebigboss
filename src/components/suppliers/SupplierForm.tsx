@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { CloudinaryImageUpload } from "../CloudinaryImageUpload";
 
 interface SupplierFormData {
   name: string;
@@ -8,6 +9,7 @@ interface SupplierFormData {
   phone: string;
   address: string;
   notes: string;
+  image_url: string;
 }
 
 interface SupplierFormProps {
@@ -40,6 +42,14 @@ export function SupplierForm({ formData, onChange, onSubmit, onCancel, isEditing
       <div>
         <label className="block text-sm font-medium mb-2">নোট</label>
         <Textarea value={formData.notes} onChange={(e) => onChange({ ...formData, notes: e.target.value })} />
+      </div>
+      <div>
+        <CloudinaryImageUpload
+          currentImageUrl={formData.image_url}
+          onUpload={(url) => onChange({ ...formData, image_url: url })}
+          folder="suppliers"
+          label="📷 সাপ্লায়ারের ছবি"
+        />
       </div>
       <div className="flex gap-2 justify-end">
         <Button type="button" variant="outline" onClick={onCancel}>বাতিল</Button>

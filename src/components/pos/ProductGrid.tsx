@@ -1,5 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Product } from "./types";
+import { getCloudinaryThumbnail } from "@/utils/cloudinary";
 
 interface ProductGridProps {
   products: Product[] | undefined;
@@ -15,7 +16,14 @@ export function ProductGrid({ products, onAddToCart }: ProductGridProps) {
           className="p-3 lg:p-4 cursor-pointer card-hover"
           onClick={() => onAddToCart(product)}
         >
-          <div className="flex lg:flex-col items-center lg:items-start gap-3 lg:gap-2">
+          <div className="flex items-center gap-3">
+            {product.image_url && (
+              <img
+                src={getCloudinaryThumbnail(product.image_url, 80, 80)}
+                alt={product.name}
+                className="w-12 h-12 rounded-lg object-cover border border-border shrink-0"
+              />
+            )}
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-sm lg:text-base text-foreground truncate">
                 {product.name}
