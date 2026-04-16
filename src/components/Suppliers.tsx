@@ -163,10 +163,30 @@ export function Suppliers() {
     return supplierPurchaseTotal - supplierPaid;
   };
 
-  const filteredSuppliers = suppliers?.filter(s =>
-    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.phone?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const toggleCardExpand = (id: string) => {
+    setExpandedCards(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const filteredSuppliers = useMemo(() => {
+    if (!suppliers) return [];
+    let filtered = suppliers.filter(s =>
+      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.phone?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    const [field, dir] = sortBy.split("-");
+    filtered.sort((a, b) => {
+      let cmp = 0;
+      if (field === "name") cmp = a.name.localeCompare(b.name);
+      else if (field === "due") cmp = getSupplierDue(a.id) - getSupplierDue(b.id);
+      return dir === "desc" ? -cmp : cmp;
+    });
+    return filtered;
+  }, [suppliers, searchQuery, sortBy, purchases, allSupplierPayments]);
 
   const totalPurchaseAmount = purchases?.reduce((sum, p) => sum + Number(p.total_amount), 0) || 0;
   const totalPaid = allSupplierPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
