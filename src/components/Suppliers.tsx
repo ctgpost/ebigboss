@@ -24,7 +24,7 @@ export function Suppliers() {
   const [sortBy, setSortBy] = useState<string>("name-asc");
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [showSummary, setShowSummary] = useState(true);
-  const [formData, setFormData] = useState({ name: "", email: "", phone: "", address: "", notes: "" });
+  const [formData, setFormData] = useState({ name: "", email: "", phone: "", address: "", notes: "", image_url: "" });
 
   const queryClient = useQueryClient();
 
@@ -138,7 +138,7 @@ export function Suppliers() {
     },
   });
 
-  const resetForm = () => setFormData({ name: "", email: "", phone: "", address: "", notes: "" });
+  const resetForm = () => setFormData({ name: "", email: "", phone: "", address: "", notes: "", image_url: "" });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,7 +153,7 @@ export function Suppliers() {
     setEditingSupplier(supplier);
     setFormData({
       name: supplier.name || "", email: supplier.email || "", phone: supplier.phone || "",
-      address: supplier.address || "", notes: supplier.notes || "",
+      address: supplier.address || "", notes: supplier.notes || "", image_url: supplier.image_url || "",
     });
   };
 
