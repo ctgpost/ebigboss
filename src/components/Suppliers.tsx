@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -6,10 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { SupplierForm } from "./suppliers/SupplierForm";
 import { CreatePurchaseDialog } from "./suppliers/CreatePurchaseDialog";
 import { SupplierPaymentDialog } from "./suppliers/SupplierPaymentDialog";
+import { ChevronDown, ChevronUp, Search } from "lucide-react";
 
 export function Suppliers() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -17,6 +19,9 @@ export function Suppliers() {
   const [editingSupplier, setEditingSupplier] = useState<any>(null);
   const [paymentSupplier, setPaymentSupplier] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<string>("name-asc");
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [showSummary, setShowSummary] = useState(true);
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", address: "", notes: "" });
 
   const queryClient = useQueryClient();
@@ -158,10 +163,30 @@ export function Suppliers() {
     return supplierPurchaseTotal - supplierPaid;
   };
 
-  const filteredSuppliers = suppliers?.filter(s =>
-    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.phone?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const toggleCardExpand = (id: string) => {
+    setExpandedCards(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const filteredSuppliers = useMemo(() => {
+    if (!suppliers) return [];
+    let filtered = suppliers.filter(s =>
+      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.phone?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    const [field, dir] = sortBy.split("-");
+    filtered.sort((a, b) => {
+      let cmp = 0;
+      if (field === "name") cmp = a.name.localeCompare(b.name);
+      else if (field === "due") cmp = getSupplierDue(a.id) - getSupplierDue(b.id);
+      return dir === "desc" ? -cmp : cmp;
+    });
+    return filtered;
+  }, [suppliers, searchQuery, sortBy, purchases, allSupplierPayments]);
 
   const totalPurchaseAmount = purchases?.reduce((sum, p) => sum + Number(p.total_amount), 0) || 0;
   const totalPaid = allSupplierPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
@@ -201,25 +226,33 @@ export function Suppliers() {
       </div>
 
       <div className="flex-1 overflow-y-auto space-y-4 pb-6">
-        {/* Summary Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
-          <Card className="p-4 bg-blue-50 dark:bg-blue-950/20">
-            <p className="text-xs text-muted-foreground">মোট সাপ্লায়ার</p>
-            <p className="text-2xl font-bold text-blue-600">{suppliers?.length || 0}</p>
-          </Card>
-          <Card className="p-4 bg-purple-50 dark:bg-purple-950/20">
-            <p className="text-xs text-muted-foreground">মোট ক্রয়</p>
-            <p className="text-2xl font-bold text-purple-600">৳{totalPurchaseAmount.toLocaleString('bn-BD')}</p>
-          </Card>
-          <Card className="p-4 bg-green-50 dark:bg-green-950/20">
-            <p className="text-xs text-muted-foreground">পরিশোধিত</p>
-            <p className="text-2xl font-bold text-green-600">৳{totalPaid.toLocaleString('bn-BD')}</p>
-          </Card>
-          <Card className="p-4 bg-red-50 dark:bg-red-950/20">
-            <p className="text-xs text-muted-foreground">মোট বাকি</p>
-            <p className="text-2xl font-bold text-red-600">৳{totalDue.toLocaleString('bn-BD')}</p>
-          </Card>
-        </div>
+        {/* Collapsible Summary Cards */}
+        <Card className="p-4 mt-4">
+          <button onClick={() => setShowSummary(!showSummary)} className="flex items-center justify-between w-full">
+            <h3 className="text-sm font-semibold text-foreground">📊 সামারি</h3>
+            {showSummary ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+          {showSummary && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
+                <p className="text-xs text-muted-foreground">মোট সাপ্লায়ার</p>
+                <p className="text-xl font-bold text-blue-600">{suppliers?.length || 0}</p>
+              </div>
+              <div className="p-3 bg-purple-50 dark:bg-purple-950/20 rounded-lg">
+                <p className="text-xs text-muted-foreground">মোট ক্রয়</p>
+                <p className="text-xl font-bold text-purple-600">৳{totalPurchaseAmount.toLocaleString('bn-BD')}</p>
+              </div>
+              <div className="p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
+                <p className="text-xs text-muted-foreground">পরিশোধিত</p>
+                <p className="text-xl font-bold text-green-600">৳{totalPaid.toLocaleString('bn-BD')}</p>
+              </div>
+              <div className="p-3 bg-red-50 dark:bg-red-950/20 rounded-lg">
+                <p className="text-xs text-muted-foreground">মোট বাকি</p>
+                <p className="text-xl font-bold text-red-600">৳{totalDue.toLocaleString('bn-BD')}</p>
+              </div>
+            </div>
+          )}
+        </Card>
 
         <Tabs defaultValue="suppliers" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
@@ -228,30 +261,58 @@ export function Suppliers() {
           </TabsList>
 
           <TabsContent value="suppliers" className="space-y-4">
-            <Input
-              placeholder="🔍 সাপ্লায়ার খুঁজুন..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="max-w-sm"
-            />
+            {/* Search + Sort */}
+            <div className="flex gap-2">
+              <Input
+                placeholder="🔍 সাপ্লায়ার খুঁজুন..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="flex-1"
+              />
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-36 md:w-44 text-sm">
+                  <SelectValue placeholder="সর্ট" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name-asc">নাম (A-Z)</SelectItem>
+                  <SelectItem value="name-desc">নাম (Z-A)</SelectItem>
+                  <SelectItem value="due-desc">বাকি (বেশি→কম)</SelectItem>
+                  <SelectItem value="due-asc">বাকি (কম→বেশি)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {searchQuery && (
+              <p className="text-xs text-muted-foreground">{filteredSuppliers.length}টি সাপ্লায়ার পাওয়া গেছে</p>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredSuppliers?.map((supplier) => {
                 const due = getSupplierDue(supplier.id);
+                const isExpanded = expandedCards.has(supplier.id);
                 return (
-                  <Card key={supplier.id} className="p-5 card-hover">
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <h3 className="font-semibold text-lg text-foreground">{supplier.name}</h3>
+                  <Card key={supplier.id} className="p-4 card-hover">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-base text-foreground">{supplier.name}</h3>
                         {supplier.phone && <p className="text-sm text-muted-foreground">📞 {supplier.phone}</p>}
-                        {supplier.email && <p className="text-sm text-muted-foreground">📧 {supplier.email}</p>}
                       </div>
-                      <div className="text-3xl">🏭</div>
+                      <div className="flex items-center gap-1">
+                        {due > 0 && (
+                          <span className="text-xs font-semibold text-red-600 bg-red-50 dark:bg-red-950/20 px-2 py-0.5 rounded-full">
+                            ৳{due.toLocaleString('bn-BD')}
+                          </span>
+                        )}
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toggleCardExpand(supplier.id)}>
+                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </Button>
+                      </div>
                     </div>
-                    {supplier.address && <p className="text-sm text-muted-foreground mb-2">📍 {supplier.address}</p>}
 
-                    {due > 0 && (
-                      <div className="bg-red-50 dark:bg-red-950/20 p-2 rounded text-sm mb-3">
-                        <span className="text-red-600 font-semibold">বাকি: ৳{due.toLocaleString('bn-BD')}</span>
+                    {/* Expandable Details */}
+                    {isExpanded && (
+                      <div className="space-y-1 mb-3 pt-2 border-t border-border animate-fade-in">
+                        {supplier.email && <p className="text-sm text-muted-foreground">📧 {supplier.email}</p>}
+                        {supplier.address && <p className="text-sm text-muted-foreground">📍 {supplier.address}</p>}
+                        {supplier.notes && <p className="text-sm text-muted-foreground">📝 {supplier.notes}</p>}
                       </div>
                     )}
 

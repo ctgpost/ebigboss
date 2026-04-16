@@ -12,7 +12,7 @@ import { ProductHistory } from "./ProductHistory";
 import { ProductDetailModal } from "./ProductDetailModal";
 import { BarcodeScanner } from "./BarcodeScanner";
 import { ProductQuickView } from "./ProductQuickView";
-import { Eye, ScanBarcode, Download, FileSpreadsheet, FileText } from "lucide-react";
+import { Eye, ScanBarcode, Download, FileSpreadsheet, FileText, ChevronDown, ChevronUp, Filter, ArrowUpDown, LayoutGrid, List } from "lucide-react";
 import { ActivityLogger } from "@/hooks/useActivityLog";
 import * as XLSX from "xlsx";
 export function Products() {
@@ -29,6 +29,10 @@ export function Products() {
   const [showScanner, setShowScanner] = useState(false);
   const [showImeiScanner, setShowImeiScanner] = useState(false);
   const [showOutOfStock, setShowOutOfStock] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [sortBy, setSortBy] = useState<string>("name-asc");
+  const [viewMode, setViewMode] = useState<"grid" | "compact">("grid");
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState({
     name: "",
     category_id: "",
@@ -281,10 +285,18 @@ export function Products() {
     });
   };
 
+  const toggleCardExpand = (id: string) => {
+    setExpandedCards(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
   const filteredProducts = useMemo(() => {
     if (!products) return [];
     
-    return products.filter((product) => {
+    let filtered = products.filter((product) => {
       const matchesSearch = 
         searchTerm === "" ||
         product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -304,7 +316,21 @@ export function Products() {
 
       return matchesSearch && matchesCondition && matchesCategory && hasStock;
     });
-  }, [products, searchTerm, filterCondition, filterCategory, showOutOfStock]);
+
+    // Sort
+    const [field, dir] = sortBy.split("-");
+    filtered.sort((a, b) => {
+      let cmp = 0;
+      if (field === "name") cmp = a.name.localeCompare(b.name);
+      else if (field === "price") cmp = (a.price || 0) - (b.price || 0);
+      else if (field === "cost") cmp = (a.cost || 0) - (b.cost || 0);
+      else if (field === "date") cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      else if (field === "stock") cmp = a.stock_quantity - b.stock_quantity;
+      return dir === "desc" ? -cmp : cmp;
+    });
+
+    return filtered;
+  }, [products, searchTerm, filterCondition, filterCategory, showOutOfStock, sortBy]);
 
   const handleBarcodeScanned = (barcode: string) => {
     const product = products?.find(p => 
@@ -834,73 +860,87 @@ export function Products() {
 
       {/* Search and Filters */}
       <Card className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="md:col-span-2 flex gap-2">
-            <Input
-              placeholder="Search by name, IMEI, brand, or SKU..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1"
-            />
-            <Button 
-              variant="outline" 
-              onClick={() => setShowScanner(true)}
-              className="shrink-0"
-            >
-              <ScanBarcode className="w-4 h-4" />
-            </Button>
-          </div>
-          <Select value={filterCondition} onValueChange={setFilterCondition}>
-            <SelectTrigger>
-              <SelectValue placeholder="Filter by condition" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Conditions</SelectItem>
-              <SelectItem value="new">New</SelectItem>
-              <SelectItem value="used">Used</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={filterCategory} onValueChange={setFilterCategory}>
-            <SelectTrigger>
-              <SelectValue placeholder="Filter by category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {categories?.map((cat) => (
-                <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="mt-4 flex items-center space-x-2">
-          <Checkbox 
-            id="showOutOfStock" 
-            checked={showOutOfStock}
-            onCheckedChange={(checked) => setShowOutOfStock(checked as boolean)}
+        {/* Search + Toggle Row */}
+        <div className="flex gap-2 items-center">
+          <Input
+            placeholder="🔍 নাম, IMEI, ব্র্যান্ড বা SKU দিয়ে খুঁজুন..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="flex-1"
           />
-          <label
-            htmlFor="showOutOfStock"
-            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-          >
-            Show out of stock products (0 stock)
-          </label>
+          <Button variant="outline" onClick={() => setShowScanner(true)} className="shrink-0" title="বারকোড স্ক্যান">
+            <ScanBarcode className="w-4 h-4" />
+          </Button>
+          <Button variant="outline" size="icon" onClick={() => setShowFilters(!showFilters)} title="ফিল্টার" className="shrink-0">
+            <Filter className="w-4 h-4" />
+          </Button>
+          <Button variant="outline" size="icon" onClick={() => setViewMode(viewMode === "grid" ? "compact" : "grid")} title="ভিউ মোড" className="shrink-0">
+            {viewMode === "grid" ? <List className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
+          </Button>
         </div>
-        {(searchTerm || filterCondition !== "all" || filterCategory !== "all") && (
-          <div className="mt-3 flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              Found {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''}
-            </p>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setSearchTerm("");
-                setFilterCondition("all");
-                setFilterCategory("all");
-              }}
-            >
-              Clear Filters
-            </Button>
+
+        {/* Collapsible Filters */}
+        {showFilters && (
+          <div className="mt-3 space-y-3 pt-3 border-t border-border animate-fade-in">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Select value={filterCondition} onValueChange={setFilterCondition}>
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="অবস্থা" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">সব অবস্থা</SelectItem>
+                  <SelectItem value="new">নতুন</SelectItem>
+                  <SelectItem value="used">ব্যবহৃত</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filterCategory} onValueChange={setFilterCategory}>
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="ক্যাটাগরি" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">সব ক্যাটাগরি</SelectItem>
+                  {categories?.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="সর্ট" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name-asc">নাম (A-Z)</SelectItem>
+                  <SelectItem value="name-desc">নাম (Z-A)</SelectItem>
+                  <SelectItem value="price-asc">দাম (কম→বেশি)</SelectItem>
+                  <SelectItem value="price-desc">দাম (বেশি→কম)</SelectItem>
+                  <SelectItem value="cost-asc">ক্রয় (কম→বেশি)</SelectItem>
+                  <SelectItem value="cost-desc">ক্রয় (বেশি→কম)</SelectItem>
+                  <SelectItem value="date-desc">নতুন আগে</SelectItem>
+                  <SelectItem value="date-asc">পুরাতন আগে</SelectItem>
+                  <SelectItem value="stock-asc">স্টক (কম→বেশি)</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="showOutOfStock" 
+                  checked={showOutOfStock}
+                  onCheckedChange={(checked) => setShowOutOfStock(checked as boolean)}
+                />
+                <label htmlFor="showOutOfStock" className="text-xs font-medium cursor-pointer">
+                  স্টক শেষ দেখান
+                </label>
+              </div>
+            </div>
+            {(searchTerm || filterCondition !== "all" || filterCategory !== "all") && (
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  {filteredProducts.length}টি পাওয়া গেছে
+                </p>
+                <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => { setSearchTerm(""); setFilterCondition("all"); setFilterCategory("all"); }}>
+                  ফিল্টার মুছুন
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </Card>
@@ -908,137 +948,140 @@ export function Products() {
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-6">
-        {filteredProducts?.map((product) => (
-          <Card key={product.id} className="p-6 card-hover">
-            <div className="space-y-4">
+        <div className={viewMode === "grid" 
+          ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-6"
+          : "space-y-2 pb-6"
+        }>
+        {filteredProducts?.map((product) => {
+          const isExpanded = expandedCards.has(product.id);
+          
+          if (viewMode === "compact") {
+            return (
+              <Card key={product.id} className="p-3 card-hover">
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-semibold text-sm text-foreground truncate">{product.name}</h3>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${product.condition === 'new' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {product.condition === 'new' ? 'নতুন' : 'ব্যবহৃত'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {product.imei && `IMEI: ${product.imei}`} {product.brand && `• ${product.brand}`}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-bold text-foreground">৳{Number(product.price).toLocaleString('bn-BD')}</p>
+                    <p className="text-xs text-muted-foreground">ক্রয়: ৳{Number(product.cost).toLocaleString('bn-BD')}</p>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => {
+                      const index = filteredProducts.findIndex(p => p.id === product.id);
+                      window.innerWidth < 1024 ? setQuickViewIndex(index) : setDetailProduct(product);
+                    }}>
+                      <Eye className="w-3 h-3" />
+                    </Button>
+                    <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => startEdit(product)}>
+                      <span className="text-xs">✏️</span>
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            );
+          }
+
+          return (
+          <Card key={product.id} className="p-4 md:p-6 card-hover">
+            <div className="space-y-3">
               <div className="flex items-start justify-between">
-              <div className="flex-1">
-                  <h3 className="font-semibold text-lg text-foreground">{product.name}</h3>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-base md:text-lg text-foreground">{product.name}</h3>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {product.brand && (
-                      <span className="inline-block text-xs bg-accent/10 text-accent px-2 py-1 rounded-full">
-                        {product.brand}
-                      </span>
+                      <span className="inline-block text-xs bg-accent/10 text-accent px-2 py-0.5 rounded-full">{product.brand}</span>
                     )}
                     {product.condition && (
-                      <span className={`inline-block text-xs px-2 py-1 rounded-full ${
-                        product.condition === 'new' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
-                      }`}>
-                        {product.condition === 'new' ? '✨ New' : '♻️ Used'}
+                      <span className={`inline-block text-xs px-2 py-0.5 rounded-full ${product.condition === 'new' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {product.condition === 'new' ? '✨ নতুন' : '♻️ ব্যবহৃত'}
                       </span>
                     )}
                     {product.categories && (
-                      <span className="inline-block text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
-                        {product.categories.name}
-                      </span>
+                      <span className="inline-block text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{product.categories.name}</span>
                     )}
                   </div>
                 </div>
-                {product.stock_quantity <= product.low_stock_threshold && (
-                  <span className="text-xl" title="Low Stock">⚠️</span>
-                )}
+                <div className="flex items-center gap-1">
+                  {product.stock_quantity <= product.low_stock_threshold && <span className="text-lg" title="Low Stock">⚠️</span>}
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toggleCardExpand(product.id)}>
+                    {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </Button>
+                </div>
               </div>
-              {product.description && (
-                <p className="text-sm text-muted-foreground line-clamp-2">{product.description}</p>
+
+              {/* Always visible: price and IMEI */}
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">মূল্য: <span className="font-semibold text-foreground">৳{Number(product.price).toLocaleString('bn-BD')}</span></span>
+                <span className="text-muted-foreground">ক্রয়: <span className="font-semibold text-foreground">৳{Number(product.cost).toLocaleString('bn-BD')}</span></span>
+              </div>
+              {product.imei && (
+                <p className="text-xs text-muted-foreground font-mono">IMEI: {product.imei}</p>
               )}
-              <div className="space-y-2 text-sm">
-                {(product.ram || product.storage || product.battery) && (
-                  <div className="flex flex-wrap gap-2 pb-2 border-b border-border">
-                    {product.ram && (
-                      <span className="text-xs bg-muted px-2 py-1 rounded">🧠 {product.ram}</span>
-                    )}
-                    {product.storage && (
-                      <span className="text-xs bg-muted px-2 py-1 rounded">💾 {product.storage}</span>
-                    )}
-                    {product.battery && (
-                      <span className="text-xs bg-muted px-2 py-1 rounded">🔋 {product.battery}</span>
-                    )}
-                  </div>
-                )}
-                {(product.supplier_name || product.supplier_mobile) && (
-                  <div className="pb-2 border-b border-border">
-                    <p className="text-xs text-muted-foreground mb-1">Supplier Info:</p>
-                    {product.supplier_name && (
-                      <p className="text-xs">📦 {product.supplier_name}</p>
-                    )}
-                    {product.supplier_mobile && (
-                      <p className="text-xs">📱 {product.supplier_mobile}</p>
-                    )}
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Price:</span>
-                  <span className="font-semibold text-foreground">${Number(product.price).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Stock:</span>
-                  <span className={`font-semibold ${product.stock_quantity <= product.low_stock_threshold ? 'text-amber-600' : 'text-foreground'}`}>
-                    {product.stock_quantity} {product.unit}
-                  </span>
-                </div>
-                {product.sku && (
+
+              {/* Expandable details */}
+              {isExpanded && (
+                <div className="space-y-2 text-sm animate-fade-in pt-2 border-t border-border">
+                  {(product.ram || product.storage || product.battery) && (
+                    <div className="flex flex-wrap gap-2">
+                      {product.ram && <span className="text-xs bg-muted px-2 py-1 rounded">🧠 {product.ram}</span>}
+                      {product.storage && <span className="text-xs bg-muted px-2 py-1 rounded">💾 {product.storage}</span>}
+                      {product.battery && <span className="text-xs bg-muted px-2 py-1 rounded">🔋 {product.battery}</span>}
+                    </div>
+                  )}
+                  {(product.supplier_name || product.supplier_mobile) && (
+                    <div className="pb-2 border-b border-border">
+                      <p className="text-xs text-muted-foreground mb-1">সাপ্লায়ার:</p>
+                      {product.supplier_name && <p className="text-xs">📦 {product.supplier_name}</p>}
+                      {product.supplier_mobile && <p className="text-xs">📱 {product.supplier_mobile}</p>}
+                    </div>
+                  )}
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">SKU:</span>
-                    <span className="font-mono text-xs text-foreground">{product.sku}</span>
+                    <span className="text-muted-foreground">স্টক:</span>
+                    <span className={`font-semibold ${product.stock_quantity <= product.low_stock_threshold ? 'text-amber-600' : 'text-foreground'}`}>
+                      {product.stock_quantity} {product.unit}
+                    </span>
                   </div>
-                )}
-                {product.imei && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">IMEI:</span>
-                    <span className="font-mono text-xs text-foreground">{product.imei}</span>
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-2 pt-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const index = filteredProducts.findIndex(p => p.id === product.id);
-                    if (window.innerWidth < 1024) {
-                      setQuickViewIndex(index);
-                    } else {
-                      setDetailProduct(product);
-                    }
-                  }}
-                  className="flex-1"
-                >
+                  {product.sku && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">SKU:</span>
+                      <span className="font-mono text-xs text-foreground">{product.sku}</span>
+                    </div>
+                  )}
+                  {product.warranty_status && product.warranty_status !== "no_warranty" && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">ওয়ারেন্টি:</span>
+                      <span className="text-xs">{product.warranty_status === 'active' ? '✅ সক্রিয়' : '❌ মেয়াদোত্তীর্ণ'}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-1.5 pt-2">
+                <Button variant="outline" size="sm" onClick={() => {
+                  const index = filteredProducts.findIndex(p => p.id === product.id);
+                  window.innerWidth < 1024 ? setQuickViewIndex(index) : setDetailProduct(product);
+                }} className="flex-1">
                   <Eye className="w-4 h-4" />
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => startEdit(product)}
-                  className="flex-1"
-                >
-                  ✏️
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setHistoryProduct({ imei: product.imei || "", name: product.name })}
-                  className="flex-1"
-                  disabled={!product.imei}
-                >
-                  📜
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => {
-                    if (confirm("Are you sure you want to delete this product?")) {
-                      deleteMutation.mutate({ id: product.id, name: product.name });
-                    }
-                  }}
-                  className="flex-1"
-                >
-                  🗑️
-                </Button>
+                <Button variant="outline" size="sm" onClick={() => startEdit(product)} className="flex-1">✏️</Button>
+                <Button variant="outline" size="sm" onClick={() => setHistoryProduct({ imei: product.imei || "", name: product.name })} className="flex-1" disabled={!product.imei}>📜</Button>
+                <Button variant="destructive" size="sm" onClick={() => {
+                  if (confirm("আপনি কি নিশ্চিত?")) deleteMutation.mutate({ id: product.id, name: product.name });
+                }} className="flex-1">🗑️</Button>
               </div>
             </div>
           </Card>
-        ))}
+          );
+        })}
         </div>
 
         {(!filteredProducts || filteredProducts.length === 0) && (

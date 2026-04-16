@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { generateCustomerReport } from "@/utils/customerPdfReport";
 import { useShopSettings } from "@/hooks/useShopSettings";
+import { ChevronDown, ChevronUp, Filter, Search } from "lucide-react";
 
 export function Customers() {
   const { settings } = useShopSettings();
@@ -20,6 +21,10 @@ export function Customers() {
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentNotes, setPaymentNotes] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<string>("name-asc");
+  const [showDueSection, setShowDueSection] = useState(true);
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -222,6 +227,34 @@ export function Customers() {
     return customerSales.reduce((sum, s) => sum + Number(s.due_amount), 0);
   };
 
+  const toggleCardExpand = (id: string) => {
+    setExpandedCards(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const filteredCustomers = useMemo(() => {
+    if (!customers) return [];
+    let filtered = customers.filter(c =>
+      !searchQuery ||
+      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.email?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    const [field, dir] = sortBy.split("-");
+    filtered.sort((a, b) => {
+      let cmp = 0;
+      if (field === "name") cmp = a.name.localeCompare(b.name);
+      else if (field === "due") cmp = getCustomerDues(a.id) - getCustomerDues(b.id);
+      else if (field === "purchases") cmp = Number(a.total_purchases || 0) - Number(b.total_purchases || 0);
+      return dir === "desc" ? -cmp : cmp;
+    });
+    return filtered;
+  }, [customers, searchQuery, sortBy, salesWithDues]);
+
   // Get total transactions for a customer
   const getCustomerTotalTransactions = (customerId: string) => {
     return Number(customers?.find(c => c.id === customerId)?.total_purchases || 0);
@@ -285,6 +318,33 @@ export function Customers() {
             </DialogContent>
           </Dialog>
         </div>
+        {/* Search and Sort */}
+        <div className="flex gap-2 mt-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="🔍 কাস্টমার খুঁজুন (নাম, ফোন, ইমেইল)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="w-36 md:w-44 text-sm">
+              <SelectValue placeholder="সর্ট" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name-asc">নাম (A-Z)</SelectItem>
+              <SelectItem value="name-desc">নাম (Z-A)</SelectItem>
+              <SelectItem value="due-desc">বাকি (বেশি→কম)</SelectItem>
+              <SelectItem value="due-asc">বাকি (কম→বেশি)</SelectItem>
+              <SelectItem value="purchases-desc">ক্রয় (বেশি→কম)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {searchQuery && (
+          <p className="text-xs text-muted-foreground mt-2">{filteredCustomers.length}টি কাস্টমার পাওয়া গেছে</p>
+        )}
       </div>
 
       {/* Scrollable Content */}
@@ -292,8 +352,12 @@ export function Customers() {
         {/* Due Summary */}
         {salesWithDues && salesWithDues.length > 0 && (
           <Card className="p-4 md:p-6 border-destructive/30 bg-destructive/5">
-            <h2 className="text-lg font-bold text-foreground mb-4">📋 বাকি হিসাব সারাংশ</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <button onClick={() => setShowDueSection(!showDueSection)} className="flex items-center justify-between w-full">
+              <h2 className="text-lg font-bold text-foreground">📋 বাকি হিসাব সারাংশ</h2>
+              {showDueSection ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </button>
+            {showDueSection && (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4">
               <div className="text-center p-3 bg-background rounded-lg">
                 <p className="text-2xl font-bold text-destructive">
                   ৳{salesWithDues.reduce((sum, s) => sum + Number(s.due_amount), 0).toLocaleString('bn-BD')}
@@ -305,6 +369,7 @@ export function Customers() {
                 <p className="text-xs text-muted-foreground">বাকি বিক্রয়</p>
               </div>
             </div>
+            )}
           </Card>
         )}
 
@@ -365,77 +430,78 @@ export function Customers() {
 
         {/* Customer Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-          {customers?.map((customer) => {
+          {filteredCustomers?.map((customer) => {
             const totalDue = getCustomerDues(customer.id);
+            const isExpanded = expandedCards.has(customer.id);
             return (
-              <Card key={customer.id} className="p-4 md:p-6 card-hover">
-                <div className="space-y-3">
+              <Card key={customer.id} className="p-4 md:p-5 card-hover">
+                <div className="space-y-2">
                   <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-semibold text-lg text-foreground">{customer.name}</h3>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-base text-foreground">{customer.name}</h3>
                       {customer.phone && <p className="text-sm text-muted-foreground">📞 {customer.phone}</p>}
-                      {customer.email && <p className="text-sm text-muted-foreground">📧 {customer.email}</p>}
                     </div>
-                    <div className="text-3xl">👤</div>
+                    <div className="flex items-center gap-1">
+                      {totalDue > 0 && (
+                        <Badge variant="destructive" className="text-xs">
+                          ৳{totalDue.toLocaleString('bn-BD')}
+                        </Badge>
+                      )}
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toggleCardExpand(customer.id)}>
+                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </Button>
+                    </div>
                   </div>
-                  {customer.address && <p className="text-sm text-muted-foreground">📍 {customer.address}</p>}
 
-                  {/* Due Badge */}
-                  <div className="flex gap-2 flex-wrap">
-                    {totalDue > 0 && (
-                      <Badge variant="destructive" className="text-xs">
-                        বাকি: ৳{totalDue.toLocaleString('bn-BD')}
-                      </Badge>
-                    )}
+                  {/* Badges */}
+                  <div className="flex gap-1.5 flex-wrap">
                     {Number(customer.total_purchases || 0) > 0 && (
-                      <Badge variant="secondary" className="text-xs">
+                      <Badge variant="secondary" className="text-[10px]">
                         লেনদেন: ৳{Number(customer.total_purchases).toLocaleString('bn-BD')}
                       </Badge>
                     )}
                     {Number(customer.purchase_count || 0) > 0 && (
-                      <Badge variant="outline" className="text-xs">
+                      <Badge variant="outline" className="text-[10px]">
                         {customer.purchase_count} বার ক্রয়
                       </Badge>
                     )}
                   </div>
 
-                  <div className="flex gap-2 pt-2">
-                    <Button variant="outline" size="sm" onClick={() => startEdit(customer)} className="flex-1">
+                  {/* Expandable Details */}
+                  {isExpanded && (
+                    <div className="space-y-2 pt-2 border-t border-border animate-fade-in">
+                      {customer.email && <p className="text-sm text-muted-foreground">📧 {customer.email}</p>}
+                      {customer.address && <p className="text-sm text-muted-foreground">📍 {customer.address}</p>}
+                      {customer.notes && <p className="text-sm text-muted-foreground">📝 {customer.notes}</p>}
+                    </div>
+                  )}
+
+                  <div className="flex gap-1.5 pt-2">
+                    <Button variant="outline" size="sm" onClick={() => startEdit(customer)} className="flex-1 text-xs">
                       ✏️ সম্পাদনা
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const custSales = allCustomerSales?.filter(s => s.customer_id === customer.id) || [];
-                        const custPayments = payments?.filter(p => p.customer_id === customer.id) || [];
-                        const totalSales = custSales.reduce((sum, s) => sum + Number(s.total_amount), 0);
-                        const totalPaid = custPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-                        const totalDue = custSales.reduce((sum, s) => sum + Number(s.due_amount), 0);
-                        generateCustomerReport({
-                          customer,
-                          sales: custSales,
-                          payments: custPayments,
-                          totalSales,
-                          totalPaid,
-                          totalDue,
-                          shopName: settings.shop_name,
-                        });
-                        toast.success("PDF রিপোর্ট ডাউনলোড হচ্ছে!");
-                      }}
-                      className="flex-1"
-                    >
+                    <Button variant="outline" size="sm" onClick={() => {
+                      const custSales = allCustomerSales?.filter(s => s.customer_id === customer.id) || [];
+                      const custPayments = payments?.filter(p => p.customer_id === customer.id) || [];
+                      const totalSalesAmt = custSales.reduce((sum, s) => sum + Number(s.total_amount), 0);
+                      const totalPaidAmt = custPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+                      const totalDueAmt = custSales.reduce((sum, s) => sum + Number(s.due_amount), 0);
+                      generateCustomerReport({
+                        customer,
+                        sales: custSales,
+                        payments: custPayments,
+                        totalSales: totalSalesAmt,
+                        totalPaid: totalPaidAmt,
+                        totalDue: totalDueAmt,
+                        shopName: settings.shop_name,
+                      });
+                      toast.success("PDF রিপোর্ট ডাউনলোড হচ্ছে!");
+                    }} className="flex-1 text-xs">
                       📄 PDF
                     </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => {
-                        if (confirm("আপনি কি নিশ্চিত এই কাস্টমার মুছে ফেলতে চান?")) {
-                          deleteMutation.mutate(customer.id);
-                        }
-                      }}
-                    >
+                    <Button variant="destructive" size="sm" onClick={() => {
+                      if (confirm("আপনি কি নিশ্চিত?")) deleteMutation.mutate(customer.id);
+                    }} className="text-xs">
                       🗑️
                     </Button>
                   </div>
@@ -444,11 +510,11 @@ export function Customers() {
             );
           })}
 
-          {(!customers || customers.length === 0) && (
+          {filteredCustomers.length === 0 && (
             <Card className="p-12 text-center col-span-full">
               <div className="text-6xl mb-4">👥</div>
-              <h3 className="text-xl font-semibold mb-2 text-foreground">কোনো কাস্টমার নেই</h3>
-              <p className="text-muted-foreground">প্রথম কাস্টমার যুক্ত করুন!</p>
+              <h3 className="text-xl font-semibold mb-2 text-foreground">{searchQuery ? "কোনো কাস্টমার পাওয়া যায়নি" : "কোনো কাস্টমার নেই"}</h3>
+              <p className="text-muted-foreground">{searchQuery ? "অন্য শব্দ দিয়ে খুঁজুন" : "প্রথম কাস্টমার যুক্ত করুন!"}</p>
             </Card>
           )}
         </div>
