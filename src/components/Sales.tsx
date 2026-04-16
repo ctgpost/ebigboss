@@ -9,9 +9,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
-import { Search, Calendar, User, CreditCard, Package, Filter, X, FileDown, FileSpreadsheet } from "lucide-react";
+import { Search, Calendar, User, CreditCard, Package, Filter, X, FileDown, FileSpreadsheet, Image, TrendingUp, TrendingDown, DollarSign } from "lucide-react";
 import { useReactToPrint } from "react-to-print";
 import * as XLSX from "xlsx";
+import { getCloudinaryThumbnail } from "@/utils/cloudinary";
 
 interface SaleDetail {
   id: string;
@@ -25,6 +26,7 @@ interface SaleDetail {
   customer_id: string | null;
   instant_customer_name: string | null;
   instant_customer_phone: string | null;
+  sale_image_url: string | null;
   customers: {
     name: string;
     phone: string | null;
@@ -41,6 +43,7 @@ interface SaleDetail {
       imei: string | null;
       brand: string | null;
       model: string | null;
+      image_url: string | null;
     };
   }>;
 }
