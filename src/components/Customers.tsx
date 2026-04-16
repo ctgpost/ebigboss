@@ -352,7 +352,12 @@ export function Customers() {
         {/* Due Summary */}
         {salesWithDues && salesWithDues.length > 0 && (
           <Card className="p-4 md:p-6 border-destructive/30 bg-destructive/5">
-            <h2 className="text-lg font-bold text-foreground mb-4">📋 বাকি হিসাব সারাংশ</h2>
+            <button onClick={() => setShowDueSection(!showDueSection)} className="flex items-center justify-between w-full">
+              <h2 className="text-lg font-bold text-foreground">📋 বাকি হিসাব সারাংশ</h2>
+              {showDueSection ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </button>
+            {showDueSection && (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               <div className="text-center p-3 bg-background rounded-lg">
                 <p className="text-2xl font-bold text-destructive">
