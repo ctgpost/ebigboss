@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
+import { uploadToCloudinary } from "@/utils/cloudinary";
 import { toast } from "sonner";
 import { useShopSettings } from "@/hooks/useShopSettings";
 
