@@ -12,7 +12,7 @@ import { ProductHistory } from "./ProductHistory";
 import { ProductDetailModal } from "./ProductDetailModal";
 import { BarcodeScanner } from "./BarcodeScanner";
 import { ProductQuickView } from "./ProductQuickView";
-import { Eye, ScanBarcode, Download, FileSpreadsheet, FileText } from "lucide-react";
+import { Eye, ScanBarcode, Download, FileSpreadsheet, FileText, ChevronDown, ChevronUp, Filter, ArrowUpDown, LayoutGrid, List } from "lucide-react";
 import { ActivityLogger } from "@/hooks/useActivityLog";
 import * as XLSX from "xlsx";
 export function Products() {
