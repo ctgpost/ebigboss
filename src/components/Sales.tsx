@@ -525,9 +525,9 @@ export function Sales() {
       <Dialog open={!!selectedSale} onOpenChange={() => setSelectedSale(null)}>
         <DialogContent className="w-[95vw] max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-lg md:text-2xl">Sale Details</DialogTitle>
+           <DialogTitle className="text-lg md:text-2xl">📋 বিক্রয় বিবরণ</DialogTitle>
             <DialogDescription className="text-sm">
-              Complete information about this transaction
+              এই লেনদেনের সম্পূর্ণ তথ্য
             </DialogDescription>
           </DialogHeader>
 
@@ -537,10 +537,7 @@ export function Sales() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
                 <Card>
                   <CardHeader className="pb-3 p-3 md:p-6">
-                    <CardDescription className="text-xs md:text-sm">Sale ID</CardDescription>
-                    <CardTitle className="text-sm md:text-base font-mono break-all">#{selectedSale.id}</CardTitle>
-                  </CardHeader>
-                </Card>
+                   <CardDescription className="text-xs md:text-sm">সেল আইডি</CardDescription>
                 <Card>
                   <CardHeader className="pb-3 p-3 md:p-6">
                     <CardDescription className="text-xs md:text-sm">Date & Time</CardDescription>
