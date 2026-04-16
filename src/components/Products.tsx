@@ -948,137 +948,140 @@ export function Products() {
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-6">
-        {filteredProducts?.map((product) => (
-          <Card key={product.id} className="p-6 card-hover">
-            <div className="space-y-4">
+        <div className={viewMode === "grid" 
+          ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-6"
+          : "space-y-2 pb-6"
+        }>
+        {filteredProducts?.map((product) => {
+          const isExpanded = expandedCards.has(product.id);
+          
+          if (viewMode === "compact") {
+            return (
+              <Card key={product.id} className="p-3 card-hover">
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-semibold text-sm text-foreground truncate">{product.name}</h3>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${product.condition === 'new' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {product.condition === 'new' ? 'নতুন' : 'ব্যবহৃত'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {product.imei && `IMEI: ${product.imei}`} {product.brand && `• ${product.brand}`}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-bold text-foreground">৳{Number(product.price).toLocaleString('bn-BD')}</p>
+                    <p className="text-xs text-muted-foreground">ক্রয়: ৳{Number(product.cost).toLocaleString('bn-BD')}</p>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => {
+                      const index = filteredProducts.findIndex(p => p.id === product.id);
+                      window.innerWidth < 1024 ? setQuickViewIndex(index) : setDetailProduct(product);
+                    }}>
+                      <Eye className="w-3 h-3" />
+                    </Button>
+                    <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => startEdit(product)}>
+                      <span className="text-xs">✏️</span>
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            );
+          }
+
+          return (
+          <Card key={product.id} className="p-4 md:p-6 card-hover">
+            <div className="space-y-3">
               <div className="flex items-start justify-between">
-              <div className="flex-1">
-                  <h3 className="font-semibold text-lg text-foreground">{product.name}</h3>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-base md:text-lg text-foreground">{product.name}</h3>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {product.brand && (
-                      <span className="inline-block text-xs bg-accent/10 text-accent px-2 py-1 rounded-full">
-                        {product.brand}
-                      </span>
+                      <span className="inline-block text-xs bg-accent/10 text-accent px-2 py-0.5 rounded-full">{product.brand}</span>
                     )}
                     {product.condition && (
-                      <span className={`inline-block text-xs px-2 py-1 rounded-full ${
-                        product.condition === 'new' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
-                      }`}>
-                        {product.condition === 'new' ? '✨ New' : '♻️ Used'}
+                      <span className={`inline-block text-xs px-2 py-0.5 rounded-full ${product.condition === 'new' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {product.condition === 'new' ? '✨ নতুন' : '♻️ ব্যবহৃত'}
                       </span>
                     )}
                     {product.categories && (
-                      <span className="inline-block text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
-                        {product.categories.name}
-                      </span>
+                      <span className="inline-block text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{product.categories.name}</span>
                     )}
                   </div>
                 </div>
-                {product.stock_quantity <= product.low_stock_threshold && (
-                  <span className="text-xl" title="Low Stock">⚠️</span>
-                )}
+                <div className="flex items-center gap-1">
+                  {product.stock_quantity <= product.low_stock_threshold && <span className="text-lg" title="Low Stock">⚠️</span>}
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toggleCardExpand(product.id)}>
+                    {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </Button>
+                </div>
               </div>
-              {product.description && (
-                <p className="text-sm text-muted-foreground line-clamp-2">{product.description}</p>
+
+              {/* Always visible: price and IMEI */}
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">মূল্য: <span className="font-semibold text-foreground">৳{Number(product.price).toLocaleString('bn-BD')}</span></span>
+                <span className="text-muted-foreground">ক্রয়: <span className="font-semibold text-foreground">৳{Number(product.cost).toLocaleString('bn-BD')}</span></span>
+              </div>
+              {product.imei && (
+                <p className="text-xs text-muted-foreground font-mono">IMEI: {product.imei}</p>
               )}
-              <div className="space-y-2 text-sm">
-                {(product.ram || product.storage || product.battery) && (
-                  <div className="flex flex-wrap gap-2 pb-2 border-b border-border">
-                    {product.ram && (
-                      <span className="text-xs bg-muted px-2 py-1 rounded">🧠 {product.ram}</span>
-                    )}
-                    {product.storage && (
-                      <span className="text-xs bg-muted px-2 py-1 rounded">💾 {product.storage}</span>
-                    )}
-                    {product.battery && (
-                      <span className="text-xs bg-muted px-2 py-1 rounded">🔋 {product.battery}</span>
-                    )}
-                  </div>
-                )}
-                {(product.supplier_name || product.supplier_mobile) && (
-                  <div className="pb-2 border-b border-border">
-                    <p className="text-xs text-muted-foreground mb-1">Supplier Info:</p>
-                    {product.supplier_name && (
-                      <p className="text-xs">📦 {product.supplier_name}</p>
-                    )}
-                    {product.supplier_mobile && (
-                      <p className="text-xs">📱 {product.supplier_mobile}</p>
-                    )}
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Price:</span>
-                  <span className="font-semibold text-foreground">${Number(product.price).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Stock:</span>
-                  <span className={`font-semibold ${product.stock_quantity <= product.low_stock_threshold ? 'text-amber-600' : 'text-foreground'}`}>
-                    {product.stock_quantity} {product.unit}
-                  </span>
-                </div>
-                {product.sku && (
+
+              {/* Expandable details */}
+              {isExpanded && (
+                <div className="space-y-2 text-sm animate-fade-in pt-2 border-t border-border">
+                  {(product.ram || product.storage || product.battery) && (
+                    <div className="flex flex-wrap gap-2">
+                      {product.ram && <span className="text-xs bg-muted px-2 py-1 rounded">🧠 {product.ram}</span>}
+                      {product.storage && <span className="text-xs bg-muted px-2 py-1 rounded">💾 {product.storage}</span>}
+                      {product.battery && <span className="text-xs bg-muted px-2 py-1 rounded">🔋 {product.battery}</span>}
+                    </div>
+                  )}
+                  {(product.supplier_name || product.supplier_mobile) && (
+                    <div className="pb-2 border-b border-border">
+                      <p className="text-xs text-muted-foreground mb-1">সাপ্লায়ার:</p>
+                      {product.supplier_name && <p className="text-xs">📦 {product.supplier_name}</p>}
+                      {product.supplier_mobile && <p className="text-xs">📱 {product.supplier_mobile}</p>}
+                    </div>
+                  )}
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">SKU:</span>
-                    <span className="font-mono text-xs text-foreground">{product.sku}</span>
+                    <span className="text-muted-foreground">স্টক:</span>
+                    <span className={`font-semibold ${product.stock_quantity <= product.low_stock_threshold ? 'text-amber-600' : 'text-foreground'}`}>
+                      {product.stock_quantity} {product.unit}
+                    </span>
                   </div>
-                )}
-                {product.imei && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">IMEI:</span>
-                    <span className="font-mono text-xs text-foreground">{product.imei}</span>
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-2 pt-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const index = filteredProducts.findIndex(p => p.id === product.id);
-                    if (window.innerWidth < 1024) {
-                      setQuickViewIndex(index);
-                    } else {
-                      setDetailProduct(product);
-                    }
-                  }}
-                  className="flex-1"
-                >
+                  {product.sku && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">SKU:</span>
+                      <span className="font-mono text-xs text-foreground">{product.sku}</span>
+                    </div>
+                  )}
+                  {product.warranty_status && product.warranty_status !== "no_warranty" && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">ওয়ারেন্টি:</span>
+                      <span className="text-xs">{product.warranty_status === 'active' ? '✅ সক্রিয়' : '❌ মেয়াদোত্তীর্ণ'}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-1.5 pt-2">
+                <Button variant="outline" size="sm" onClick={() => {
+                  const index = filteredProducts.findIndex(p => p.id === product.id);
+                  window.innerWidth < 1024 ? setQuickViewIndex(index) : setDetailProduct(product);
+                }} className="flex-1">
                   <Eye className="w-4 h-4" />
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => startEdit(product)}
-                  className="flex-1"
-                >
-                  ✏️
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setHistoryProduct({ imei: product.imei || "", name: product.name })}
-                  className="flex-1"
-                  disabled={!product.imei}
-                >
-                  📜
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => {
-                    if (confirm("Are you sure you want to delete this product?")) {
-                      deleteMutation.mutate({ id: product.id, name: product.name });
-                    }
-                  }}
-                  className="flex-1"
-                >
-                  🗑️
-                </Button>
+                <Button variant="outline" size="sm" onClick={() => startEdit(product)} className="flex-1">✏️</Button>
+                <Button variant="outline" size="sm" onClick={() => setHistoryProduct({ imei: product.imei || "", name: product.name })} className="flex-1" disabled={!product.imei}>📜</Button>
+                <Button variant="destructive" size="sm" onClick={() => {
+                  if (confirm("আপনি কি নিশ্চিত?")) deleteMutation.mutate({ id: product.id, name: product.name });
+                }} className="flex-1">🗑️</Button>
               </div>
             </div>
           </Card>
-        ))}
+          );
+        })}
         </div>
 
         {(!filteredProducts || filteredProducts.length === 0) && (
