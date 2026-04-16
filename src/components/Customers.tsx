@@ -437,32 +437,75 @@ export function Customers() {
         {/* Due Sales List */}
         {salesWithDues && salesWithDues.length > 0 && (
           <Card className="p-4 md:p-6">
-            <h2 className="text-lg font-bold text-foreground mb-4">💰 বাকি আদায়</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-foreground">💰 বাকি আদায়</h2>
+              <div className="flex items-center gap-2">
+                {selectedDueSales.size > 0 && (
+                  <Button
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={() => setShowBulkPayment(true)}
+                  >
+                    <CheckSquare className="w-4 h-4 mr-1" />
+                    {selectedDueSales.size}টি একসাথে আদায়
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (selectedDueSales.size === salesWithDues.length) {
+                      setSelectedDueSales(new Set());
+                    } else {
+                      setSelectedDueSales(new Set(salesWithDues.map(s => s.id)));
+                    }
+                  }}
+                  className="text-xs"
+                >
+                  {selectedDueSales.size === salesWithDues.length ? "সব বাদ দিন" : "সব নির্বাচন"}
+                </Button>
+              </div>
+            </div>
             <div className="space-y-3">
               {salesWithDues.map((sale) => {
                 const customerName = customers?.find(c => c.id === sale.customer_id)?.name || sale.instant_customer_name || "অজানা";
                 const customerPhone = customers?.find(c => c.id === sale.customer_id)?.phone || sale.instant_customer_phone || "";
+                const isSelected = selectedDueSales.has(sale.id);
 
                 return (
-                  <div key={sale.id} className="border border-border rounded-lg p-3 md:p-4">
+                  <div key={sale.id} className={`border rounded-lg p-3 md:p-4 ${isSelected ? 'border-green-500 bg-green-50 dark:bg-green-950/20' : 'border-border'}`}>
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-foreground">{customerName}</span>
-                          {customerPhone && <span className="text-xs text-muted-foreground">📞 {customerPhone}</span>}
-                          <Badge variant="outline" className="text-xs">#{sale.id.slice(0, 8)}</Badge>
+                      <div className="flex gap-3 flex-1">
+                        <div className="pt-1">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={(checked) => {
+                              setSelectedDueSales(prev => {
+                                const next = new Set(prev);
+                                if (checked) next.add(sale.id); else next.delete(sale.id);
+                                return next;
+                              });
+                            }}
+                          />
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          {format(new Date(sale.created_at), "dd MMM yyyy")} •
-                          মোট: ৳{Number(sale.total_amount).toLocaleString('bn-BD')} •
-                          পরিশোধিত: ৳{Number(sale.paid_amount).toLocaleString('bn-BD')}
-                        </p>
-                        <div className="text-sm">
-                          {(sale.sale_items as any[])?.map((item: any, idx: number) => (
-                            <span key={idx} className="text-muted-foreground">
-                              {item.products?.name}{idx < (sale.sale_items as any[]).length - 1 ? ", " : ""}
-                            </span>
-                          ))}
+                        <div className="flex-1 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-foreground">{customerName}</span>
+                            {customerPhone && <span className="text-xs text-muted-foreground">📞 {customerPhone}</span>}
+                            <Badge variant="outline" className="text-xs">#{sale.id.slice(0, 8)}</Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(sale.created_at), "dd MMM yyyy")} •
+                            মোট: ৳{Number(sale.total_amount).toLocaleString('bn-BD')} •
+                            পরিশোধিত: ৳{Number(sale.paid_amount).toLocaleString('bn-BD')}
+                          </p>
+                          <div className="text-sm">
+                            {(sale.sale_items as any[])?.map((item: any, idx: number) => (
+                              <span key={idx} className="text-muted-foreground">
+                                {item.products?.name}{idx < (sale.sale_items as any[]).length - 1 ? ", " : ""}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
