@@ -137,6 +137,7 @@ export function POS() {
       setInstantCustomerName("");
       setInstantCustomerPhone("");
       setPaidAmount(0);
+      setSaleImageUrl("");
     },
     onError: (error: any) => {
       toast.error(error.message || "বিক্রয় সম্পন্ন করতে ব্যর্থ");
