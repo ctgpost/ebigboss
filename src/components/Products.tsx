@@ -233,12 +233,17 @@ export function Products() {
       });
     }
 
+    const brand = formData.brand || '';
+    const model = formData.model || formData.name;
+    const fullName = brand ? `${brand} ${formData.name}` : formData.name;
+
     const submitData = {
       ...formData,
+      name: fullName,
       sku: editingProduct ? formData.sku : generateSKU(),
       barcode: editingProduct ? formData.barcode : generateBarcode(),
-      brand: formData.brand || extractBrand(formData.name),
-      model: formData.model || extractModel(formData.name),
+      brand: brand,
+      model: model,
       price: price,
       cost: cost,
       stock_quantity: 1,
