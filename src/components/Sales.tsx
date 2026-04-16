@@ -480,12 +480,12 @@ export function Sales() {
                           বাকি: ৳{Number(sale.due_amount).toLocaleString('bn-BD')}
                         </div>
                       )}
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
+            </div>
             </div>
           )}
 
