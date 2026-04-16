@@ -1027,8 +1027,16 @@ export function Products() {
           <Card key={product.id} className="p-4 md:p-6 card-hover">
             <div className="space-y-3">
               <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-base md:text-lg text-foreground">{product.name}</h3>
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  {product.image_url && (
+                    <img
+                      src={getCloudinaryThumbnail(product.image_url, 100, 100)}
+                      alt={product.name}
+                      className="w-14 h-14 rounded-lg object-cover border border-border shrink-0"
+                    />
+                  )}
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-base md:text-lg text-foreground">{product.name}</h3>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {product.brand && (
                       <span className="inline-block text-xs bg-accent/10 text-accent px-2 py-0.5 rounded-full">{product.brand}</span>
