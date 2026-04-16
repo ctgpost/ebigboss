@@ -11,7 +11,8 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { generateCustomerReport } from "@/utils/customerPdfReport";
 import { useShopSettings } from "@/hooks/useShopSettings";
-import { ChevronDown, ChevronUp, Filter, Search } from "lucide-react";
+import { ChevronDown, ChevronUp, Filter, Search, CheckSquare } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export function Customers() {
   const { settings } = useShopSettings();
@@ -26,6 +27,10 @@ export function Customers() {
   const [showDueOnly, setShowDueOnly] = useState(false);
   const [showDueSection, setShowDueSection] = useState(true);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [selectedDueSales, setSelectedDueSales] = useState<Set<string>>(new Set());
+  const [showBulkPayment, setShowBulkPayment] = useState(false);
+  const [bulkPaymentMethod, setBulkPaymentMethod] = useState("cash");
+  const [bulkPaymentNotes, setBulkPaymentNotes] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -176,6 +181,44 @@ export function Customers() {
     },
     onError: (error: any) => {
       toast.error(error.message || "বাকি আদায় করতে ব্যর্থ");
+    },
+  });
+
+  // Bulk payment mutation
+  const bulkCollectMutation = useMutation({
+    mutationFn: async ({ saleIds, method, notes }: { saleIds: string[], method: string, notes: string }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      for (const saleId of saleIds) {
+        const sale = salesWithDues?.find(s => s.id === saleId);
+        if (!sale) continue;
+        const amount = Number(sale.due_amount);
+
+        await supabase.from("payments").insert([{
+          sale_id: saleId,
+          customer_id: sale.customer_id,
+          amount,
+          payment_method: method,
+          notes,
+          collected_by: user?.id,
+        }]);
+
+        await supabase.from("sales").update({
+          paid_amount: Number(sale.total_amount),
+          due_amount: 0,
+        }).eq("id", saleId);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sales-with-dues"] });
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
+      toast.success(`${selectedDueSales.size}টি বিক্রয়ের বাকি সম্পূর্ণ আদায় হয়েছে!`);
+      setSelectedDueSales(new Set());
+      setShowBulkPayment(false);
+      setBulkPaymentNotes("");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "বাল্ক আদায় করতে ব্যর্থ");
     },
   });
 
@@ -394,32 +437,75 @@ export function Customers() {
         {/* Due Sales List */}
         {salesWithDues && salesWithDues.length > 0 && (
           <Card className="p-4 md:p-6">
-            <h2 className="text-lg font-bold text-foreground mb-4">💰 বাকি আদায়</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-foreground">💰 বাকি আদায়</h2>
+              <div className="flex items-center gap-2">
+                {selectedDueSales.size > 0 && (
+                  <Button
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={() => setShowBulkPayment(true)}
+                  >
+                    <CheckSquare className="w-4 h-4 mr-1" />
+                    {selectedDueSales.size}টি একসাথে আদায়
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (selectedDueSales.size === salesWithDues.length) {
+                      setSelectedDueSales(new Set());
+                    } else {
+                      setSelectedDueSales(new Set(salesWithDues.map(s => s.id)));
+                    }
+                  }}
+                  className="text-xs"
+                >
+                  {selectedDueSales.size === salesWithDues.length ? "সব বাদ দিন" : "সব নির্বাচন"}
+                </Button>
+              </div>
+            </div>
             <div className="space-y-3">
               {salesWithDues.map((sale) => {
                 const customerName = customers?.find(c => c.id === sale.customer_id)?.name || sale.instant_customer_name || "অজানা";
                 const customerPhone = customers?.find(c => c.id === sale.customer_id)?.phone || sale.instant_customer_phone || "";
+                const isSelected = selectedDueSales.has(sale.id);
 
                 return (
-                  <div key={sale.id} className="border border-border rounded-lg p-3 md:p-4">
+                  <div key={sale.id} className={`border rounded-lg p-3 md:p-4 ${isSelected ? 'border-green-500 bg-green-50 dark:bg-green-950/20' : 'border-border'}`}>
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-foreground">{customerName}</span>
-                          {customerPhone && <span className="text-xs text-muted-foreground">📞 {customerPhone}</span>}
-                          <Badge variant="outline" className="text-xs">#{sale.id.slice(0, 8)}</Badge>
+                      <div className="flex gap-3 flex-1">
+                        <div className="pt-1">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={(checked) => {
+                              setSelectedDueSales(prev => {
+                                const next = new Set(prev);
+                                if (checked) next.add(sale.id); else next.delete(sale.id);
+                                return next;
+                              });
+                            }}
+                          />
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          {format(new Date(sale.created_at), "dd MMM yyyy")} •
-                          মোট: ৳{Number(sale.total_amount).toLocaleString('bn-BD')} •
-                          পরিশোধিত: ৳{Number(sale.paid_amount).toLocaleString('bn-BD')}
-                        </p>
-                        <div className="text-sm">
-                          {(sale.sale_items as any[])?.map((item: any, idx: number) => (
-                            <span key={idx} className="text-muted-foreground">
-                              {item.products?.name}{idx < (sale.sale_items as any[]).length - 1 ? ", " : ""}
-                            </span>
-                          ))}
+                        <div className="flex-1 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-foreground">{customerName}</span>
+                            {customerPhone && <span className="text-xs text-muted-foreground">📞 {customerPhone}</span>}
+                            <Badge variant="outline" className="text-xs">#{sale.id.slice(0, 8)}</Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(sale.created_at), "dd MMM yyyy")} •
+                            মোট: ৳{Number(sale.total_amount).toLocaleString('bn-BD')} •
+                            পরিশোধিত: ৳{Number(sale.paid_amount).toLocaleString('bn-BD')}
+                          </p>
+                          <div className="text-sm">
+                            {(sale.sale_items as any[])?.map((item: any, idx: number) => (
+                              <span key={idx} className="text-muted-foreground">
+                                {item.products?.name}{idx < (sale.sale_items as any[]).length - 1 ? ", " : ""}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
@@ -609,6 +695,52 @@ export function Customers() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Payment Dialog */}
+      <Dialog open={showBulkPayment} onOpenChange={setShowBulkPayment}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>💰 একসাথে বাকি আদায় ({selectedDueSales.size}টি বিক্রয়)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-muted/50 p-3 rounded-lg space-y-1">
+              <p className="text-sm font-bold text-destructive">
+                মোট আদায়যোগ্য: ৳{salesWithDues?.filter(s => selectedDueSales.has(s.id)).reduce((sum, s) => sum + Number(s.due_amount), 0).toLocaleString('bn-BD')}
+              </p>
+              <p className="text-xs text-muted-foreground">{selectedDueSales.size}টি বিক্রয়ের সম্পূর্ণ বাকি আদায় হবে</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">পেমেন্ট পদ্ধতি</label>
+              <Select value={bulkPaymentMethod} onValueChange={setBulkPaymentMethod}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">💵 নগদ</SelectItem>
+                  <SelectItem value="card">💳 কার্ড</SelectItem>
+                  <SelectItem value="mobile">📱 মোবাইল</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">নোট (ঐচ্ছিক)</label>
+              <Input value={bulkPaymentNotes} onChange={(e) => setBulkPaymentNotes(e.target.value)} placeholder="বাল্ক আদায়ের নোট" />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setShowBulkPayment(false)}>বাতিল</Button>
+              <Button
+                onClick={() => bulkCollectMutation.mutate({
+                  saleIds: Array.from(selectedDueSales),
+                  method: bulkPaymentMethod,
+                  notes: bulkPaymentNotes,
+                })}
+                className="bg-green-600 hover:bg-green-700"
+                disabled={bulkCollectMutation.isPending}
+              >
+                {bulkCollectMutation.isPending ? "প্রক্রিয়াকরণ..." : `✓ ${selectedDueSales.size}টি আদায় করুন`}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

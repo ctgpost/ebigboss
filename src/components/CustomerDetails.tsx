@@ -9,9 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { bn } from "date-fns/locale";
 import { generateCustomerReport } from "@/utils/customerPdfReport";
 import { useShopSettings } from "@/hooks/useShopSettings";
-import { ChevronDown, ChevronUp, FileText, Search, User, Wallet, CreditCard, ArrowDownLeft } from "lucide-react";
+import { ChevronDown, ChevronUp, FileText, User, Wallet, CreditCard, ArrowDownLeft, BarChart3 } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 
 export function CustomerDetails() {
   const { settings } = useShopSettings();
@@ -148,6 +150,25 @@ export function CustomerDetails() {
     return customerPayments?.reduce((s, p) => s + Number(p.amount), 0) || 0;
   }, [customerPayments]);
 
+  // Monthly chart data
+  const monthlyChartData = useMemo(() => {
+    if (!customerSales) return [];
+    const monthMap: Record<string, { month: string, sales: number, paid: number, due: number }> = {};
+    customerSales.forEach(sale => {
+      const monthKey = format(new Date(sale.created_at), "yyyy-MM");
+      const monthLabel = format(new Date(sale.created_at), "MMM yy", { locale: bn });
+      if (!monthMap[monthKey]) {
+        monthMap[monthKey] = { month: monthLabel, sales: 0, paid: 0, due: 0 };
+      }
+      monthMap[monthKey].sales += Number(sale.total_amount);
+      monthMap[monthKey].paid += Number(sale.paid_amount);
+      monthMap[monthKey].due += Number(sale.due_amount);
+    });
+    return Object.entries(monthMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, v]) => v);
+  }, [customerSales]);
+
   return (
     <div className="flex flex-col h-screen animate-fade-in">
       {/* Header */}
@@ -247,7 +268,40 @@ export function CustomerDetails() {
             </Card>
           </div>
 
-          {/* Due Sales - Collect Payment */}
+          {/* Monthly Chart */}
+          {monthlyChartData.length > 0 && (
+            <Card className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <BarChart3 className="w-5 h-5 text-primary" />
+                <h3 className="text-lg font-bold text-foreground">📊 মাসিক লেনদেন চার্ট</h3>
+              </div>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={monthlyChartData}>
+                    <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `৳${(v/1000).toFixed(0)}k`} />
+                    <Tooltip
+                      formatter={(value: number, name: string) => [
+                        `৳${value.toLocaleString('bn-BD')}`,
+                        name === 'sales' ? 'মোট বিক্রয়' : name === 'paid' ? 'পরিশোধিত' : 'বাকি'
+                      ]}
+                    />
+                    <Bar dataKey="sales" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="sales" />
+                    <Bar dataKey="paid" fill="#22c55e" radius={[4, 4, 0, 0]} name="paid" />
+                    <Bar dataKey="due" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} name="due" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex justify-center gap-4 mt-2 text-xs">
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-primary inline-block"></span> বিক্রয়</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-green-500 inline-block"></span> পরিশোধিত</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-destructive inline-block"></span> বাকি</span>
+              </div>
+            </Card>
+          )}
+
+
           {summary.dueSales.length > 0 && (
             <Card className="p-4 border-destructive/30 bg-destructive/5">
               <button onClick={() => setShowDueSales(!showDueSales)} className="flex items-center justify-between w-full">
