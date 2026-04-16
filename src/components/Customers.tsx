@@ -23,6 +23,7 @@ export function Customers() {
   const [paymentNotes, setPaymentNotes] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<string>("name-asc");
+  const [showDueOnly, setShowDueOnly] = useState(false);
   const [showDueSection, setShowDueSection] = useState(true);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState({
@@ -237,12 +238,14 @@ export function Customers() {
 
   const filteredCustomers = useMemo(() => {
     if (!customers) return [];
-    let filtered = customers.filter(c =>
-      !searchQuery ||
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.email?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    let filtered = customers.filter(c => {
+      const matchesSearch = !searchQuery ||
+        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.email?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesDue = !showDueOnly || getCustomerDues(c.id) > 0;
+      return matchesSearch && matchesDue;
+    });
 
     const [field, dir] = sortBy.split("-");
     filtered.sort((a, b) => {
@@ -250,10 +253,10 @@ export function Customers() {
       if (field === "name") cmp = a.name.localeCompare(b.name);
       else if (field === "due") cmp = getCustomerDues(a.id) - getCustomerDues(b.id);
       else if (field === "purchases") cmp = Number(a.total_purchases || 0) - Number(b.total_purchases || 0);
-      return dir === "desc" ? -cmp : cmp;
+    return dir === "desc" ? -cmp : cmp;
     });
     return filtered;
-  }, [customers, searchQuery, sortBy, salesWithDues]);
+  }, [customers, searchQuery, sortBy, salesWithDues, showDueOnly]);
 
   // Get total transactions for a customer
   const getCustomerTotalTransactions = (customerId: string) => {
@@ -329,8 +332,16 @@ export function Customers() {
               className="pl-9"
             />
           </div>
+          <Button
+            variant={showDueOnly ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowDueOnly(!showDueOnly)}
+            className={`shrink-0 text-xs ${showDueOnly ? "bg-destructive hover:bg-destructive/90" : ""}`}
+          >
+            💰 বাকিদার
+          </Button>
           <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-36 md:w-44 text-sm">
+            <SelectTrigger className="w-32 md:w-40 text-sm">
               <SelectValue placeholder="সর্ট" />
             </SelectTrigger>
             <SelectContent>
