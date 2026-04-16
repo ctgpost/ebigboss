@@ -492,7 +492,7 @@ export function Sales() {
           {totalPages > 1 && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 md:mt-6 pt-4 md:pt-6 border-t">
               <div className="text-xs md:text-sm text-muted-foreground">
-                Page {currentPage} of {totalPages}
+                পৃষ্ঠা {currentPage} / {totalPages}
               </div>
               <div className="flex gap-2">
                 <Button
@@ -502,8 +502,7 @@ export function Sales() {
                   disabled={currentPage === 1}
                   className="text-xs md:text-sm"
                 >
-                  <span className="hidden sm:inline">Previous</span>
-                  <span className="sm:hidden">Prev</span>
+                  পূর্ববর্তী
                 </Button>
                 <Button
                   variant="outline"
@@ -512,7 +511,7 @@ export function Sales() {
                   disabled={currentPage === totalPages}
                   className="text-xs md:text-sm"
                 >
-                  Next
+                  পরবর্তী
                 </Button>
               </div>
             </div>
