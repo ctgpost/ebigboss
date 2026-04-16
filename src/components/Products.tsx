@@ -860,73 +860,87 @@ export function Products() {
 
       {/* Search and Filters */}
       <Card className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="md:col-span-2 flex gap-2">
-            <Input
-              placeholder="Search by name, IMEI, brand, or SKU..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1"
-            />
-            <Button 
-              variant="outline" 
-              onClick={() => setShowScanner(true)}
-              className="shrink-0"
-            >
-              <ScanBarcode className="w-4 h-4" />
-            </Button>
-          </div>
-          <Select value={filterCondition} onValueChange={setFilterCondition}>
-            <SelectTrigger>
-              <SelectValue placeholder="Filter by condition" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Conditions</SelectItem>
-              <SelectItem value="new">New</SelectItem>
-              <SelectItem value="used">Used</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={filterCategory} onValueChange={setFilterCategory}>
-            <SelectTrigger>
-              <SelectValue placeholder="Filter by category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {categories?.map((cat) => (
-                <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="mt-4 flex items-center space-x-2">
-          <Checkbox 
-            id="showOutOfStock" 
-            checked={showOutOfStock}
-            onCheckedChange={(checked) => setShowOutOfStock(checked as boolean)}
+        {/* Search + Toggle Row */}
+        <div className="flex gap-2 items-center">
+          <Input
+            placeholder="🔍 নাম, IMEI, ব্র্যান্ড বা SKU দিয়ে খুঁজুন..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="flex-1"
           />
-          <label
-            htmlFor="showOutOfStock"
-            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-          >
-            Show out of stock products (0 stock)
-          </label>
+          <Button variant="outline" onClick={() => setShowScanner(true)} className="shrink-0" title="বারকোড স্ক্যান">
+            <ScanBarcode className="w-4 h-4" />
+          </Button>
+          <Button variant="outline" size="icon" onClick={() => setShowFilters(!showFilters)} title="ফিল্টার" className="shrink-0">
+            <Filter className="w-4 h-4" />
+          </Button>
+          <Button variant="outline" size="icon" onClick={() => setViewMode(viewMode === "grid" ? "compact" : "grid")} title="ভিউ মোড" className="shrink-0">
+            {viewMode === "grid" ? <List className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
+          </Button>
         </div>
-        {(searchTerm || filterCondition !== "all" || filterCategory !== "all") && (
-          <div className="mt-3 flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              Found {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''}
-            </p>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setSearchTerm("");
-                setFilterCondition("all");
-                setFilterCategory("all");
-              }}
-            >
-              Clear Filters
-            </Button>
+
+        {/* Collapsible Filters */}
+        {showFilters && (
+          <div className="mt-3 space-y-3 pt-3 border-t border-border animate-fade-in">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Select value={filterCondition} onValueChange={setFilterCondition}>
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="অবস্থা" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">সব অবস্থা</SelectItem>
+                  <SelectItem value="new">নতুন</SelectItem>
+                  <SelectItem value="used">ব্যবহৃত</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filterCategory} onValueChange={setFilterCategory}>
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="ক্যাটাগরি" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">সব ক্যাটাগরি</SelectItem>
+                  {categories?.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="সর্ট" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name-asc">নাম (A-Z)</SelectItem>
+                  <SelectItem value="name-desc">নাম (Z-A)</SelectItem>
+                  <SelectItem value="price-asc">দাম (কম→বেশি)</SelectItem>
+                  <SelectItem value="price-desc">দাম (বেশি→কম)</SelectItem>
+                  <SelectItem value="cost-asc">ক্রয় (কম→বেশি)</SelectItem>
+                  <SelectItem value="cost-desc">ক্রয় (বেশি→কম)</SelectItem>
+                  <SelectItem value="date-desc">নতুন আগে</SelectItem>
+                  <SelectItem value="date-asc">পুরাতন আগে</SelectItem>
+                  <SelectItem value="stock-asc">স্টক (কম→বেশি)</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="showOutOfStock" 
+                  checked={showOutOfStock}
+                  onCheckedChange={(checked) => setShowOutOfStock(checked as boolean)}
+                />
+                <label htmlFor="showOutOfStock" className="text-xs font-medium cursor-pointer">
+                  স্টক শেষ দেখান
+                </label>
+              </div>
+            </div>
+            {(searchTerm || filterCondition !== "all" || filterCategory !== "all") && (
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  {filteredProducts.length}টি পাওয়া গেছে
+                </p>
+                <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => { setSearchTerm(""); setFilterCondition("all"); setFilterCategory("all"); }}>
+                  ফিল্টার মুছুন
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </Card>
