@@ -268,7 +268,40 @@ export function CustomerDetails() {
             </Card>
           </div>
 
-          {/* Due Sales - Collect Payment */}
+          {/* Monthly Chart */}
+          {monthlyChartData.length > 0 && (
+            <Card className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <BarChart3 className="w-5 h-5 text-primary" />
+                <h3 className="text-lg font-bold text-foreground">📊 মাসিক লেনদেন চার্ট</h3>
+              </div>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={monthlyChartData}>
+                    <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `৳${(v/1000).toFixed(0)}k`} />
+                    <Tooltip
+                      formatter={(value: number, name: string) => [
+                        `৳${value.toLocaleString('bn-BD')}`,
+                        name === 'sales' ? 'মোট বিক্রয়' : name === 'paid' ? 'পরিশোধিত' : 'বাকি'
+                      ]}
+                    />
+                    <Bar dataKey="sales" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="sales" />
+                    <Bar dataKey="paid" fill="#22c55e" radius={[4, 4, 0, 0]} name="paid" />
+                    <Bar dataKey="due" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} name="due" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex justify-center gap-4 mt-2 text-xs">
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-primary inline-block"></span> বিক্রয়</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-green-500 inline-block"></span> পরিশোধিত</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-destructive inline-block"></span> বাকি</span>
+              </div>
+            </Card>
+          )}
+
+
           {summary.dueSales.length > 0 && (
             <Card className="p-4 border-destructive/30 bg-destructive/5">
               <button onClick={() => setShowDueSales(!showDueSales)} className="flex items-center justify-between w-full">
