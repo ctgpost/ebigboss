@@ -64,13 +64,18 @@ export default function Index({ user }: IndexProps) {
       }
       setActiveTab("categories");
     };
+    const handleNavigateToCustomerDetails = () => {
+      setActiveTab("customer-details");
+    };
     
     window.addEventListener('navigate-to-customers', handleNavigateToCustomers);
     window.addEventListener('navigate-to-categories', handleNavigateToCategories);
+    window.addEventListener('navigate-to-customer-details', handleNavigateToCustomerDetails);
     
     return () => {
       window.removeEventListener('navigate-to-customers', handleNavigateToCustomers);
       window.removeEventListener('navigate-to-categories', handleNavigateToCategories);
+      window.removeEventListener('navigate-to-customer-details', handleNavigateToCustomerDetails);
     };
   }, [permissions]);
 
