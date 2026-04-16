@@ -26,6 +26,7 @@ export function Products() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCondition, setFilterCondition] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [filterSupplier, setFilterSupplier] = useState<string>("all");
   const [showScanner, setShowScanner] = useState(false);
   const [showImeiScanner, setShowImeiScanner] = useState(false);
   const [showOutOfStock, setShowOutOfStock] = useState(false);
@@ -312,9 +313,13 @@ export function Products() {
         filterCategory === "all" || 
         product.category_id === filterCategory;
 
+      const matchesSupplier =
+        filterSupplier === "all" ||
+        product.supplier_name === filterSupplier;
+
       const hasStock = showOutOfStock || product.stock_quantity > 0;
 
-      return matchesSearch && matchesCondition && matchesCategory && hasStock;
+      return matchesSearch && matchesCondition && matchesCategory && matchesSupplier && hasStock;
     });
 
     // Sort
@@ -330,7 +335,7 @@ export function Products() {
     });
 
     return filtered;
-  }, [products, searchTerm, filterCondition, filterCategory, showOutOfStock, sortBy]);
+  }, [products, searchTerm, filterCondition, filterCategory, filterSupplier, showOutOfStock, sortBy]);
 
   const handleBarcodeScanned = (barcode: string) => {
     const product = products?.find(p => 
@@ -882,7 +887,7 @@ export function Products() {
         {/* Collapsible Filters */}
         {showFilters && (
           <div className="mt-3 space-y-3 pt-3 border-t border-border animate-fade-in">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <Select value={filterCondition} onValueChange={setFilterCondition}>
                 <SelectTrigger className="text-sm">
                   <SelectValue placeholder="অবস্থা" />
@@ -901,6 +906,17 @@ export function Products() {
                   <SelectItem value="all">সব ক্যাটাগরি</SelectItem>
                   {categories?.map((cat) => (
                     <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={filterSupplier} onValueChange={setFilterSupplier}>
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="সাপ্লায়ার" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">সব সাপ্লায়ার</SelectItem>
+                  {[...new Set(products?.map(p => p.supplier_name).filter(Boolean))].sort().map((name) => (
+                    <SelectItem key={name} value={name!}>{name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -931,12 +947,12 @@ export function Products() {
                 </label>
               </div>
             </div>
-            {(searchTerm || filterCondition !== "all" || filterCategory !== "all") && (
+            {(searchTerm || filterCondition !== "all" || filterCategory !== "all" || filterSupplier !== "all") && (
               <div className="flex items-center justify-between">
                 <p className="text-xs text-muted-foreground">
                   {filteredProducts.length}টি পাওয়া গেছে
                 </p>
-                <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => { setSearchTerm(""); setFilterCondition("all"); setFilterCategory("all"); }}>
+                <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => { setSearchTerm(""); setFilterCondition("all"); setFilterCategory("all"); setFilterSupplier("all"); }}>
                   ফিল্টার মুছুন
                 </Button>
               </div>

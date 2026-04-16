@@ -5,6 +5,7 @@ import { Dashboard } from "@/components/Dashboard";
 import { Products } from "@/components/Products";
 import { POS } from "@/components/POS";
 import { Customers } from "@/components/Customers";
+import { CustomerDetails } from "@/components/CustomerDetails";
 import { Suppliers } from "@/components/Suppliers";
 import { Reports } from "@/components/Reports";
 import { Settings } from "@/components/Settings";
@@ -63,13 +64,18 @@ export default function Index({ user }: IndexProps) {
       }
       setActiveTab("categories");
     };
+    const handleNavigateToCustomerDetails = () => {
+      setActiveTab("customer-details");
+    };
     
     window.addEventListener('navigate-to-customers', handleNavigateToCustomers);
     window.addEventListener('navigate-to-categories', handleNavigateToCategories);
+    window.addEventListener('navigate-to-customer-details', handleNavigateToCustomerDetails);
     
     return () => {
       window.removeEventListener('navigate-to-customers', handleNavigateToCustomers);
       window.removeEventListener('navigate-to-categories', handleNavigateToCategories);
+      window.removeEventListener('navigate-to-customer-details', handleNavigateToCustomerDetails);
     };
   }, [permissions]);
 
@@ -157,6 +163,8 @@ export default function Index({ user }: IndexProps) {
         return <Returns />;
       case "customers":
         return <Customers />;
+      case "customer-details":
+        return <CustomerDetails />;
       case "suppliers":
         return <Suppliers />;
       case "reports":
