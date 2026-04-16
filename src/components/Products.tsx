@@ -1050,6 +1050,7 @@ export function Products() {
                       <span className="inline-block text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{product.categories.name}</span>
                     )}
                   </div>
+                  </div>
                 </div>
                 <div className="flex items-center gap-1">
                   {product.stock_quantity <= product.low_stock_threshold && <span className="text-lg" title="Low Stock">⚠️</span>}
