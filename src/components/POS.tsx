@@ -68,6 +68,7 @@ export function POS() {
           status: "completed",
           instant_customer_name: saleData.instant_customer_name,
           instant_customer_phone: saleData.instant_customer_phone,
+          sale_image_url: saleData.sale_image_url,
         }])
         .select("*, customers(*)")
         .single();
@@ -220,6 +221,7 @@ export function POS() {
       payment_method: paymentMethod,
       instant_customer_name: instantCustomerName || null,
       instant_customer_phone: instantCustomerPhone || null,
+      sale_image_url: saleImageUrl || null,
       items: cart.map(item => ({
         product_id: item.product.id,
         quantity: item.quantity,
