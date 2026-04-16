@@ -318,6 +318,33 @@ export function Customers() {
             </DialogContent>
           </Dialog>
         </div>
+        {/* Search and Sort */}
+        <div className="flex gap-2 mt-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="🔍 কাস্টমার খুঁজুন (নাম, ফোন, ইমেইল)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="w-36 md:w-44 text-sm">
+              <SelectValue placeholder="সর্ট" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name-asc">নাম (A-Z)</SelectItem>
+              <SelectItem value="name-desc">নাম (Z-A)</SelectItem>
+              <SelectItem value="due-desc">বাকি (বেশি→কম)</SelectItem>
+              <SelectItem value="due-asc">বাকি (কম→বেশি)</SelectItem>
+              <SelectItem value="purchases-desc">ক্রয় (বেশি→কম)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {searchQuery && (
+          <p className="text-xs text-muted-foreground mt-2">{filteredCustomers.length}টি কাস্টমার পাওয়া গেছে</p>
+        )}
       </div>
 
       {/* Scrollable Content */}
