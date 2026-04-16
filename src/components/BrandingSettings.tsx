@@ -65,22 +65,11 @@ export function BrandingSettings() {
 
     setUploading(true);
     try {
-      const ext = file.name.split(".").pop();
-      const fileName = `logos/shop-logo-${Date.now()}.${ext}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("branding")
-        .upload(fileName, file, { upsert: true });
-
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from("branding")
-        .getPublicUrl(fileName);
+      const url = await uploadToCloudinary(file, "branding/logos");
 
       const { error: updateError } = await supabase
         .from("shop_settings")
-        .update({ logo_url: urlData.publicUrl })
+        .update({ logo_url: url })
         .eq("id", settings.id);
 
       if (updateError) throw updateError;
@@ -105,29 +94,18 @@ export function BrandingSettings() {
 
     setUploading(true);
     try {
-      const ext = file.name.split(".").pop();
-      const fileName = `logos/favicon-${Date.now()}.${ext}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("branding")
-        .upload(fileName, file, { upsert: true });
-
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from("branding")
-        .getPublicUrl(fileName);
+      const url = await uploadToCloudinary(file, "branding/favicons");
 
       const { error: updateError } = await supabase
         .from("shop_settings")
-        .update({ favicon_url: urlData.publicUrl })
+        .update({ favicon_url: url })
         .eq("id", settings.id);
 
       if (updateError) throw updateError;
 
       // Update favicon in real-time
       const link = document.querySelector("link[rel='icon']") as HTMLLinkElement;
-      if (link) link.href = urlData.publicUrl;
+      if (link) link.href = url;
 
       toast.success("ফেভিকন আপলোড সম্পন্ন!");
       refetch();
