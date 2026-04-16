@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -6,10 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { SupplierForm } from "./suppliers/SupplierForm";
 import { CreatePurchaseDialog } from "./suppliers/CreatePurchaseDialog";
 import { SupplierPaymentDialog } from "./suppliers/SupplierPaymentDialog";
+import { ChevronDown, ChevronUp, Search } from "lucide-react";
 
 export function Suppliers() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -17,6 +19,9 @@ export function Suppliers() {
   const [editingSupplier, setEditingSupplier] = useState<any>(null);
   const [paymentSupplier, setPaymentSupplier] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<string>("name-asc");
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [showSummary, setShowSummary] = useState(true);
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", address: "", notes: "" });
 
   const queryClient = useQueryClient();
