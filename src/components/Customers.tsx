@@ -284,6 +284,13 @@ export function Customers() {
                 ➕ কাস্টমার যুক্ত
               </Button>
             </DialogTrigger>
+            <Button
+              variant="outline"
+              onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-customer-details'))}
+              className="border-primary text-primary"
+            >
+              📋 ডিটেইলস
+            </Button>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>{editingCustomer ? "কাস্টমার সম্পাদনা" : "নতুন কাস্টমার যুক্ত"}</DialogTitle>
