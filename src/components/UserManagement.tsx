@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -36,11 +37,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { useUserRole, AppRole } from "@/hooks/useUserRole";
-import { Shield, UserPlus, Trash2, Edit, Users, Crown, UserCog, User, Mail, Lock, KeyRound } from "lucide-react";
+import { useUserRole, AppRole, RolePermissions, PERMISSION_LABELS, PERMISSION_GROUPS, rolePermissions } from "@/hooks/useUserRole";
+import { Shield, UserPlus, Trash2, Edit, Users, Crown, UserCog, User, Mail, Lock, KeyRound, Settings2, CheckCircle2, XCircle, Activity } from "lucide-react";
+import { ActivityLogger } from "@/hooks/useActivityLog";
 
 interface UserWithRole {
   id: string;
@@ -59,10 +62,13 @@ export function UserManagement() {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showResetPasswordDialog, setShowResetPasswordDialog] = useState(false);
+  const [showPermissionsDialog, setShowPermissionsDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserWithRole | null>(null);
   const [newRole, setNewRole] = useState<AppRole>('staff');
   const [searchTerm, setSearchTerm] = useState('');
   const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
+  const [savingPermissions, setSavingPermissions] = useState(false);
+  const [customPermissions, setCustomPermissions] = useState<Record<string, boolean>>({});
   
   // New user form state
   const [newUserEmail, setNewUserEmail] = useState('');
@@ -104,10 +110,117 @@ export function UserManagement() {
     enabled: isAdmin,
   });
 
+  // Fetch permissions for selected user
+  const { data: userPermissions, refetch: refetchPermissions } = useQuery({
+    queryKey: ['user-permissions', selectedUser?.user_id],
+    queryFn: async () => {
+      if (!selectedUser) return [];
+      const { data, error } = await supabase
+        .from('user_permissions')
+        .select('permission_key, granted')
+        .eq('user_id', selectedUser.user_id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!selectedUser && showPermissionsDialog,
+  });
+
   const filteredUsers = users?.filter(user => 
     user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const openPermissionsDialog = (user: UserWithRole) => {
+    setSelectedUser(user);
+    // Initialize with role defaults
+    const defaults = rolePermissions[user.role];
+    const perms: Record<string, boolean> = {};
+    for (const key of Object.keys(defaults)) {
+      perms[key] = defaults[key as keyof RolePermissions];
+    }
+    setCustomPermissions(perms);
+    setShowPermissionsDialog(true);
+  };
+
+  // Apply fetched custom permissions on top of defaults
+  const applyFetchedPermissions = () => {
+    if (!userPermissions || !selectedUser) return;
+    const defaults = rolePermissions[selectedUser.role];
+    const perms: Record<string, boolean> = {};
+    for (const key of Object.keys(defaults)) {
+      perms[key] = defaults[key as keyof RolePermissions];
+    }
+    for (const cp of userPermissions) {
+      if (cp.permission_key in perms) {
+        perms[cp.permission_key] = cp.granted;
+      }
+    }
+    setCustomPermissions(perms);
+  };
+
+  // Effect: when userPermissions loads, apply them
+  // Using a simple check instead of useEffect to avoid hook issues
+  const [lastAppliedUser, setLastAppliedUser] = useState<string | null>(null);
+  if (userPermissions && selectedUser && lastAppliedUser !== selectedUser.user_id) {
+    const defaults = rolePermissions[selectedUser.role];
+    const perms: Record<string, boolean> = {};
+    for (const key of Object.keys(defaults)) {
+      perms[key] = defaults[key as keyof RolePermissions];
+    }
+    for (const cp of userPermissions) {
+      if (cp.permission_key in perms) {
+        perms[cp.permission_key] = cp.granted;
+      }
+    }
+    setCustomPermissions(perms);
+    setLastAppliedUser(selectedUser.user_id);
+  }
+
+  const handleSavePermissions = async () => {
+    if (!selectedUser) return;
+    setSavingPermissions(true);
+
+    try {
+      // Delete existing permissions for this user
+      await supabase
+        .from('user_permissions')
+        .delete()
+        .eq('user_id', selectedUser.user_id);
+
+      // Insert all custom permissions that differ from role defaults
+      const defaults = rolePermissions[selectedUser.role];
+      const inserts: { user_id: string; permission_key: string; granted: boolean; granted_by: string }[] = [];
+
+      for (const [key, granted] of Object.entries(customPermissions)) {
+        const defaultVal = defaults[key as keyof RolePermissions];
+        if (granted !== defaultVal) {
+          inserts.push({
+            user_id: selectedUser.user_id,
+            permission_key: key,
+            granted,
+            granted_by: currentUserId!,
+          });
+        }
+      }
+
+      if (inserts.length > 0) {
+        const { error } = await supabase
+          .from('user_permissions')
+          .insert(inserts);
+        if (error) throw error;
+      }
+
+      toast.success(`${selectedUser.full_name || selectedUser.email} এর অনুমতি আপডেট হয়েছে`);
+      ActivityLogger.roleUpdated(selectedUser.email, 'custom_permissions');
+      setShowPermissionsDialog(false);
+      setLastAppliedUser(null);
+      queryClient.invalidateQueries({ queryKey: ['user-permissions'] });
+    } catch (error: any) {
+      toast.error('অনুমতি আপডেট করতে ব্যর্থ: ' + error.message);
+    } finally {
+      setSavingPermissions(false);
+    }
+  };
 
   const handleAddUser = async () => {
     if (!newUserEmail || !newUserPassword) {
@@ -123,7 +236,6 @@ export function UserManagement() {
     setAddingUser(true);
 
     try {
-      // Create user via Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: newUserEmail,
         password: newUserPassword,
@@ -138,34 +250,28 @@ export function UserManagement() {
       if (authError) throw authError;
 
       if (authData.user) {
-        // Wait a bit for the trigger to create profile and role
         await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // Update the role if not staff (default)
         if (newUserRole !== 'staff') {
           const { error: roleError } = await supabase
             .from('user_roles')
             .update({ role: newUserRole })
             .eq('user_id', authData.user.id);
 
-          if (roleError) {
-            console.error('Role update error:', roleError);
-          }
+          if (roleError) console.error('Role update error:', roleError);
         }
 
-        // Update the full_name in profiles
         if (newUserName) {
           const { error: profileError } = await supabase
             .from('profiles')
             .update({ full_name: newUserName })
             .eq('id', authData.user.id);
 
-          if (profileError) {
-            console.error('Profile update error:', profileError);
-          }
+          if (profileError) console.error('Profile update error:', profileError);
         }
 
-        toast.success(`নতুন ${newUserRole === 'manager' ? 'ম্যানেজার' : 'স্টাফ'} যুক্ত হয়েছে: ${newUserEmail}`);
+        toast.success(`নতুন ${newUserRole === 'admin' ? 'এডমিন' : newUserRole === 'manager' ? 'ম্যানেজার' : 'স্টাফ'} যুক্ত হয়েছে: ${newUserEmail}`);
+        ActivityLogger.roleUpdated(newUserEmail, newUserRole);
         queryClient.invalidateQueries({ queryKey: ['users-with-roles'] });
         setShowAddDialog(false);
         setNewUserEmail('');
@@ -188,7 +294,6 @@ export function UserManagement() {
     if (!selectedUser) return;
 
     try {
-      // First check if role exists
       const { data: existingRole } = await supabase
         .from('user_roles')
         .select('id')
@@ -196,24 +301,28 @@ export function UserManagement() {
         .maybeSingle();
 
       if (existingRole) {
-        // Update existing role
         const { error } = await supabase
           .from('user_roles')
           .update({ role: newRole })
           .eq('user_id', selectedUser.user_id);
-
         if (error) throw error;
       } else {
-        // Insert new role
         const { error } = await supabase
           .from('user_roles')
           .insert({ user_id: selectedUser.user_id, role: newRole });
-
         if (error) throw error;
       }
 
+      // Clear custom permissions when role changes
+      await supabase
+        .from('user_permissions')
+        .delete()
+        .eq('user_id', selectedUser.user_id);
+
       toast.success(`রোল আপডেট হয়েছে: ${selectedUser.email} → ${newRole === 'admin' ? 'এডমিন' : newRole === 'manager' ? 'ম্যানেজার' : 'স্টাফ'}`);
+      ActivityLogger.roleUpdated(selectedUser.email, newRole);
       queryClient.invalidateQueries({ queryKey: ['users-with-roles'] });
+      queryClient.invalidateQueries({ queryKey: ['user-permissions'] });
       setShowEditDialog(false);
       setSelectedUser(null);
     } catch (error: any) {
@@ -225,23 +334,12 @@ export function UserManagement() {
     if (!selectedUser) return;
 
     try {
-      // Delete user role first
-      const { error: roleError } = await supabase
-        .from('user_roles')
-        .delete()
-        .eq('user_id', selectedUser.user_id);
-
+      await supabase.from('user_permissions').delete().eq('user_id', selectedUser.user_id);
+      const { error: roleError } = await supabase.from('user_roles').delete().eq('user_id', selectedUser.user_id);
       if (roleError) throw roleError;
 
-      // Delete profile
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', selectedUser.user_id);
-
-      if (profileError) throw profileError;
-
       toast.success(`ব্যবহারকারী সরানো হয়েছে: ${selectedUser.email}`);
+      ActivityLogger.roleUpdated(selectedUser.email, 'deleted');
       queryClient.invalidateQueries({ queryKey: ['users-with-roles'] });
       setShowDeleteDialog(false);
       setSelectedUser(null);
@@ -250,7 +348,6 @@ export function UserManagement() {
     }
   };
 
-  // Password Reset function
   const handleResetPassword = async () => {
     if (!selectedUser?.email) return;
 
@@ -259,7 +356,6 @@ export function UserManagement() {
       const { error } = await supabase.auth.resetPasswordForEmail(selectedUser.email, {
         redirectTo: `${window.location.origin}/auth`,
       });
-
       if (error) throw error;
 
       toast.success(`পাসওয়ার্ড রিসেট লিংক পাঠানো হয়েছে: ${selectedUser.email}`);
@@ -275,11 +371,11 @@ export function UserManagement() {
   const getRoleBadge = (role: AppRole) => {
     switch (role) {
       case 'admin':
-        return <Badge className="bg-red-500 hover:bg-red-600"><Crown className="w-3 h-3 mr-1" />Admin</Badge>;
+        return <Badge className="bg-red-500 hover:bg-red-600"><Crown className="w-3 h-3 mr-1" />এডমিন</Badge>;
       case 'manager':
-        return <Badge className="bg-blue-500 hover:bg-blue-600"><UserCog className="w-3 h-3 mr-1" />Manager</Badge>;
+        return <Badge className="bg-blue-500 hover:bg-blue-600"><UserCog className="w-3 h-3 mr-1" />ম্যানেজার</Badge>;
       case 'staff':
-        return <Badge variant="secondary"><User className="w-3 h-3 mr-1" />Staff</Badge>;
+        return <Badge variant="secondary"><User className="w-3 h-3 mr-1" />স্টাফ</Badge>;
     }
   };
 
@@ -292,6 +388,12 @@ export function UserManagement() {
       case 'staff':
         return 'শুধুমাত্র সেলস অপারেশন';
     }
+  };
+
+  const getCustomPermissionCount = (userId: string) => {
+    // This is a visual indicator — we'd need separate query per user for accuracy
+    // For now we show the badge only for the selected user
+    return null;
   };
 
   if (roleLoading) {
@@ -337,21 +439,21 @@ export function UserManagement() {
         <div className="bg-red-500/10 rounded-lg p-4 border border-red-500/20">
           <div className="flex items-center gap-2 mb-2">
             <Crown className="w-5 h-5 text-red-500" />
-            <span className="font-semibold text-red-600">Admin</span>
+            <span className="font-semibold text-red-600">এডমিন</span>
           </div>
           <p className="text-sm text-muted-foreground">{getRoleDescription('admin')}</p>
         </div>
         <div className="bg-blue-500/10 rounded-lg p-4 border border-blue-500/20">
           <div className="flex items-center gap-2 mb-2">
             <UserCog className="w-5 h-5 text-blue-500" />
-            <span className="font-semibold text-blue-600">Manager</span>
+            <span className="font-semibold text-blue-600">ম্যানেজার</span>
           </div>
           <p className="text-sm text-muted-foreground">{getRoleDescription('manager')}</p>
         </div>
         <div className="bg-secondary/50 rounded-lg p-4 border border-border">
           <div className="flex items-center gap-2 mb-2">
             <User className="w-5 h-5 text-muted-foreground" />
-            <span className="font-semibold text-foreground">Staff</span>
+            <span className="font-semibold text-foreground">স্টাফ</span>
           </div>
           <p className="text-sm text-muted-foreground">{getRoleDescription('staff')}</p>
         </div>
@@ -413,7 +515,19 @@ export function UserManagement() {
                       {new Date(user.created_at).toLocaleDateString('bn-BD')}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex justify-end gap-1 flex-wrap">
+                        {/* Permission Assignment Button */}
+                        {user.role !== 'admin' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openPermissionsDialog(user)}
+                            title="দায়িত্ব বন্টন / অনুমতি"
+                            className="border-emerald-500 text-emerald-600 hover:bg-emerald-50"
+                          >
+                            <Settings2 className="w-4 h-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
@@ -473,7 +587,98 @@ export function UserManagement() {
         </div>
       </div>
 
-      {/* Add User Dialog */}
+      {/* ========== PERMISSIONS DIALOG ========== */}
+      <Dialog open={showPermissionsDialog} onOpenChange={(open) => {
+        setShowPermissionsDialog(open);
+        if (!open) setLastAppliedUser(null);
+      }}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings2 className="w-5 h-5 text-emerald-500" />
+              দায়িত্ব বন্টন / অনুমতি সেটিংস
+            </DialogTitle>
+            <DialogDescription>
+              <strong>{selectedUser?.full_name || selectedUser?.email}</strong> ({getRoleBadge(selectedUser?.role || 'staff')}) এর জন্য কাস্টম অনুমতি নির্ধারণ করুন
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            <div className="bg-amber-500/10 rounded-lg p-3 border border-amber-500/20">
+              <p className="text-sm text-amber-700">
+                ⚠️ রোল পরিবর্তন করলে কাস্টম অনুমতি রিসেট হয়ে যাবে। আগে রোল ঠিক করুন, তারপর অনুমতি দিন।
+              </p>
+            </div>
+
+            {PERMISSION_GROUPS.map((group) => (
+              <div key={group.label} className="space-y-3">
+                <h4 className="font-semibold text-sm text-foreground border-b border-border pb-1">{group.label}</h4>
+                {group.keys.map((key) => {
+                  const isDefault = rolePermissions[selectedUser?.role || 'staff'][key];
+                  const isGranted = customPermissions[key] ?? isDefault;
+                  const isOverridden = isGranted !== isDefault;
+
+                  return (
+                    <div key={key} className="flex items-center justify-between py-1.5">
+                      <div className="flex items-center gap-2">
+                        {isGranted ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        ) : (
+                          <XCircle className="w-4 h-4 text-red-400" />
+                        )}
+                        <span className="text-sm text-foreground">{PERMISSION_LABELS[key]}</span>
+                        {isOverridden && (
+                          <Badge variant="outline" className="text-xs px-1 py-0 border-amber-400 text-amber-600">
+                            কাস্টম
+                          </Badge>
+                        )}
+                      </div>
+                      <Switch
+                        checked={isGranted}
+                        onCheckedChange={(checked) => {
+                          setCustomPermissions(prev => ({ ...prev, [key]: checked }));
+                        }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+
+          <div className="flex gap-2 justify-between pt-2 border-t">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => {
+                // Reset to role defaults
+                const defaults = rolePermissions[selectedUser?.role || 'staff'];
+                const perms: Record<string, boolean> = {};
+                for (const key of Object.keys(defaults)) {
+                  perms[key] = defaults[key as keyof RolePermissions];
+                }
+                setCustomPermissions(perms);
+              }}
+            >
+              ডিফল্ট রিসেট
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => { setShowPermissionsDialog(false); setLastAppliedUser(null); }}>
+                বাতিল
+              </Button>
+              <Button 
+                onClick={handleSavePermissions}
+                disabled={savingPermissions}
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                {savingPermissions ? "সেভ হচ্ছে..." : "✅ অনুমতি সেভ করুন"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========== ADD USER DIALOG ========== */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -535,19 +740,19 @@ export function UserManagement() {
                   <SelectItem value="staff">
                     <div className="flex items-center gap-2">
                       <User className="w-4 h-4" />
-                      Staff - সেলস অপারেশন
+                      স্টাফ - সেলস অপারেশন
                     </div>
                   </SelectItem>
                   <SelectItem value="manager">
                     <div className="flex items-center gap-2">
                       <UserCog className="w-4 h-4 text-blue-500" />
-                      Manager - প্রোডাক্ট ও সেলস ব্যবস্থাপনা
+                      ম্যানেজার - প্রোডাক্ট ও সেলস ব্যবস্থাপনা
                     </div>
                   </SelectItem>
                   <SelectItem value="admin">
                     <div className="flex items-center gap-2">
                       <Crown className="w-4 h-4 text-red-500" />
-                      Admin - সম্পূর্ণ অ্যাক্সেস
+                      এডমিন - সম্পূর্ণ অ্যাক্সেস
                     </div>
                   </SelectItem>
                 </SelectContent>
@@ -569,13 +774,13 @@ export function UserManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Role Dialog */}
+      {/* ========== EDIT ROLE DIALOG ========== */}
       <AlertDialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>রোল আপডেট করুন</AlertDialogTitle>
             <AlertDialogDescription>
-              <strong>{selectedUser?.email}</strong> এর রোল পরিবর্তন করুন
+              <strong>{selectedUser?.email}</strong> এর রোল পরিবর্তন করুন। রোল পরিবর্তনে কাস্টম অনুমতি রিসেট হবে।
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="py-4">
@@ -588,19 +793,19 @@ export function UserManagement() {
                 <SelectItem value="admin">
                   <div className="flex items-center gap-2">
                     <Crown className="w-4 h-4 text-red-500" />
-                    Admin - সম্পূর্ণ অ্যাক্সেস
+                    এডমিন - সম্পূর্ণ অ্যাক্সেস
                   </div>
                 </SelectItem>
                 <SelectItem value="manager">
                   <div className="flex items-center gap-2">
                     <UserCog className="w-4 h-4 text-blue-500" />
-                    Manager - প্রোডাক্ট ও সেলস ব্যবস্থাপনা
+                    ম্যানেজার - প্রোডাক্ট ও সেলস ব্যবস্থাপনা
                   </div>
                 </SelectItem>
                 <SelectItem value="staff">
                   <div className="flex items-center gap-2">
                     <User className="w-4 h-4" />
-                    Staff - সেলস অপারেশন
+                    স্টাফ - সেলস অপারেশন
                   </div>
                 </SelectItem>
               </SelectContent>
@@ -613,14 +818,14 @@ export function UserManagement() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Delete User Dialog */}
+      {/* ========== DELETE USER DIALOG ========== */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>ব্যবহারকারী সরান</AlertDialogTitle>
             <AlertDialogDescription>
               আপনি কি নিশ্চিত যে <strong>{selectedUser?.email}</strong> কে সরাতে চান? 
-              এটি তাদের রোল ও প্রোফাইল সিস্টেম থেকে সরিয়ে দেবে।
+              এটি তাদের রোল, অনুমতি ও প্রোফাইল সিস্টেম থেকে সরিয়ে দেবে।
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -632,7 +837,7 @@ export function UserManagement() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Password Reset Dialog */}
+      {/* ========== PASSWORD RESET DIALOG ========== */}
       <AlertDialog open={showResetPasswordDialog} onOpenChange={setShowResetPasswordDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
