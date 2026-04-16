@@ -11,7 +11,8 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { generateCustomerReport } from "@/utils/customerPdfReport";
 import { useShopSettings } from "@/hooks/useShopSettings";
-import { ChevronDown, ChevronUp, Filter, Search } from "lucide-react";
+import { ChevronDown, ChevronUp, Filter, Search, CheckSquare } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export function Customers() {
   const { settings } = useShopSettings();
@@ -26,6 +27,10 @@ export function Customers() {
   const [showDueOnly, setShowDueOnly] = useState(false);
   const [showDueSection, setShowDueSection] = useState(true);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [selectedDueSales, setSelectedDueSales] = useState<Set<string>>(new Set());
+  const [showBulkPayment, setShowBulkPayment] = useState(false);
+  const [bulkPaymentMethod, setBulkPaymentMethod] = useState("cash");
+  const [bulkPaymentNotes, setBulkPaymentNotes] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     email: "",
