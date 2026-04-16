@@ -697,6 +697,52 @@ export function Customers() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Payment Dialog */}
+      <Dialog open={showBulkPayment} onOpenChange={setShowBulkPayment}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>💰 একসাথে বাকি আদায় ({selectedDueSales.size}টি বিক্রয়)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-muted/50 p-3 rounded-lg space-y-1">
+              <p className="text-sm font-bold text-destructive">
+                মোট আদায়যোগ্য: ৳{salesWithDues?.filter(s => selectedDueSales.has(s.id)).reduce((sum, s) => sum + Number(s.due_amount), 0).toLocaleString('bn-BD')}
+              </p>
+              <p className="text-xs text-muted-foreground">{selectedDueSales.size}টি বিক্রয়ের সম্পূর্ণ বাকি আদায় হবে</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">পেমেন্ট পদ্ধতি</label>
+              <Select value={bulkPaymentMethod} onValueChange={setBulkPaymentMethod}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">💵 নগদ</SelectItem>
+                  <SelectItem value="card">💳 কার্ড</SelectItem>
+                  <SelectItem value="mobile">📱 মোবাইল</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">নোট (ঐচ্ছিক)</label>
+              <Input value={bulkPaymentNotes} onChange={(e) => setBulkPaymentNotes(e.target.value)} placeholder="বাল্ক আদায়ের নোট" />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setShowBulkPayment(false)}>বাতিল</Button>
+              <Button
+                onClick={() => bulkCollectMutation.mutate({
+                  saleIds: Array.from(selectedDueSales),
+                  method: bulkPaymentMethod,
+                  notes: bulkPaymentNotes,
+                })}
+                className="bg-green-600 hover:bg-green-700"
+                disabled={bulkCollectMutation.isPending}
+              >
+                {bulkCollectMutation.isPending ? "প্রক্রিয়াকরণ..." : `✓ ${selectedDueSales.size}টি আদায় করুন`}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
