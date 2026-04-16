@@ -594,7 +594,7 @@ export function Products() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2">
-                  <label className="block text-sm font-medium mb-2">Product Name *</label>
+                  <label className="block text-sm font-medium mb-2">প্রোডাক্টের নাম / মডেল *</label>
                   <Input
                     value={formData.name}
                     onChange={(e) => {
@@ -602,18 +602,26 @@ export function Products() {
                       setFormData({ 
                         ...formData, 
                         name: newName,
-                        brand: extractBrand(newName),
-                        model: extractModel(newName)
+                        model: newName
                       });
                     }}
+                    placeholder="শুধু মডেলের তথ্য দিন (যেমন: Galaxy A15, Note 14 Pro)"
                     required
                   />
+                  <p className="text-xs text-muted-foreground mt-1">ব্র্যান্ড ক্যাটাগরি থেকে স্বয়ংক্রিয়ভাবে নেওয়া হবে</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">Category</label>
-                  <Select value={formData.category_id} onValueChange={(value) => setFormData({ ...formData, category_id: value })}>
+                  <Select value={formData.category_id} onValueChange={(value) => {
+                    const selectedCat = categories?.find(c => c.id === value);
+                    setFormData({ 
+                      ...formData, 
+                      category_id: value,
+                      brand: selectedCat?.name || formData.brand
+                    });
+                  }}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
+                      <SelectValue placeholder="ক্যাটাগরি / ব্র্যান্ড সিলেক্ট করুন" />
                     </SelectTrigger>
                     <SelectContent>
                       {categories?.map((cat) => (
@@ -621,6 +629,7 @@ export function Products() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground mt-1">ব্র্যান্ড এখান থেকে স্বয়ংক্রিয়ভাবে সেট হবে</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">IMEI * (15 digits)</label>
@@ -654,19 +663,23 @@ export function Products() {
                   )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Brand</label>
+                  <label className="block text-sm font-medium mb-2">ব্র্যান্ড</label>
                   <Input
                     value={formData.brand}
                     onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
-                    placeholder="Auto-filled from product name"
+                    placeholder="ক্যাটাগরি থেকে স্বয়ংক্রিয়ভাবে আসবে"
+                    readOnly
+                    className="bg-muted/50"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Model</label>
+                  <label className="block text-sm font-medium mb-2">মডেল</label>
                   <Input
                     value={formData.model}
                     onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                    placeholder="Auto-filled from product name"
+                    placeholder="প্রোডাক্টের নাম থেকে স্বয়ংক্রিয়ভাবে আসবে"
+                    readOnly
+                    className="bg-muted/50"
                   />
                 </div>
                 <div>
