@@ -486,7 +486,6 @@ export function Sales() {
                 );
               })}
             </div>
-            </div>
           )}
 
           {/* Pagination */}
