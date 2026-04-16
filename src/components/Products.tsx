@@ -26,6 +26,7 @@ export function Products() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCondition, setFilterCondition] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [filterSupplier, setFilterSupplier] = useState<string>("all");
   const [showScanner, setShowScanner] = useState(false);
   const [showImeiScanner, setShowImeiScanner] = useState(false);
   const [showOutOfStock, setShowOutOfStock] = useState(false);
@@ -312,9 +313,13 @@ export function Products() {
         filterCategory === "all" || 
         product.category_id === filterCategory;
 
+      const matchesSupplier =
+        filterSupplier === "all" ||
+        product.supplier_name === filterSupplier;
+
       const hasStock = showOutOfStock || product.stock_quantity > 0;
 
-      return matchesSearch && matchesCondition && matchesCategory && hasStock;
+      return matchesSearch && matchesCondition && matchesCategory && matchesSupplier && hasStock;
     });
 
     // Sort
@@ -330,7 +335,7 @@ export function Products() {
     });
 
     return filtered;
-  }, [products, searchTerm, filterCondition, filterCategory, showOutOfStock, sortBy]);
+  }, [products, searchTerm, filterCondition, filterCategory, filterSupplier, showOutOfStock, sortBy]);
 
   const handleBarcodeScanned = (barcode: string) => {
     const product = products?.find(p => 
