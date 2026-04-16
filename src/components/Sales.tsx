@@ -9,9 +9,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
-import { Search, Calendar, User, CreditCard, Package, Filter, X, FileDown, FileSpreadsheet } from "lucide-react";
+import { Search, Calendar, User, CreditCard, Package, Filter, X, FileDown, FileSpreadsheet, Image, TrendingUp, TrendingDown, DollarSign } from "lucide-react";
 import { useReactToPrint } from "react-to-print";
 import * as XLSX from "xlsx";
+import { getCloudinaryThumbnail } from "@/utils/cloudinary";
 
 interface SaleDetail {
   id: string;
@@ -25,6 +26,7 @@ interface SaleDetail {
   customer_id: string | null;
   instant_customer_name: string | null;
   instant_customer_phone: string | null;
+  sale_image_url: string | null;
   customers: {
     name: string;
     phone: string | null;
@@ -41,6 +43,7 @@ interface SaleDetail {
       imei: string | null;
       brand: string | null;
       model: string | null;
+      image_url: string | null;
     };
   }>;
 }
@@ -71,7 +74,7 @@ export function Sales() {
             unit_price,
             total_price,
             condition,
-            products (name, sku, imei, brand, model)
+            products (name, sku, imei, brand, model, image_url)
           )
         `)
         .order("created_at", { ascending: false });
@@ -222,8 +225,8 @@ export function Sales() {
       <div className="sticky top-0 z-10 bg-white dark:bg-gray-950 border-b border-border pb-4 space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Sales History</h1>
-            <p className="text-sm md:text-base text-muted-foreground mt-1">View and manage all sales transactions</p>
+           <h1 className="text-2xl md:text-3xl font-bold text-foreground">📋 বিক্রয় ইতিহাস</h1>
+            <p className="text-sm md:text-base text-muted-foreground mt-1">সকল বিক্রয় লেনদেন দেখুন ও পরিচালনা করুন</p>
           </div>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -250,23 +253,31 @@ export function Sales() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         <Card className="card-hover">
           <CardHeader className="pb-3 p-4 md:p-6">
-            <CardDescription className="text-xs md:text-sm">Total Sales</CardDescription>
+            <CardDescription className="text-xs md:text-sm">মোট বিক্রয়</CardDescription>
             <CardTitle className="text-2xl md:text-3xl text-primary">{totalSales}</CardTitle>
           </CardHeader>
         </Card>
-        <Card className="card-hover hidden lg:block">
+        <Card className="card-hover">
           <CardHeader className="pb-3 p-4 md:p-6">
-            <CardDescription className="text-xs md:text-sm">Total Revenue</CardDescription>
-            <CardTitle className="text-2xl md:text-3xl text-accent">৳{totalRevenue.toLocaleString()}</CardTitle>
+            <CardDescription className="text-xs md:text-sm">মোট আয়</CardDescription>
+            <CardTitle className="text-xl md:text-2xl text-accent">৳{totalRevenue.toLocaleString('bn-BD')}</CardTitle>
           </CardHeader>
         </Card>
         <Card className="card-hover hidden lg:block">
           <CardHeader className="pb-3 p-4 md:p-6">
-            <CardDescription className="text-xs md:text-sm">Average Sale</CardDescription>
-            <CardTitle className="text-2xl md:text-3xl text-secondary">৳{averageSale.toFixed(0)}</CardTitle>
+            <CardDescription className="text-xs md:text-sm">গড় বিক্রয়</CardDescription>
+            <CardTitle className="text-xl md:text-2xl text-secondary">৳{averageSale.toFixed(0)}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card className="card-hover hidden lg:block">
+          <CardHeader className="pb-3 p-4 md:p-6">
+            <CardDescription className="text-xs md:text-sm">মোট বাকি</CardDescription>
+            <CardTitle className="text-xl md:text-2xl text-destructive">
+              ৳{filteredSales.reduce((sum, s) => sum + Number(s.due_amount), 0).toLocaleString('bn-BD')}
+            </CardTitle>
           </CardHeader>
         </Card>
         </div>
@@ -280,7 +291,7 @@ export function Sales() {
               className="flex items-center gap-2 text-left"
             >
               <Filter className="h-4 w-4 md:h-5 md:w-5 text-primary" />
-              <CardTitle className="text-base md:text-lg">Filters & Search</CardTitle>
+              <CardTitle className="text-base md:text-lg">ফিল্টার ও সার্চ</CardTitle>
               <span className="text-sm text-muted-foreground ml-2">
                 {showFilters ? "▼" : "▶"}
               </span>
@@ -292,9 +303,9 @@ export function Sales() {
                 onClick={clearFilters}
                 className="text-destructive hover:text-destructive text-sm self-start sm:self-auto"
               >
-                <X className="h-4 w-4 mr-1" />
-                <span className="hidden sm:inline">Clear Filters</span>
-                <span className="sm:hidden">Clear</span>
+               <X className="h-4 w-4 mr-1" />
+                <span className="hidden sm:inline">ফিল্টার মুছুন</span>
+                <span className="sm:hidden">মুছুন</span>
               </Button>
             )}
           </div>
@@ -344,7 +355,7 @@ export function Sales() {
                   <SelectValue placeholder="All Customers" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Customers</SelectItem>
+                  <SelectItem value="all">সকল কাস্টমার</SelectItem>
                   {customers.map((customer) => (
                     <SelectItem key={customer.id} value={customer.id}>
                       {customer.name}
@@ -360,12 +371,12 @@ export function Sales() {
                 <SelectTrigger className="text-sm md:text-base">
                   <SelectValue placeholder="All Payment Methods" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Methods</SelectItem>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="card">Card</SelectItem>
-                  <SelectItem value="mobile">Mobile Banking</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                 <SelectContent>
+                  <SelectItem value="all">সকল পদ্ধতি</SelectItem>
+                  <SelectItem value="cash">💵 নগদ</SelectItem>
+                  <SelectItem value="card">💳 কার্ড</SelectItem>
+                  <SelectItem value="mobile">📱 মোবাইল</SelectItem>
+                  <SelectItem value="other">অন্যান্য</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -381,74 +392,99 @@ export function Sales() {
         <Card>
         <CardHeader className="p-4 md:p-6">
           <CardTitle className="text-base md:text-lg">
-            Sales List ({filteredSales.length} {filteredSales.length === 1 ? "sale" : "sales"})
+            বিক্রয় তালিকা ({filteredSales.length}টি)
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4 md:p-6 pt-0">
           {paginatedSales.length === 0 ? (
             <div className="text-center py-8 md:py-12 text-muted-foreground">
               <Package className="h-10 w-10 md:h-12 md:w-12 mx-auto mb-3 md:mb-4 opacity-50" />
-              <p className="text-sm md:text-base">No sales found</p>
+              <p className="text-sm md:text-base">কোন বিক্রয় পাওয়া যায়নি</p>
               {hasActiveFilters && (
                 <Button variant="link" onClick={clearFilters} className="mt-2 text-sm md:text-base">
-                  Clear filters to see all sales
+                  ফিল্টার মুছে সব দেখুন
                 </Button>
               )}
             </div>
           ) : (
             <div className="space-y-2 md:space-y-3">
-              {paginatedSales.map((sale) => (
+              {paginatedSales.map((sale) => {
+                const firstProductImage = (sale.sale_items || []).find(i => i?.products?.image_url)?.products?.image_url;
+                const displayImage = sale.sale_image_url || firstProductImage;
+                
+                return (
                 <div
                   key={sale.id}
                   onClick={() => setSelectedSale(sale)}
                   className="border border-border rounded-lg p-3 md:p-4 hover:border-primary hover:bg-accent/5 cursor-pointer transition-all card-hover"
                 >
-                  <div className="flex flex-col gap-3">
-                    <div className="flex-1 space-y-2">
+                  <div className="flex gap-3">
+                    {/* Thumbnail */}
+                    {displayImage && (
+                      <img
+                        src={getCloudinaryThumbnail(displayImage, 80, 80)}
+                        alt="বিক্রয়"
+                        className="w-14 h-14 md:w-16 md:h-16 rounded-lg object-cover border border-border shrink-0"
+                      />
+                    )}
+                    
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 md:gap-3 flex-wrap">
                         <span className="font-mono text-xs md:text-sm font-semibold text-primary">
                           #{sale.id.slice(0, 8)}
                         </span>
                         <Badge variant={sale.status === "completed" ? "default" : "secondary"} className="text-xs">
-                          {sale.status}
+                          {sale.status === "completed" ? "সম্পন্ন" : sale.status}
                         </Badge>
                         <Badge variant="outline" className="capitalize text-xs">
-                          {sale.payment_method}
+                          {sale.payment_method === "cash" ? "💵 নগদ" : sale.payment_method === "card" ? "💳 কার্ড" : sale.payment_method === "mobile" ? "📱 মোবাইল" : sale.payment_method}
                         </Badge>
+                        {displayImage && <Image className="h-3 w-3 text-muted-foreground" />}
                       </div>
 
-                      <div className="flex items-center gap-3 md:gap-4 text-xs md:text-sm text-muted-foreground flex-wrap">
+                      <div className="flex items-center gap-3 md:gap-4 text-xs md:text-sm text-muted-foreground flex-wrap mt-1">
                         <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3 md:h-3.5 md:w-3.5" />
+                          <Calendar className="h-3 w-3" />
                           <span className="hidden sm:inline">{format(new Date(sale.created_at), "dd MMM yyyy, hh:mm a")}</span>
                           <span className="sm:hidden">{format(new Date(sale.created_at), "dd MMM yyyy")}</span>
                         </div>
                         {(sale.customers || sale.instant_customer_name) && (
                           <div className="flex items-center gap-1">
-                            <User className="h-3 w-3 md:h-3.5 md:w-3.5" />
-                            {sale.customers?.name || sale.instant_customer_name}
+                            <User className="h-3 w-3" />
+                            <span className="truncate max-w-[120px]">{sale.customers?.name || sale.instant_customer_name}</span>
                           </div>
                         )}
                         <div className="flex items-center gap-1">
-                          <Package className="h-3 w-3 md:h-3.5 md:w-3.5" />
-                          {(sale.sale_items || []).length} {(sale.sale_items || []).length === 1 ? "item" : "items"}
+                          <Package className="h-3 w-3" />
+                          {(sale.sale_items || []).length}টি পণ্য
                         </div>
+                      </div>
+                      
+                      {/* Product names preview */}
+                      <div className="text-xs text-muted-foreground mt-1 truncate">
+                        {(sale.sale_items || []).map(i => i?.products?.name).filter(Boolean).join(', ')}
                       </div>
                     </div>
 
-                    <div className="text-right border-t border-border pt-2 md:border-0 md:pt-0">
-                      <div className="text-xl md:text-2xl font-bold text-accent">
-                        ৳{Number(sale.total_amount).toLocaleString()}
+                    <div className="text-right shrink-0">
+                      <div className="text-lg md:text-xl font-bold text-accent">
+                        ৳{Number(sale.total_amount).toLocaleString('bn-BD')}
                       </div>
+                      {Number(sale.paid_amount) > 0 && Number(sale.paid_amount) < Number(sale.total_amount) && (
+                        <div className="text-xs text-muted-foreground">
+                          পরিশোধ: ৳{Number(sale.paid_amount).toLocaleString('bn-BD')}
+                        </div>
+                      )}
                       {Number(sale.due_amount) > 0 && (
                         <div className="text-xs font-semibold text-destructive">
-                          বাকি: ৳{Number(sale.due_amount).toLocaleString()}
+                          বাকি: ৳{Number(sale.due_amount).toLocaleString('bn-BD')}
                         </div>
                       )}
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -456,7 +492,7 @@ export function Sales() {
           {totalPages > 1 && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 md:mt-6 pt-4 md:pt-6 border-t">
               <div className="text-xs md:text-sm text-muted-foreground">
-                Page {currentPage} of {totalPages}
+                পৃষ্ঠা {currentPage} / {totalPages}
               </div>
               <div className="flex gap-2">
                 <Button
@@ -466,8 +502,7 @@ export function Sales() {
                   disabled={currentPage === 1}
                   className="text-xs md:text-sm"
                 >
-                  <span className="hidden sm:inline">Previous</span>
-                  <span className="sm:hidden">Prev</span>
+                  পূর্ববর্তী
                 </Button>
                 <Button
                   variant="outline"
@@ -476,7 +511,7 @@ export function Sales() {
                   disabled={currentPage === totalPages}
                   className="text-xs md:text-sm"
                 >
-                  Next
+                  পরবর্তী
                 </Button>
               </div>
             </div>
@@ -489,77 +524,100 @@ export function Sales() {
       <Dialog open={!!selectedSale} onOpenChange={() => setSelectedSale(null)}>
         <DialogContent className="w-[95vw] max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-lg md:text-2xl">Sale Details</DialogTitle>
-            <DialogDescription className="text-sm">
-              Complete information about this transaction
-            </DialogDescription>
+            <DialogTitle className="text-lg md:text-2xl">📋 বিক্রয় বিবরণ</DialogTitle>
+            <DialogDescription className="text-sm">এই লেনদেনের সম্পূর্ণ তথ্য</DialogDescription>
           </DialogHeader>
 
           {selectedSale && (
             <div className="space-y-4 md:space-y-6">
+              {/* Sale Image */}
+              {selectedSale.sale_image_url && (
+                <div className="rounded-lg overflow-hidden border border-border">
+                  <img
+                    src={getCloudinaryThumbnail(selectedSale.sale_image_url, 600, 400)}
+                    alt="বিক্রয়ের ছবি"
+                    className="w-full max-h-64 object-cover"
+                  />
+                </div>
+              )}
+
               {/* Sale Info */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <Card>
-                  <CardHeader className="pb-3 p-3 md:p-6">
-                    <CardDescription className="text-xs md:text-sm">Sale ID</CardDescription>
-                    <CardTitle className="text-sm md:text-base font-mono break-all">#{selectedSale.id}</CardTitle>
+                  <CardHeader className="pb-2 p-3">
+                    <CardDescription className="text-xs">সেল আইডি</CardDescription>
+                    <CardTitle className="text-xs font-mono break-all">#{selectedSale.id.slice(0, 8)}</CardTitle>
                   </CardHeader>
                 </Card>
                 <Card>
-                  <CardHeader className="pb-3 p-3 md:p-6">
-                    <CardDescription className="text-xs md:text-sm">Date & Time</CardDescription>
-                    <CardTitle className="text-sm md:text-base">
-                      <span className="hidden sm:inline">{format(new Date(selectedSale.created_at), "dd MMM yyyy, hh:mm a")}</span>
-                      <span className="sm:hidden">{format(new Date(selectedSale.created_at), "dd MMM yyyy")}</span>
+                  <CardHeader className="pb-2 p-3">
+                    <CardDescription className="text-xs">তারিখ</CardDescription>
+                    <CardTitle className="text-xs">{format(new Date(selectedSale.created_at), "dd MMM yyyy, hh:mm a")}</CardTitle>
+                  </CardHeader>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2 p-3">
+                    <CardDescription className="text-xs">পেমেন্ট</CardDescription>
+                    <CardTitle className="text-xs capitalize">
+                      {selectedSale.payment_method === "cash" ? "💵 নগদ" : selectedSale.payment_method === "card" ? "💳 কার্ড" : selectedSale.payment_method === "mobile" ? "📱 মোবাইল" : selectedSale.payment_method}
                     </CardTitle>
                   </CardHeader>
                 </Card>
                 <Card>
-                  <CardHeader className="pb-3 p-3 md:p-6">
-                    <CardDescription className="text-xs md:text-sm">Payment Method</CardDescription>
-                    <CardTitle className="text-sm md:text-base capitalize">{selectedSale.payment_method}</CardTitle>
-                  </CardHeader>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-3 p-3 md:p-6">
-                    <CardDescription className="text-xs md:text-sm">Status</CardDescription>
-                    <CardTitle className="text-sm md:text-base">
+                  <CardHeader className="pb-2 p-3">
+                    <CardDescription className="text-xs">স্ট্যাটাস</CardDescription>
+                    <CardTitle className="text-xs">
                       <Badge variant={selectedSale.status === "completed" ? "default" : "secondary"} className="text-xs">
-                        {selectedSale.status}
+                        {selectedSale.status === "completed" ? "সম্পন্ন" : selectedSale.status}
                       </Badge>
                     </CardTitle>
                   </CardHeader>
                 </Card>
               </div>
 
+              {/* Payment Summary */}
+              <Card className="bg-primary/5">
+                <CardContent className="p-4 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">মোট মূল্য:</span>
+                    <span className="text-xl font-bold text-accent">৳{Number(selectedSale.total_amount).toLocaleString('bn-BD')}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">পরিশোধ:</span>
+                    <span className="text-base font-semibold text-primary">৳{Number(selectedSale.paid_amount).toLocaleString('bn-BD')}</span>
+                  </div>
+                  {Number(selectedSale.due_amount) > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-destructive">বাকি:</span>
+                      <span className="text-base font-bold text-destructive">৳{Number(selectedSale.due_amount).toLocaleString('bn-BD')}</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* Customer Info */}
               {(selectedSale.customers || selectedSale.instant_customer_name) && (
                 <Card>
-                  <CardHeader className="p-3 md:p-6">
-                    <CardTitle className="text-base md:text-lg flex items-center gap-2">
-                      <User className="h-4 w-4 md:h-5 md:w-5" />
-                      Customer Information
+                  <CardHeader className="p-3 md:p-4">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <User className="h-4 w-4" /> কাস্টমার তথ্য
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-2 p-3 md:p-6 pt-0">
-                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-0">
-                      <span className="text-xs md:text-sm text-muted-foreground">Name:</span>
-                      <span className="text-sm md:text-base font-semibold">
-                        {selectedSale.customers?.name || selectedSale.instant_customer_name}
-                      </span>
+                  <CardContent className="space-y-2 p-3 md:p-4 pt-0">
+                    <div className="flex justify-between">
+                      <span className="text-xs text-muted-foreground">নাম:</span>
+                      <span className="text-sm font-semibold">{selectedSale.customers?.name || selectedSale.instant_customer_name}</span>
                     </div>
                     {(selectedSale.customers?.phone || selectedSale.instant_customer_phone) && (
-                      <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-0">
-                        <span className="text-xs md:text-sm text-muted-foreground">Phone:</span>
-                        <span className="text-sm md:text-base">
-                          {selectedSale.customers?.phone || selectedSale.instant_customer_phone}
-                        </span>
+                      <div className="flex justify-between">
+                        <span className="text-xs text-muted-foreground">ফোন:</span>
+                        <span className="text-sm">{selectedSale.customers?.phone || selectedSale.instant_customer_phone}</span>
                       </div>
                     )}
                     {selectedSale.customers?.email && (
-                      <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-0">
-                        <span className="text-xs md:text-sm text-muted-foreground">Email:</span>
-                        <span className="text-sm md:text-base">{selectedSale.customers.email}</span>
+                      <div className="flex justify-between">
+                        <span className="text-xs text-muted-foreground">ইমেইল:</span>
+                        <span className="text-sm">{selectedSale.customers.email}</span>
                       </div>
                     )}
                   </CardContent>
@@ -568,59 +626,40 @@ export function Sales() {
 
               {/* Products */}
               <Card>
-                <CardHeader className="p-3 md:p-6">
-                  <CardTitle className="text-base md:text-lg flex items-center gap-2">
-                    <Package className="h-4 w-4 md:h-5 md:w-5" />
-                    Products Sold
+                <CardHeader className="p-3 md:p-4">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Package className="h-4 w-4" /> বিক্রিত পণ্য
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="p-3 md:p-6 pt-0">
-                  <div className="space-y-3 md:space-y-4">
+                <CardContent className="p-3 md:p-4 pt-0">
+                  <div className="space-y-3">
                     {(selectedSale.sale_items || []).map((item, index) => (
                       <div key={index}>
-                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 sm:gap-4">
-                          <div className="flex-1 space-y-1">
-                            <div className="text-sm md:text-base font-semibold">{item.products.name}</div>
-                            <div className="text-xs md:text-sm text-muted-foreground space-y-0.5">
-                              {item.products.brand && (
-                                <div>Brand: {item.products.brand}</div>
-                              )}
-                              {item.products.model && (
-                                <div>Model: {item.products.model}</div>
-                              )}
-                              {item.products.imei && (
-                                <div className="break-all">IMEI: {item.products.imei}</div>
-                              )}
-                              {item.products.sku && (
-                                <div className="break-all">SKU: {item.products.sku}</div>
-                              )}
-                              <div>Condition: <Badge variant="outline" className="capitalize text-xs">{item.condition}</Badge></div>
+                        <div className="flex gap-3">
+                          {item.products.image_url && (
+                            <img
+                              src={getCloudinaryThumbnail(item.products.image_url, 80, 80)}
+                              alt={item.products.name}
+                              className="w-12 h-12 rounded-lg object-cover border border-border shrink-0"
+                            />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold">{item.products.name}</div>
+                            <div className="text-xs text-muted-foreground space-y-0.5">
+                              {item.products.brand && <span>ব্র্যান্ড: {item.products.brand} </span>}
+                              {item.products.model && <span>| মডেল: {item.products.model}</span>}
+                              {item.products.imei && <div className="break-all">IMEI: {item.products.imei}</div>}
+                              <div>কন্ডিশন: <Badge variant="outline" className="capitalize text-xs">{item.condition}</Badge></div>
                             </div>
                           </div>
-                          <div className="text-right space-y-1 border-t sm:border-0 pt-2 sm:pt-0">
-                            <div className="text-xs md:text-sm text-muted-foreground">
-                              {item.quantity} × ৳{Number(item.unit_price).toLocaleString()}
-                            </div>
-                            <div className="text-sm md:text-base font-semibold text-accent">
-                              ৳{Number(item.total_price).toLocaleString()}
-                            </div>
+                          <div className="text-right shrink-0">
+                            <div className="text-xs text-muted-foreground">{item.quantity} × ৳{Number(item.unit_price).toLocaleString('bn-BD')}</div>
+                            <div className="text-sm font-semibold text-accent">৳{Number(item.total_price).toLocaleString('bn-BD')}</div>
                           </div>
                         </div>
-                        {index < (selectedSale.sale_items || []).length - 1 && (
-                          <Separator className="mt-3 md:mt-4" />
-                        )}
+                        {index < (selectedSale.sale_items || []).length - 1 && <Separator className="mt-3" />}
                       </div>
                     ))}
-                  </div>
-
-                  <Separator className="my-3 md:my-4" />
-
-                  {/* Total */}
-                  <div className="flex justify-between items-center">
-                    <span className="text-base md:text-lg font-semibold">Total Amount:</span>
-                    <span className="text-xl md:text-2xl font-bold text-accent">
-                      ৳{Number(selectedSale.total_amount).toLocaleString()}
-                    </span>
                   </div>
                 </CardContent>
               </Card>
@@ -628,11 +667,9 @@ export function Sales() {
               {/* Notes */}
               {selectedSale.notes && (
                 <Card>
-                  <CardHeader className="p-3 md:p-6">
-                    <CardTitle className="text-base md:text-lg">Notes</CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-3 md:p-6 pt-0">
-                    <p className="text-xs md:text-sm text-muted-foreground">{selectedSale.notes}</p>
+                  <CardHeader className="p-3"><CardTitle className="text-sm">📝 নোট</CardTitle></CardHeader>
+                  <CardContent className="p-3 pt-0">
+                    <p className="text-xs text-muted-foreground">{selectedSale.notes}</p>
                   </CardContent>
                 </Card>
               )}
@@ -645,46 +682,49 @@ export function Sales() {
       <div className="hidden">
         <div ref={printRef} className="p-8 bg-white text-black">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold mb-2">Sales Report</h1>
-            <p className="text-gray-600">Generated on {format(new Date(), "dd MMMM yyyy, hh:mm a")}</p>
+            <h1 className="text-3xl font-bold mb-2">বিক্রয় রিপোর্ট</h1>
+            <p className="text-gray-600">তারিখ: {format(new Date(), "dd MMMM yyyy, hh:mm a")}</p>
             {hasActiveFilters && (
               <div className="mt-4 text-sm text-gray-600">
-                <p className="font-semibold">Applied Filters:</p>
-                {searchTerm && <p>Search: {searchTerm}</p>}
-                {filterPaymentMethod !== "all" && <p>Payment Method: {filterPaymentMethod}</p>}
-                {filterCustomer !== "all" && <p>Customer: {customers.find(c => c.id === filterCustomer)?.name}</p>}
-                {filterDateFrom && <p>From: {format(new Date(filterDateFrom), "dd MMM yyyy")}</p>}
-                {filterDateTo && <p>To: {format(new Date(filterDateTo), "dd MMM yyyy")}</p>}
+                <p className="font-semibold">প্রয়োগকৃত ফিল্টার:</p>
+                {searchTerm && <p>সার্চ: {searchTerm}</p>}
+                {filterPaymentMethod !== "all" && <p>পেমেন্ট: {filterPaymentMethod}</p>}
+                {filterCustomer !== "all" && <p>কাস্টমার: {customers.find(c => c.id === filterCustomer)?.name}</p>}
+                {filterDateFrom && <p>থেকে: {format(new Date(filterDateFrom), "dd MMM yyyy")}</p>}
+                {filterDateTo && <p>পর্যন্ত: {format(new Date(filterDateTo), "dd MMM yyyy")}</p>}
               </div>
             )}
           </div>
 
-          {/* Summary Stats */}
-          <div className="grid grid-cols-3 gap-4 mb-8 pb-4 border-b-2 border-gray-300">
+          <div className="grid grid-cols-4 gap-4 mb-8 pb-4 border-b-2 border-gray-300">
             <div className="text-center">
-              <p className="text-gray-600 text-sm">Total Sales</p>
+              <p className="text-gray-600 text-sm">মোট বিক্রয়</p>
               <p className="text-2xl font-bold">{totalSales}</p>
             </div>
             <div className="text-center">
-              <p className="text-gray-600 text-sm">Total Revenue</p>
+              <p className="text-gray-600 text-sm">মোট আয়</p>
               <p className="text-2xl font-bold">৳{totalRevenue.toLocaleString()}</p>
             </div>
             <div className="text-center">
-              <p className="text-gray-600 text-sm">Average Sale</p>
+              <p className="text-gray-600 text-sm">গড় বিক্রয়</p>
               <p className="text-2xl font-bold">৳{averageSale.toFixed(0)}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-gray-600 text-sm">মোট বাকি</p>
+              <p className="text-2xl font-bold">৳{filteredSales.reduce((sum, s) => sum + Number(s.due_amount), 0).toLocaleString()}</p>
             </div>
           </div>
 
-          {/* Sales Table */}
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b-2 border-gray-300">
-                <th className="text-left p-2 text-sm font-semibold">Date</th>
-                <th className="text-left p-2 text-sm font-semibold">Sale ID</th>
-                <th className="text-left p-2 text-sm font-semibold">Customer</th>
-                <th className="text-left p-2 text-sm font-semibold">Products</th>
-                <th className="text-left p-2 text-sm font-semibold">Payment</th>
-                <th className="text-right p-2 text-sm font-semibold">Amount</th>
+                <th className="text-left p-2 text-sm font-semibold">তারিখ</th>
+                <th className="text-left p-2 text-sm font-semibold">আইডি</th>
+                <th className="text-left p-2 text-sm font-semibold">কাস্টমার</th>
+                <th className="text-left p-2 text-sm font-semibold">পণ্য</th>
+                <th className="text-left p-2 text-sm font-semibold">পেমেন্ট</th>
+                <th className="text-right p-2 text-sm font-semibold">মোট</th>
+                <th className="text-right p-2 text-sm font-semibold">বাকি</th>
               </tr>
             </thead>
             <tbody>
@@ -692,7 +732,7 @@ export function Sales() {
                 <tr key={sale.id} className="border-b border-gray-200">
                   <td className="p-2 text-xs">{format(new Date(sale.created_at), "dd MMM yyyy")}</td>
                   <td className="p-2 text-xs font-mono">#{sale.id.slice(0, 8)}</td>
-                  <td className="p-2 text-xs">{sale.customers?.name || "Walk-in"}</td>
+                  <td className="p-2 text-xs">{sale.customers?.name || sale.instant_customer_name || "ওয়াক-ইন"}</td>
                   <td className="p-2 text-xs">
                     {(sale.sale_items || []).map((item, idx) => (
                       <div key={idx}>
@@ -703,13 +743,14 @@ export function Sales() {
                   </td>
                   <td className="p-2 text-xs capitalize">{sale.payment_method}</td>
                   <td className="p-2 text-xs text-right font-semibold">৳{Number(sale.total_amount).toLocaleString()}</td>
+                  <td className="p-2 text-xs text-right font-semibold text-red-600">{Number(sale.due_amount) > 0 ? `৳${Number(sale.due_amount).toLocaleString()}` : '-'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
 
           <div className="mt-8 pt-4 border-t-2 border-gray-300 text-right">
-            <p className="text-lg font-bold">Total: ৳{totalRevenue.toLocaleString()}</p>
+            <p className="text-lg font-bold">মোট: ৳{totalRevenue.toLocaleString()}</p>
           </div>
         </div>
       </div>
