@@ -56,6 +56,7 @@ export function Products() {
     supplier_nid: "",
     product_entry_date: new Date().toISOString().split('T')[0],
     warranty_status: "no_warranty",
+    image_url: "",
   });
 
   const queryClient = useQueryClient();
@@ -165,6 +166,7 @@ export function Products() {
       supplier_nid: "",
       product_entry_date: new Date().toISOString().split('T')[0],
       warranty_status: "no_warranty",
+      image_url: "",
     });
   };
 
@@ -242,6 +244,7 @@ export function Products() {
       stock_quantity: 1,
       low_stock_threshold: 0,
       category_id: formData.category_id || null,
+      image_url: formData.image_url || null,
     };
 
     if (editingProduct) {
@@ -285,6 +288,7 @@ export function Products() {
       supplier_nid: product.supplier_nid || "",
       product_entry_date: product.product_entry_date || new Date().toISOString().split('T')[0],
       warranty_status: product.warranty_status || "no_warranty",
+      image_url: product.image_url || "",
     });
   };
 
