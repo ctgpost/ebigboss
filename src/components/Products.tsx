@@ -15,6 +15,8 @@ import { ProductQuickView } from "./ProductQuickView";
 import { Eye, ScanBarcode, Download, FileSpreadsheet, FileText, ChevronDown, ChevronUp, Filter, ArrowUpDown, LayoutGrid, List } from "lucide-react";
 import { ActivityLogger } from "@/hooks/useActivityLog";
 import * as XLSX from "xlsx";
+import { CloudinaryImageUpload } from "./CloudinaryImageUpload";
+import { getCloudinaryThumbnail } from "@/utils/cloudinary";
 export function Products() {
   const [supplierMode, setSupplierMode] = useState<"existing" | "custom">("existing");
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");

@@ -12,6 +12,8 @@ import { SupplierForm } from "./suppliers/SupplierForm";
 import { CreatePurchaseDialog } from "./suppliers/CreatePurchaseDialog";
 import { SupplierPaymentDialog } from "./suppliers/SupplierPaymentDialog";
 import { ChevronDown, ChevronUp, Search } from "lucide-react";
+import { CloudinaryImageUpload } from "./CloudinaryImageUpload";
+import { getCloudinaryThumbnail } from "@/utils/cloudinary";
 
 export function Suppliers() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);

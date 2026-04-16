@@ -13,6 +13,8 @@ import { generateCustomerReport } from "@/utils/customerPdfReport";
 import { useShopSettings } from "@/hooks/useShopSettings";
 import { ChevronDown, ChevronUp, Filter, Search, CheckSquare } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CloudinaryImageUpload } from "./CloudinaryImageUpload";
+import { getCloudinaryThumbnail } from "@/utils/cloudinary";
 
 export function Customers() {
   const { settings } = useShopSettings();
