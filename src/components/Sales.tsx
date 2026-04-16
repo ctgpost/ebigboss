@@ -392,68 +392,94 @@ export function Sales() {
         <Card>
         <CardHeader className="p-4 md:p-6">
           <CardTitle className="text-base md:text-lg">
-            Sales List ({filteredSales.length} {filteredSales.length === 1 ? "sale" : "sales"})
+            বিক্রয় তালিকা ({filteredSales.length}টি)
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4 md:p-6 pt-0">
           {paginatedSales.length === 0 ? (
             <div className="text-center py-8 md:py-12 text-muted-foreground">
               <Package className="h-10 w-10 md:h-12 md:w-12 mx-auto mb-3 md:mb-4 opacity-50" />
-              <p className="text-sm md:text-base">No sales found</p>
+              <p className="text-sm md:text-base">কোন বিক্রয় পাওয়া যায়নি</p>
               {hasActiveFilters && (
                 <Button variant="link" onClick={clearFilters} className="mt-2 text-sm md:text-base">
-                  Clear filters to see all sales
+                  ফিল্টার মুছে সব দেখুন
                 </Button>
               )}
             </div>
           ) : (
             <div className="space-y-2 md:space-y-3">
-              {paginatedSales.map((sale) => (
+              {paginatedSales.map((sale) => {
+                const firstProductImage = (sale.sale_items || []).find(i => i?.products?.image_url)?.products?.image_url;
+                const displayImage = sale.sale_image_url || firstProductImage;
+                
+                return (
                 <div
                   key={sale.id}
                   onClick={() => setSelectedSale(sale)}
                   className="border border-border rounded-lg p-3 md:p-4 hover:border-primary hover:bg-accent/5 cursor-pointer transition-all card-hover"
                 >
-                  <div className="flex flex-col gap-3">
-                    <div className="flex-1 space-y-2">
+                  <div className="flex gap-3">
+                    {/* Thumbnail */}
+                    {displayImage && (
+                      <img
+                        src={getCloudinaryThumbnail(displayImage, 80, 80)}
+                        alt="বিক্রয়"
+                        className="w-14 h-14 md:w-16 md:h-16 rounded-lg object-cover border border-border shrink-0"
+                      />
+                    )}
+                    
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 md:gap-3 flex-wrap">
                         <span className="font-mono text-xs md:text-sm font-semibold text-primary">
                           #{sale.id.slice(0, 8)}
                         </span>
                         <Badge variant={sale.status === "completed" ? "default" : "secondary"} className="text-xs">
-                          {sale.status}
+                          {sale.status === "completed" ? "সম্পন্ন" : sale.status}
                         </Badge>
                         <Badge variant="outline" className="capitalize text-xs">
-                          {sale.payment_method}
+                          {sale.payment_method === "cash" ? "💵 নগদ" : sale.payment_method === "card" ? "💳 কার্ড" : sale.payment_method === "mobile" ? "📱 মোবাইল" : sale.payment_method}
                         </Badge>
+                        {displayImage && <Image className="h-3 w-3 text-muted-foreground" />}
                       </div>
 
-                      <div className="flex items-center gap-3 md:gap-4 text-xs md:text-sm text-muted-foreground flex-wrap">
+                      <div className="flex items-center gap-3 md:gap-4 text-xs md:text-sm text-muted-foreground flex-wrap mt-1">
                         <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3 md:h-3.5 md:w-3.5" />
+                          <Calendar className="h-3 w-3" />
                           <span className="hidden sm:inline">{format(new Date(sale.created_at), "dd MMM yyyy, hh:mm a")}</span>
                           <span className="sm:hidden">{format(new Date(sale.created_at), "dd MMM yyyy")}</span>
                         </div>
                         {(sale.customers || sale.instant_customer_name) && (
                           <div className="flex items-center gap-1">
-                            <User className="h-3 w-3 md:h-3.5 md:w-3.5" />
-                            {sale.customers?.name || sale.instant_customer_name}
+                            <User className="h-3 w-3" />
+                            <span className="truncate max-w-[120px]">{sale.customers?.name || sale.instant_customer_name}</span>
                           </div>
                         )}
                         <div className="flex items-center gap-1">
-                          <Package className="h-3 w-3 md:h-3.5 md:w-3.5" />
-                          {(sale.sale_items || []).length} {(sale.sale_items || []).length === 1 ? "item" : "items"}
+                          <Package className="h-3 w-3" />
+                          {(sale.sale_items || []).length}টি পণ্য
                         </div>
+                      </div>
+                      
+                      {/* Product names preview */}
+                      <div className="text-xs text-muted-foreground mt-1 truncate">
+                        {(sale.sale_items || []).map(i => i?.products?.name).filter(Boolean).join(', ')}
                       </div>
                     </div>
 
-                    <div className="text-right border-t border-border pt-2 md:border-0 md:pt-0">
-                      <div className="text-xl md:text-2xl font-bold text-accent">
-                        ৳{Number(sale.total_amount).toLocaleString()}
+                    <div className="text-right shrink-0">
+                      <div className="text-lg md:text-xl font-bold text-accent">
+                        ৳{Number(sale.total_amount).toLocaleString('bn-BD')}
                       </div>
+                      {Number(sale.paid_amount) > 0 && Number(sale.paid_amount) < Number(sale.total_amount) && (
+                        <div className="text-xs text-muted-foreground">
+                          পরিশোধ: ৳{Number(sale.paid_amount).toLocaleString('bn-BD')}
+                        </div>
+                      )}
                       {Number(sale.due_amount) > 0 && (
                         <div className="text-xs font-semibold text-destructive">
-                          বাকি: ৳{Number(sale.due_amount).toLocaleString()}
+                          বাকি: ৳{Number(sale.due_amount).toLocaleString('bn-BD')}
+                        </div>
+                      )}
                         </div>
                       )}
                     </div>
