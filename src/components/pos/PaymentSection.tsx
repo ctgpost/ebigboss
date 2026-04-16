@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Customer } from "./types";
+import { CloudinaryImageUpload } from "@/components/CloudinaryImageUpload";
 
 interface PaymentSectionProps {
   customers: Customer[] | undefined;
@@ -20,6 +21,8 @@ interface PaymentSectionProps {
   onInstantCustomerPhoneChange: (phone: string) => void;
   paidAmount: number;
   onPaidAmountChange: (amount: number) => void;
+  saleImageUrl: string;
+  onSaleImageUrlChange: (url: string) => void;
 }
 
 export function PaymentSection({
@@ -38,6 +41,8 @@ export function PaymentSection({
   onInstantCustomerPhoneChange,
   paidAmount,
   onPaidAmountChange,
+  saleImageUrl,
+  onSaleImageUrlChange,
 }: PaymentSectionProps) {
   const [useInstantCustomer, setUseInstantCustomer] = useState(false);
 
@@ -150,6 +155,16 @@ export function PaymentSection({
             <span className="text-lg font-bold">৳{dueAmount.toLocaleString('bn-BD')}</span>
           </div>
         )}
+      </div>
+
+      {/* Optional Sale Image */}
+      <div className="pt-2 border-t border-border">
+        <CloudinaryImageUpload
+          currentImageUrl={saleImageUrl}
+          onUpload={onSaleImageUrlChange}
+          folder="sales"
+          label="📷 বিক্রয়ের ছবি (ঐচ্ছিক)"
+        />
       </div>
 
       <Button
