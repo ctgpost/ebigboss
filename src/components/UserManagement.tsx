@@ -211,7 +211,7 @@ export function UserManagement() {
       }
 
       toast.success(`${selectedUser.full_name || selectedUser.email} এর অনুমতি আপডেট হয়েছে`);
-      ActivityLogger.log('permission_update', `${selectedUser.email} এর অনুমতি আপডেট করা হয়েছে`);
+      ActivityLogger.roleUpdated(selectedUser.email, 'custom_permissions');
       setShowPermissionsDialog(false);
       setLastAppliedUser(null);
       queryClient.invalidateQueries({ queryKey: ['user-permissions'] });
@@ -271,7 +271,7 @@ export function UserManagement() {
         }
 
         toast.success(`নতুন ${newUserRole === 'admin' ? 'এডমিন' : newUserRole === 'manager' ? 'ম্যানেজার' : 'স্টাফ'} যুক্ত হয়েছে: ${newUserEmail}`);
-        ActivityLogger.log('user_added', `${newUserEmail} (${newUserRole}) যুক্ত করা হয়েছে`);
+        ActivityLogger.roleUpdated(newUserEmail, newUserRole);
         queryClient.invalidateQueries({ queryKey: ['users-with-roles'] });
         setShowAddDialog(false);
         setNewUserEmail('');
@@ -320,7 +320,7 @@ export function UserManagement() {
         .eq('user_id', selectedUser.user_id);
 
       toast.success(`রোল আপডেট হয়েছে: ${selectedUser.email} → ${newRole === 'admin' ? 'এডমিন' : newRole === 'manager' ? 'ম্যানেজার' : 'স্টাফ'}`);
-      ActivityLogger.log('role_update', `${selectedUser.email} এর রোল ${newRole} করা হয়েছে`);
+      ActivityLogger.roleUpdated(selectedUser.email, newRole);
       queryClient.invalidateQueries({ queryKey: ['users-with-roles'] });
       queryClient.invalidateQueries({ queryKey: ['user-permissions'] });
       setShowEditDialog(false);
@@ -339,7 +339,7 @@ export function UserManagement() {
       if (roleError) throw roleError;
 
       toast.success(`ব্যবহারকারী সরানো হয়েছে: ${selectedUser.email}`);
-      ActivityLogger.log('user_deleted', `${selectedUser.email} সরানো হয়েছে`);
+      ActivityLogger.roleUpdated(selectedUser.email, 'deleted');
       queryClient.invalidateQueries({ queryKey: ['users-with-roles'] });
       setShowDeleteDialog(false);
       setSelectedUser(null);
