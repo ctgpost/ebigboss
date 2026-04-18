@@ -17,6 +17,7 @@ import { ActivityLogger } from "@/hooks/useActivityLog";
 import * as XLSX from "xlsx";
 import { CloudinaryImageUpload } from "./CloudinaryImageUpload";
 import { getCloudinaryThumbnail } from "@/utils/cloudinary";
+import { FieldError } from "@/components/ui/field-error";
 export function Products() {
   const [supplierMode, setSupplierMode] = useState<"existing" | "custom">("existing");
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
@@ -36,6 +37,8 @@ export function Products() {
   const [sortBy, setSortBy] = useState<string>("name-asc");
   const [viewMode, setViewMode] = useState<"grid" | "compact">("grid");
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const clearError = (key: string) => setFormErrors(p => { if (!p[key]) return p; const n = { ...p }; delete n[key]; return n; });
   const [formData, setFormData] = useState({
     name: "",
     category_id: "",
@@ -192,31 +195,34 @@ export function Products() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Bengali validations
+    // Inline Bengali validations — collect ALL errors then show under each field
+    const errs: Record<string, string> = {};
     if (!formData.name.trim()) {
-      toast.error("প্রোডাক্টের নাম (মডেল) অবশ্যই দিতে হবে");
-      return;
+      errs.name = "প্রোডাক্টের নাম (মডেল) অবশ্যই দিতে হবে";
+    } else if (formData.name.trim().length > 200) {
+      errs.name = "নাম সর্বোচ্চ ২০০ অক্ষরের হতে পারবে";
     }
     if (!formData.category_id) {
-      toast.error("ক্যাটাগরি সিলেক্ট করুন");
-      return;
+      errs.category_id = "ক্যাটাগরি সিলেক্ট করুন";
     }
     if (!formData.condition) {
-      toast.error("নতুন অথবা পুরাতন মোবাইল সিলেক্ট করুন");
-      return;
+      errs.condition = "নতুন অথবা পুরাতন মোবাইল সিলেক্ট করুন";
     }
     if (!/^\d{15}$/.test(formData.imei || "")) {
-      toast.error("IMEI অবশ্যই ১৫ ডিজিটের হতে হবে");
-      return;
+      errs.imei = "IMEI অবশ্যই ১৫ ডিজিটের হতে হবে";
     }
     const priceNum = parseFloat(formData.price);
     const costNum = parseFloat(formData.cost);
     if (!formData.price || isNaN(priceNum) || priceNum <= 0) {
-      toast.error("বিক্রয় মূল্য অবশ্যই ০ এর বেশি হতে হবে");
-      return;
+      errs.price = "বিক্রয় মূল্য অবশ্যই ০ এর বেশি হতে হবে";
     }
     if (!formData.cost || isNaN(costNum) || costNum < 0) {
-      toast.error("ক্রয় মূল্য সঠিকভাবে দিন");
+      errs.cost = "ক্রয় মূল্য সঠিকভাবে দিন (০ বা তার বেশি)";
+    }
+
+    setFormErrors(errs);
+    if (Object.keys(errs).length > 0) {
+      toast.error("ফর্মে ভুল আছে — লাল চিহ্নিত ফিল্ডগুলো ঠিক করুন");
       return;
     }
 
@@ -236,12 +242,12 @@ export function Products() {
       const { data: existingProducts, error } = await query;
 
       if (error) {
-        toast.error("IMEI চেক করতে ব্যর্থ");
+        setFormErrors(p => ({ ...p, imei: "IMEI চেক করতে ব্যর্থ" }));
         return;
       }
 
       if (existingProducts && existingProducts.length > 0) {
-        toast.error(`এই IMEI (${formData.imei}) দিয়ে "${existingProducts[0].name}" ইতিমধ্যে স্টকে আছে। আগে বিক্রি করুন, তারপর আবার এন্ট্রি করতে পারবেন।`);
+        setFormErrors(p => ({ ...p, imei: `এই IMEI দিয়ে "${existingProducts[0].name}" ইতিমধ্যে স্টকে আছে। আগে বিক্রি করুন।` }));
         return;
       }
     }
