@@ -688,14 +688,14 @@ export function Products() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Condition</label>
-                  <Select value={formData.condition} onValueChange={(value) => setFormData({ ...formData, condition: value })}>
+                  <label className="block text-sm font-medium mb-2">অবস্থা (Condition)</label>
+                  <Select value={formData.condition || undefined} onValueChange={(value) => setFormData({ ...formData, condition: value })}>
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="নতুন অথবা পুরাতন মোবাইল সিলেক্ট করো" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="new">New</SelectItem>
-                      <SelectItem value="used">Used</SelectItem>
+                      <SelectItem value="new">New (নতুন)</SelectItem>
+                      <SelectItem value="used">Used (পুরাতন)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
