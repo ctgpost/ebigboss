@@ -30,6 +30,13 @@ export function POS() {
   const [instantCustomerPhone, setInstantCustomerPhone] = useState("");
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [saleImageUrl, setSaleImageUrl] = useState("");
+  const [useInstantCustomer, setUseInstantCustomer] = useState(false);
+  const [paymentErrors, setPaymentErrors] = useState<{
+    instant_customer_name?: string;
+    instant_customer_phone?: string;
+    paid_amount?: string;
+  }>({});
+  const [cartPriceErrors, setCartPriceErrors] = useState<Record<string, string>>({});
 
   const queryClient = useQueryClient();
 
@@ -185,6 +192,39 @@ export function POS() {
   const handleCompleteSaleClick = () => {
     if (cart.length === 0) {
       toast.error("কার্ট খালি");
+      return;
+    }
+
+    // Inline validation: cart custom prices
+    const priceErrors: Record<string, string> = {};
+    for (const item of cart) {
+      if (!item.customPrice || item.customPrice <= 0) {
+        priceErrors[item.product.id] = "কাস্টম প্রাইস ০ এর বেশি হতে হবে";
+      }
+    }
+    setCartPriceErrors(priceErrors);
+
+    // Inline validation: instant customer (if toggled)
+    const errs: typeof paymentErrors = {};
+    if (useInstantCustomer) {
+      if (!instantCustomerName.trim() || instantCustomerName.trim().length < 2) {
+        errs.instant_customer_name = "কাস্টমারের নাম কমপক্ষে ২ অক্ষরের হতে হবে";
+      }
+      if (!/^01[3-9]\d{8}$/.test(instantCustomerPhone.trim())) {
+        errs.instant_customer_phone = "সঠিক মোবাইল নম্বর দিন (১১ ডিজিট, 01 দিয়ে শুরু)";
+      }
+    }
+
+    // Paid amount validation
+    if (paidAmount < 0) {
+      errs.paid_amount = "পরিশোধ ঋণাত্মক হতে পারবে না";
+    } else if (paidAmount > getTotal()) {
+      errs.paid_amount = "পরিশোধ মোট মূল্যের বেশি হতে পারবে না";
+    }
+    setPaymentErrors(errs);
+
+    if (Object.keys(priceErrors).length > 0 || Object.keys(errs).length > 0) {
+      toast.error("ফর্মে ভুল আছে — লাল চিহ্নিত ফিল্ডগুলো ঠিক করুন");
       return;
     }
 
