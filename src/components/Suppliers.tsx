@@ -14,7 +14,7 @@ import { SupplierPaymentDialog } from "./suppliers/SupplierPaymentDialog";
 import { ChevronDown, ChevronUp, Search } from "lucide-react";
 import { CloudinaryImageUpload } from "./CloudinaryImageUpload";
 import { getCloudinaryThumbnail } from "@/utils/cloudinary";
-import { supplierSchema, validateWithToast } from "@/utils/validation";
+import { supplierSchema, validateInline } from "@/utils/validation";
 
 export function Suppliers() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -26,6 +26,14 @@ export function Suppliers() {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [showSummary, setShowSummary] = useState(true);
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", address: "", notes: "", image_url: "" });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const clearFormError = (key: string) =>
+    setFormErrors((p) => {
+      if (!p[key]) return p;
+      const next = { ...p };
+      delete next[key];
+      return next;
+    });
 
   const queryClient = useQueryClient();
 
@@ -143,8 +151,12 @@ export function Suppliers() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const validated = validateWithToast(supplierSchema, formData);
-    if (!validated) return;
+    const result = validateInline(supplierSchema, formData);
+    setFormErrors(result.errors);
+    if (!result.success) {
+      toast.error("ফর্মে ভুল আছে — লাল চিহ্নিত ফিল্ডগুলো ঠিক করুন");
+      return;
+    }
     if (editingSupplier) {
       updateSupplierMutation.mutate({ id: editingSupplier.id, data: formData });
     } else {
@@ -221,8 +233,10 @@ export function Suppliers() {
                   formData={formData}
                   onChange={setFormData}
                   onSubmit={handleSubmit}
-                  onCancel={() => { setIsAddDialogOpen(false); setEditingSupplier(null); resetForm(); }}
+                  onCancel={() => { setIsAddDialogOpen(false); setEditingSupplier(null); resetForm(); setFormErrors({}); }}
                   isEditing={!!editingSupplier}
+                  errors={formErrors}
+                  onClearError={clearFormError}
                 />
               </DialogContent>
             </Dialog>

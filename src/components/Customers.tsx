@@ -15,7 +15,8 @@ import { ChevronDown, ChevronUp, Filter, Search, CheckSquare } from "lucide-reac
 import { Checkbox } from "@/components/ui/checkbox";
 import { CloudinaryImageUpload } from "./CloudinaryImageUpload";
 import { getCloudinaryThumbnail } from "@/utils/cloudinary";
-import { customerSchema, validateWithToast } from "@/utils/validation";
+import { customerSchema, validateInline } from "@/utils/validation";
+import { FieldError } from "@/components/ui/field-error";
 
 export function Customers() {
   const { settings } = useShopSettings();
@@ -42,6 +43,14 @@ export function Customers() {
     notes: "",
     image_url: "",
   });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const clearError = (key: string) =>
+    setFormErrors((p) => {
+      if (!p[key]) return p;
+      const next = { ...p };
+      delete next[key];
+      return next;
+    });
 
   const queryClient = useQueryClient();
 
@@ -232,8 +241,12 @@ export function Customers() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const validated = validateWithToast(customerSchema, formData);
-    if (!validated) return;
+    const result = validateInline(customerSchema, formData);
+    setFormErrors(result.errors);
+    if (!result.success) {
+      toast.error("ফর্মে ভুল আছে — লাল চিহ্নিত ফিল্ডগুলো ঠিক করুন");
+      return;
+    }
     if (editingCustomer) {
       updateMutation.mutate({ id: editingCustomer.id, data: formData });
     } else {
@@ -348,23 +361,53 @@ export function Customers() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">নাম *</label>
-                  <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required />
+                  <Input
+                    value={formData.name}
+                    onChange={(e) => { setFormData({ ...formData, name: e.target.value }); clearError("name"); }}
+                    aria-invalid={!!formErrors.name}
+                  />
+                  <FieldError message={formErrors.name} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">ইমেইল</label>
-                  <Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+                  <Input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => { setFormData({ ...formData, email: e.target.value }); clearError("email"); }}
+                    aria-invalid={!!formErrors.email}
+                  />
+                  <FieldError message={formErrors.email} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">ফোন</label>
-                  <Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
+                  <Input
+                    value={formData.phone}
+                    onChange={(e) => { setFormData({ ...formData, phone: e.target.value }); clearError("phone"); }}
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={11}
+                    placeholder="01XXXXXXXXX"
+                    aria-invalid={!!formErrors.phone}
+                  />
+                  <FieldError message={formErrors.phone} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">ঠিকানা</label>
-                  <Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} />
+                  <Input
+                    value={formData.address}
+                    onChange={(e) => { setFormData({ ...formData, address: e.target.value }); clearError("address"); }}
+                    aria-invalid={!!formErrors.address}
+                  />
+                  <FieldError message={formErrors.address} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">নোট</label>
-                  <Input value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} />
+                  <Input
+                    value={formData.notes}
+                    onChange={(e) => { setFormData({ ...formData, notes: e.target.value }); clearError("notes"); }}
+                    aria-invalid={!!formErrors.notes}
+                  />
+                  <FieldError message={formErrors.notes} />
                 </div>
                 <div>
                   <CloudinaryImageUpload

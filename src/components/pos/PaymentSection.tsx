@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Customer } from "./types";
 import { CloudinaryImageUpload } from "@/components/CloudinaryImageUpload";
+import { FieldError } from "@/components/ui/field-error";
 
 interface PaymentSectionProps {
   customers: Customer[] | undefined;
@@ -23,6 +24,13 @@ interface PaymentSectionProps {
   onPaidAmountChange: (amount: number) => void;
   saleImageUrl: string;
   onSaleImageUrlChange: (url: string) => void;
+  errors?: {
+    instant_customer_name?: string;
+    instant_customer_phone?: string;
+    paid_amount?: string;
+  };
+  useInstantCustomer: boolean;
+  onUseInstantCustomerChange: (use: boolean) => void;
 }
 
 export function PaymentSection({
@@ -43,9 +51,10 @@ export function PaymentSection({
   onPaidAmountChange,
   saleImageUrl,
   onSaleImageUrlChange,
+  errors = {},
+  useInstantCustomer,
+  onUseInstantCustomerChange,
 }: PaymentSectionProps) {
-  const [useInstantCustomer, setUseInstantCustomer] = useState(false);
-
   const dueAmount = Math.max(0, total - paidAmount);
 
   return (
@@ -58,7 +67,7 @@ export function PaymentSection({
           value={selectedCustomer}
           onValueChange={(val) => {
             onCustomerChange(val);
-            if (val) setUseInstantCustomer(false);
+            if (val) onUseInstantCustomerChange(false);
           }}
           disabled={useInstantCustomer}
         >
@@ -81,8 +90,9 @@ export function PaymentSection({
           type="button"
           className="text-xs text-primary underline mb-2"
           onClick={() => {
-            setUseInstantCustomer(!useInstantCustomer);
-            if (!useInstantCustomer) {
+            const next = !useInstantCustomer;
+            onUseInstantCustomerChange(next);
+            if (next) {
               onCustomerChange("");
             } else {
               onInstantCustomerNameChange("");
@@ -95,19 +105,29 @@ export function PaymentSection({
 
         {useInstantCustomer && (
           <div className="space-y-2 p-3 rounded-lg bg-muted/50 border border-border">
-            <Input
-              placeholder="কাস্টমারের নাম"
-              value={instantCustomerName}
-              onChange={(e) => onInstantCustomerNameChange(e.target.value)}
-              className="h-8 text-sm"
-            />
-            <Input
-              placeholder="মোবাইল নম্বর"
-              value={instantCustomerPhone}
-              onChange={(e) => onInstantCustomerPhoneChange(e.target.value)}
-              className="h-8 text-sm"
-              type="tel"
-            />
+            <div>
+              <Input
+                placeholder="কাস্টমারের নাম *"
+                value={instantCustomerName}
+                onChange={(e) => onInstantCustomerNameChange(e.target.value)}
+                className="h-8 text-sm"
+                aria-invalid={!!errors.instant_customer_name}
+              />
+              <FieldError message={errors.instant_customer_name} />
+            </div>
+            <div>
+              <Input
+                placeholder="মোবাইল নম্বর * (01XXXXXXXXX)"
+                value={instantCustomerPhone}
+                onChange={(e) => onInstantCustomerPhoneChange(e.target.value)}
+                className="h-8 text-sm"
+                type="tel"
+                inputMode="numeric"
+                maxLength={11}
+                aria-invalid={!!errors.instant_customer_phone}
+              />
+              <FieldError message={errors.instant_customer_phone} />
+            </div>
           </div>
         )}
       </div>
@@ -137,15 +157,19 @@ export function PaymentSection({
         </div>
 
         {/* Paid Amount */}
-        <div className="flex items-center gap-2">
-          <label className="text-xs lg:text-sm font-medium text-foreground whitespace-nowrap">পরিশোধ:</label>
-          <Input
-            type="number"
-            value={paidAmount || ""}
-            onChange={(e) => onPaidAmountChange(Math.max(0, Number(e.target.value)))}
-            className="h-8 text-sm flex-1"
-            placeholder="পরিশোধিত টাকা"
-          />
+        <div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs lg:text-sm font-medium text-foreground whitespace-nowrap">পরিশোধ:</label>
+            <Input
+              type="number"
+              value={paidAmount || ""}
+              onChange={(e) => onPaidAmountChange(Math.max(0, Number(e.target.value)))}
+              className="h-8 text-sm flex-1"
+              placeholder="পরিশোধিত টাকা"
+              aria-invalid={!!errors.paid_amount}
+            />
+          </div>
+          <FieldError message={errors.paid_amount} />
         </div>
 
         {/* Due Amount */}

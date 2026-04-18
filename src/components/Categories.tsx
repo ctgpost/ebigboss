@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { categorySchema, validateWithToast } from "@/utils/validation";
+import { categorySchema, validateInline } from "@/utils/validation";
+import { FieldError } from "@/components/ui/field-error";
 
 export function Categories() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -14,6 +15,7 @@ export function Categories() {
     name: "",
     description: "",
   });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   const queryClient = useQueryClient();
 
@@ -61,12 +63,25 @@ export function Categories() {
       name: "",
       description: "",
     });
+    setFormErrors({});
   };
+
+  const clearError = (key: string) =>
+    setFormErrors((p) => {
+      if (!p[key]) return p;
+      const next = { ...p };
+      delete next[key];
+      return next;
+    });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const validated = validateWithToast(categorySchema, formData);
-    if (!validated) return;
+    const result = validateInline(categorySchema, formData);
+    setFormErrors(result.errors);
+    if (!result.success) {
+      toast.error("ফর্মে ভুল আছে — লাল চিহ্নিত ফিল্ডগুলো ঠিক করুন");
+      return;
+    }
     addMutation.mutate(formData);
   };
 
@@ -89,16 +104,19 @@ export function Categories() {
                 <label className="block text-sm font-medium mb-2">Name *</label>
                 <Input
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
+                  onChange={(e) => { setFormData({ ...formData, name: e.target.value }); clearError("name"); }}
+                  aria-invalid={!!formErrors.name}
                 />
+                <FieldError message={formErrors.name} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">Description</label>
                 <Input
                   value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  onChange={(e) => { setFormData({ ...formData, description: e.target.value }); clearError("description"); }}
+                  aria-invalid={!!formErrors.description}
                 />
+                <FieldError message={formErrors.description} />
               </div>
               <div className="flex gap-2 justify-end">
                 <Button
