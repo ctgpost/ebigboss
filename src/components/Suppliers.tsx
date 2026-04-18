@@ -14,6 +14,7 @@ import { SupplierPaymentDialog } from "./suppliers/SupplierPaymentDialog";
 import { ChevronDown, ChevronUp, Search } from "lucide-react";
 import { CloudinaryImageUpload } from "./CloudinaryImageUpload";
 import { getCloudinaryThumbnail } from "@/utils/cloudinary";
+import { supplierSchema, validateWithToast } from "@/utils/validation";
 
 export function Suppliers() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
