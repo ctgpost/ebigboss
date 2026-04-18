@@ -557,13 +557,13 @@ export function Products() {
   };
 
   return (
-    <div className="flex flex-col h-screen animate-fade-in">
+    <div className="flex flex-col h-screen animate-fade-in overflow-x-hidden">
       {/* Fixed Header */}
       <div className="sticky top-0 z-10 bg-white dark:bg-gray-950 border-b border-border pb-4 space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Products</h1>
-            <p className="text-sm md:text-base text-muted-foreground mt-1">Manage your inventory</p>
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-4 min-w-0">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground truncate">Products</h1>
+            <p className="text-xs sm:text-sm md:text-base text-muted-foreground mt-1">Manage your inventory</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {/* Download Buttons */}
@@ -605,6 +605,7 @@ export function Products() {
               if (!open) {
                 setIsAddDialogOpen(false);
                 setEditingProduct(null);
+                setFormErrors({});
                 resetForm();
               }
             }}>
