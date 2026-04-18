@@ -167,6 +167,13 @@ export function POS() {
         ? { ...item, customPrice: price }
         : item
     ));
+    if (cartPriceErrors[productId]) {
+      setCartPriceErrors(prev => {
+        const next = { ...prev };
+        delete next[productId];
+        return next;
+      });
+    }
   };
 
   const updateQuantity = (productId: string, quantity: number) => {
