@@ -184,20 +184,47 @@ export function BrandingSettings() {
         {/* Text Fields */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">দোকানের নাম</label>
-            <Input value={shopName} onChange={(e) => setShopName(e.target.value)} placeholder="BIG BOSS MOBILE SHOP" />
+            <label className="block text-sm font-medium text-foreground mb-1">দোকানের নাম *</label>
+            <Input
+              value={shopName}
+              onChange={(e) => { setShopName(e.target.value); clearError("shop_name"); }}
+              placeholder="BIG BOSS MOBILE SHOP"
+              aria-invalid={!!errors.shop_name}
+            />
+            <FieldError message={errors.shop_name} />
           </div>
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">সাবটাইটেল</label>
-            <Input value={shopSubtitle} onChange={(e) => setShopSubtitle(e.target.value)} placeholder="Sales & Inventory Management System" />
+            <Input
+              value={shopSubtitle}
+              onChange={(e) => { setShopSubtitle(e.target.value); clearError("shop_subtitle"); }}
+              placeholder="Sales & Inventory Management System"
+              aria-invalid={!!errors.shop_subtitle}
+            />
+            <FieldError message={errors.shop_subtitle} />
           </div>
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-foreground mb-1">ঠিকানা</label>
-            <Input value={shopAddress} onChange={(e) => setShopAddress(e.target.value)} placeholder="আপনার দোকানের ঠিকানা" />
+            <Input
+              value={shopAddress}
+              onChange={(e) => { setShopAddress(e.target.value); clearError("shop_address"); }}
+              placeholder="আপনার দোকানের ঠিকানা"
+              aria-invalid={!!errors.shop_address}
+            />
+            <FieldError message={errors.shop_address} />
           </div>
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">ফোন নম্বর</label>
-            <Input value={shopPhone} onChange={(e) => setShopPhone(e.target.value)} placeholder="01XXXXXXXXX" />
+            <Input
+              value={shopPhone}
+              onChange={(e) => { setShopPhone(e.target.value); clearError("shop_phone"); }}
+              placeholder="01XXXXXXXXX"
+              type="tel"
+              inputMode="numeric"
+              maxLength={11}
+              aria-invalid={!!errors.shop_phone}
+            />
+            <FieldError message={errors.shop_phone} />
           </div>
         </div>
 
