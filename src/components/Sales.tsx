@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
-import { Search, Calendar, User, CreditCard, Package, Filter, X, FileDown, FileSpreadsheet, Image, TrendingUp, TrendingDown, DollarSign } from "lucide-react";
+import { Search, Calendar, User, CreditCard, Package, Filter, X, FileDown, FileSpreadsheet, Image, TrendingUp, TrendingDown, DollarSign, ChevronDown, ChevronUp } from "lucide-react";
 import { useReactToPrint } from "react-to-print";
 import * as XLSX from "xlsx";
 import { getCloudinaryThumbnail } from "@/utils/cloudinary";
@@ -57,6 +57,7 @@ export function Sales() {
   const [selectedSale, setSelectedSale] = useState<SaleDetail | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const itemsPerPage = 10;
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -220,37 +221,50 @@ export function Sales() {
   }
 
   return (
-    <div className="flex flex-col h-screen animate-fade-in">
+    <div className="flex flex-col h-screen animate-fade-in overflow-x-hidden">
       {/* Fixed Header */}
-      <div className="sticky top-0 z-10 bg-white dark:bg-gray-950 border-b border-border pb-4 space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div>
-           <h1 className="text-2xl md:text-3xl font-bold text-foreground">📋 বিক্রয় ইতিহাস</h1>
-            <p className="text-sm md:text-base text-muted-foreground mt-1">সকল বিক্রয় লেনদেন দেখুন ও পরিচালনা করুন</p>
-          </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={handlePrint}
-            variant="outline"
-            className="gap-2 text-sm md:text-base"
-            disabled={filteredSales.length === 0}
+      <div className="sticky top-0 z-10 bg-white dark:bg-gray-950 border-b border-border pb-3 md:pb-4 space-y-3 md:space-y-4">
+        <div className="flex items-start justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => setHeaderCollapsed((c) => !c)}
+            className="flex items-start gap-2 flex-1 min-w-0 text-left lg:cursor-default"
+            aria-expanded={!headerCollapsed}
           >
-            <FileDown className="h-4 w-4" />
-            <span className="hidden sm:inline">Export PDF</span>
-            <span className="sm:hidden">PDF</span>
-          </Button>
-          <Button
-            onClick={handleExportExcel}
-            variant="outline"
-            className="gap-2 text-sm md:text-base"
-            disabled={filteredSales.length === 0}
-          >
-            <FileSpreadsheet className="h-4 w-4" />
-            <span className="hidden sm:inline">Export Excel</span>
-            <span className="sm:hidden">Excel</span>
-          </Button>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg sm:text-2xl md:text-3xl font-bold text-foreground truncate">📋 বিক্রয় ইতিহাস</h1>
+              {!headerCollapsed && (
+                <p className="text-xs sm:text-sm md:text-base text-muted-foreground mt-1">সকল বিক্রয় লেনদেন দেখুন ও পরিচালনা করুন</p>
+              )}
+            </div>
+            <span className="lg:hidden mt-1 text-muted-foreground shrink-0">
+              {headerCollapsed ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
+            </span>
+          </button>
+          <div className="hidden lg:flex flex-wrap gap-2">
+            <Button onClick={handlePrint} variant="outline" className="gap-2 text-sm md:text-base" disabled={filteredSales.length === 0}>
+              <FileDown className="h-4 w-4" />
+              <span className="hidden sm:inline">Export PDF</span>
+              <span className="sm:hidden">PDF</span>
+            </Button>
+            <Button onClick={handleExportExcel} variant="outline" className="gap-2 text-sm md:text-base" disabled={filteredSales.length === 0}>
+              <FileSpreadsheet className="h-4 w-4" />
+              <span className="hidden sm:inline">Export Excel</span>
+              <span className="sm:hidden">Excel</span>
+            </Button>
           </div>
         </div>
+
+        {/* Collapsible content on mobile */}
+        <div className={`${headerCollapsed ? "hidden lg:block" : "block"} space-y-3 md:space-y-4`}>
+          <div className="flex flex-wrap gap-2 lg:hidden">
+            <Button onClick={handlePrint} variant="outline" size="sm" className="gap-2 text-xs flex-1" disabled={filteredSales.length === 0}>
+              <FileDown className="h-4 w-4" /> PDF
+            </Button>
+            <Button onClick={handleExportExcel} variant="outline" size="sm" className="gap-2 text-xs flex-1" disabled={filteredSales.length === 0}>
+              <FileSpreadsheet className="h-4 w-4" /> Excel
+            </Button>
+          </div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
