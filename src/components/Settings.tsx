@@ -248,13 +248,86 @@ export function Settings() {
     }
   };
 
+  // Allowed columns per table — keeps restore working even if backup has legacy/unknown fields
+  const TABLE_COLUMNS: Record<string, string[]> = {
+    categories: ["id", "name", "description", "created_at", "updated_at"],
+    suppliers: ["id", "name", "email", "phone", "address", "notes", "image_url", "created_at", "updated_at"],
+    customers: ["id", "name", "email", "phone", "address", "notes", "image_url", "purchase_count", "total_purchases", "created_at", "updated_at"],
+    products: [
+      "id", "name", "description", "category_id", "sku", "barcode", "price", "cost",
+      "stock_quantity", "low_stock_threshold", "unit", "image_url", "brand", "condition",
+      "imei", "model", "ram", "storage", "battery", "supplier_name", "supplier_mobile",
+      "supplier_nid", "product_entry_date", "warranty_status", "created_at", "updated_at",
+    ],
+    sales: [
+      "id", "user_id", "customer_id", "total_amount", "paid_amount", "due_amount",
+      "payment_method", "status", "notes", "instant_customer_name", "instant_customer_phone",
+      "sale_image_url", "created_at", "updated_at",
+    ],
+    sale_items: ["id", "sale_id", "product_id", "quantity", "unit_price", "total_price", "condition", "created_at"],
+    purchases: [
+      "id", "user_id", "supplier_id", "purchase_number", "total_amount", "paid_amount",
+      "due_amount", "status", "notes", "expected_date", "created_at", "updated_at",
+    ],
+    purchase_items: ["id", "purchase_id", "product_id", "quantity", "received_quantity", "unit_cost", "total_cost", "created_at"],
+    returns: [
+      "id", "sale_id", "sale_item_id", "product_id", "quantity", "reason_code",
+      "reason_notes", "refund_amount", "status", "processed_by", "created_at", "updated_at",
+    ],
+  };
+
+  const sanitizeRows = (table: string, rows: any[]): any[] => {
+    if (!Array.isArray(rows)) return [];
+    const allowed = TABLE_COLUMNS[table];
+    return rows.map((row) => {
+      // Legacy field migration for products: warranty_expiry_date -> product_entry_date
+      if (table === "products" && row.warranty_expiry_date && !row.product_entry_date) {
+        row.product_entry_date = row.warranty_expiry_date;
+      }
+      const cleaned: Record<string, any> = {};
+      for (const key of allowed) {
+        if (row[key] !== undefined) cleaned[key] = row[key];
+      }
+      return cleaned;
+    });
+  };
+
+  const safeInsert = async (table: string, rows: any[], label: string) => {
+    if (!rows?.length) return;
+    const cleaned = sanitizeRows(table, rows);
+    const CHUNK = 100;
+    let inserted = 0;
+    let failed = 0;
+    for (let i = 0; i < cleaned.length; i += CHUNK) {
+      const chunk = cleaned.slice(i, i + CHUNK);
+      const { error } = await (supabase.from(table as any) as any).insert(chunk);
+      if (error) {
+        // Fallback: insert one-by-one so a single bad row doesn't drop the whole chunk
+        for (const row of chunk) {
+          const { error: rowErr } = await (supabase.from(table as any) as any).insert(row);
+          if (rowErr) {
+            failed++;
+            console.warn(`[restore] ${label} row failed:`, rowErr.message, row);
+          } else {
+            inserted++;
+          }
+        }
+      } else {
+        inserted += chunk.length;
+      }
+    }
+    if (failed > 0) {
+      toast.warning(`${label}: ${inserted} সফল, ${failed} ব্যর্থ`);
+    }
+  };
+
   const handleRestore = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     setIsRestoring(true);
     try {
-      toast.info("Starting restore...");
+      toast.info("রিস্টোর শুরু হচ্ছে...");
 
       const text = await file.text();
       const backup = JSON.parse(text);
@@ -264,81 +337,38 @@ export function Settings() {
       }
 
       // Clear existing data first (in correct order respecting foreign keys)
-      // 1. Delete returns first (references sale_items)
       await supabase.from("returns").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-      
-      // 2. Delete sale_items and purchase_items
       await Promise.all([
         supabase.from("sale_items").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
         supabase.from("purchase_items").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
       ]);
-
-      // 3. Delete sales and purchases
       await Promise.all([
         supabase.from("sales").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
         supabase.from("purchases").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
       ]);
-
-      // 4. Delete products (references categories)
       await supabase.from("products").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-
-      // 5. Delete base tables
       await Promise.all([
         supabase.from("customers").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
         supabase.from("suppliers").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
         supabase.from("categories").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
       ]);
 
-      // Insert restored data
-      const insertPromises = [];
+      // Insert in dependency order — sanitized, chunked, with row-level fallback
+      await safeInsert("categories", backup.data.categories, "ক্যাটাগরি");
+      await safeInsert("suppliers", backup.data.suppliers, "সরবরাহকারী");
+      await safeInsert("customers", backup.data.customers, "কাস্টমার");
+      await safeInsert("products", backup.data.products, "প্রোডাক্ট");
+      await safeInsert("sales", backup.data.sales, "বিক্রয়");
+      await safeInsert("purchases", backup.data.purchases, "ক্রয়");
+      await safeInsert("sale_items", backup.data.sale_items, "বিক্রয় আইটেম");
+      await safeInsert("purchase_items", backup.data.purchase_items, "ক্রয় আইটেম");
+      await safeInsert("returns", backup.data.returns, "রিটার্ন");
 
-      if (backup.data.categories?.length) {
-        insertPromises.push(supabase.from("categories").insert(backup.data.categories));
-      }
-      if (backup.data.suppliers?.length) {
-        insertPromises.push(supabase.from("suppliers").insert(backup.data.suppliers));
-      }
-      if (backup.data.customers?.length) {
-        insertPromises.push(supabase.from("customers").insert(backup.data.customers));
-      }
-      if (backup.data.products?.length) {
-        insertPromises.push(supabase.from("products").insert(backup.data.products));
-      }
-
-      await Promise.all(insertPromises);
-
-      // Insert sales and purchases
-      const transactionPromises = [];
-      if (backup.data.sales?.length) {
-        transactionPromises.push(supabase.from("sales").insert(backup.data.sales));
-      }
-      if (backup.data.purchases?.length) {
-        transactionPromises.push(supabase.from("purchases").insert(backup.data.purchases));
-      }
-
-      await Promise.all(transactionPromises);
-
-      // Insert related items
-      const itemPromises = [];
-      if (backup.data.sale_items?.length) {
-        itemPromises.push(supabase.from("sale_items").insert(backup.data.sale_items));
-      }
-      if (backup.data.purchase_items?.length) {
-        itemPromises.push(supabase.from("purchase_items").insert(backup.data.purchase_items));
-      }
-
-      await Promise.all(itemPromises);
-
-      // Insert returns last
-      if (backup.data.returns?.length) {
-        await supabase.from("returns").insert(backup.data.returns);
-      }
-
-      toast.success("Data restored successfully! Refreshing...");
+      toast.success("সফলভাবে রিস্টোর হয়েছে! রিফ্রেশ হচ্ছে...");
       await ActivityLogger.dataRestore();
       setTimeout(() => window.location.reload(), 1500);
     } catch (error: any) {
-      toast.error("Restore failed: " + error.message);
+      toast.error("রিস্টোর ব্যর্থ: " + error.message);
     } finally {
       setIsRestoring(false);
       event.target.value = "";
