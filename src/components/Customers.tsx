@@ -15,7 +15,8 @@ import { ChevronDown, ChevronUp, Filter, Search, CheckSquare } from "lucide-reac
 import { Checkbox } from "@/components/ui/checkbox";
 import { CloudinaryImageUpload } from "./CloudinaryImageUpload";
 import { getCloudinaryThumbnail } from "@/utils/cloudinary";
-import { customerSchema, validateWithToast } from "@/utils/validation";
+import { customerSchema, validateInline } from "@/utils/validation";
+import { FieldError } from "@/components/ui/field-error";
 
 export function Customers() {
   const { settings } = useShopSettings();
@@ -42,6 +43,14 @@ export function Customers() {
     notes: "",
     image_url: "",
   });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const clearError = (key: string) =>
+    setFormErrors((p) => {
+      if (!p[key]) return p;
+      const next = { ...p };
+      delete next[key];
+      return next;
+    });
 
   const queryClient = useQueryClient();
 
@@ -232,8 +241,12 @@ export function Customers() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const validated = validateWithToast(customerSchema, formData);
-    if (!validated) return;
+    const result = validateInline(customerSchema, formData);
+    setFormErrors(result.errors);
+    if (!result.success) {
+      toast.error("ফর্মে ভুল আছে — লাল চিহ্নিত ফিল্ডগুলো ঠিক করুন");
+      return;
+    }
     if (editingCustomer) {
       updateMutation.mutate({ id: editingCustomer.id, data: formData });
     } else {
