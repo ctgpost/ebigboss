@@ -73,6 +73,18 @@ export function Settings() {
   const [isRestoring, setIsRestoring] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [isClearingSales, setIsClearingSales] = useState(false);
+
+  // Restore preview & report state
+  const [previewBackup, setPreviewBackup] = useState<any | null>(null);
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false);
+  const [restoreReport, setRestoreReport] = useState<
+    | {
+        results: { table: string; label: string; total: number; inserted: number; failed: number; errors: { message: string; row?: any }[] }[];
+      }
+    | null
+  >(null);
+  const [showReportDialog, setShowReportDialog] = useState(false);
+
   const [resetStats, setResetStats] = useState<{
     sales: number;
     saleItems: number;
