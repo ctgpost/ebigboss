@@ -145,6 +145,9 @@ export function POS() {
       setInstantCustomerPhone("");
       setPaidAmount(0);
       setSaleImageUrl("");
+      setUseInstantCustomer(false);
+      setPaymentErrors({});
+      setCartPriceErrors({});
     },
     onError: (error: any) => {
       toast.error(error.message || "বিক্রয় সম্পন্ন করতে ব্যর্থ");
