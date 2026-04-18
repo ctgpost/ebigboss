@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { CartItem } from "./types";
+import { FieldError } from "@/components/ui/field-error";
 
 interface CartSectionProps {
   cart: CartItem[];
@@ -11,6 +12,7 @@ interface CartSectionProps {
   onUpdateQuantity: (productId: string, quantity: number) => void;
   onRemoveItem: (productId: string) => void;
   total: number;
+  priceErrors?: Record<string, string>;
 }
 
 export function CartSection({
@@ -21,6 +23,7 @@ export function CartSection({
   onUpdateQuantity,
   onRemoveItem,
   total,
+  priceErrors = {},
 }: CartSectionProps) {
   return (
     <Card className="p-4 lg:p-6">
@@ -39,39 +42,45 @@ export function CartSection({
       {!isCollapsed && (
         <>
           <div className="space-y-3 lg:space-y-4 mb-4">
-            {cart.map((item) => (
-              <div key={item.product.id} className="space-y-2 py-3 border-b border-border">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm text-foreground truncate">{item.product.name}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs text-muted-foreground">মূল্য:</span>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={item.customPrice}
-                        onChange={(e) => onUpdatePrice(item.product.id, parseFloat(e.target.value) || 0)}
-                        className="w-20 lg:w-24 h-7 text-xs"
-                      />
+            {cart.map((item) => {
+              const err = priceErrors[item.product.id];
+              return (
+                <div key={item.product.id} className="space-y-2 py-3 border-b border-border">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm text-foreground truncate">{item.product.name}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-muted-foreground">মূল্য:</span>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={item.customPrice}
+                          onChange={(e) => onUpdatePrice(item.product.id, parseFloat(e.target.value) || 0)}
+                          className="w-20 lg:w-24 h-7 text-xs"
+                          aria-invalid={!!err}
+                        />
+                      </div>
+                      <FieldError message={err} />
+                    </div>
+                    <div className="flex items-center gap-1 lg:gap-2 flex-shrink-0">
+                      <span className="w-6 lg:w-8 text-center font-semibold text-sm">1</span>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => onRemoveItem(item.product.id)}
+                        className="h-7 w-7 p-0 text-xs"
+                      >
+                        ✕
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 lg:gap-2 flex-shrink-0">
-                    <span className="w-6 lg:w-8 text-center font-semibold text-sm">1</span>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => onRemoveItem(item.product.id)}
-                      className="h-7 w-7 p-0 text-xs"
-                    >
-                      ✕
-                    </Button>
-                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    সাবটোটাল: ৳{(item.customPrice * item.quantity).toLocaleString('bn-BD')}
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  সাবটোটাল: ৳{(item.customPrice * item.quantity).toLocaleString('bn-BD')}
-                </p>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {cart.length === 0 && (
