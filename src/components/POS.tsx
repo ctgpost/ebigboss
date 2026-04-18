@@ -347,6 +347,7 @@ export function POS() {
               onUpdateQuantity={updateQuantity}
               onRemoveItem={removeFromCart}
               total={total}
+              priceErrors={cartPriceErrors}
             />
             <div className="mt-4">
               <PaymentSection
@@ -360,13 +361,28 @@ export function POS() {
                 isProcessing={completeSaleMutation.isPending}
                 onCompleteSale={handleCompleteSaleClick}
                 instantCustomerName={instantCustomerName}
-                onInstantCustomerNameChange={setInstantCustomerName}
+                onInstantCustomerNameChange={(v) => {
+                  setInstantCustomerName(v);
+                  if (paymentErrors.instant_customer_name) setPaymentErrors(p => ({ ...p, instant_customer_name: undefined }));
+                }}
                 instantCustomerPhone={instantCustomerPhone}
-                onInstantCustomerPhoneChange={setInstantCustomerPhone}
+                onInstantCustomerPhoneChange={(v) => {
+                  setInstantCustomerPhone(v);
+                  if (paymentErrors.instant_customer_phone) setPaymentErrors(p => ({ ...p, instant_customer_phone: undefined }));
+                }}
                 paidAmount={paidAmount}
-                onPaidAmountChange={setPaidAmount}
+                onPaidAmountChange={(v) => {
+                  setPaidAmount(v);
+                  if (paymentErrors.paid_amount) setPaymentErrors(p => ({ ...p, paid_amount: undefined }));
+                }}
                 saleImageUrl={saleImageUrl}
                 onSaleImageUrlChange={setSaleImageUrl}
+                errors={paymentErrors}
+                useInstantCustomer={useInstantCustomer}
+                onUseInstantCustomerChange={(v) => {
+                  setUseInstantCustomer(v);
+                  setPaymentErrors({});
+                }}
               />
             </div>
           </div>
