@@ -633,28 +633,29 @@ export function Products() {
                     value={formData.name}
                     onChange={(e) => {
                       const newName = e.target.value;
-                      setFormData({ 
-                        ...formData, 
-                        name: newName,
-                        model: newName
-                      });
+                      setFormData({ ...formData, name: newName, model: newName });
+                      clearError("name");
                     }}
                     placeholder="শুধু মডেলের তথ্য দিন (যেমন: Galaxy A15, Note 14 Pro)"
-                    required
+                    aria-invalid={!!formErrors.name}
                   />
-                  <p className="text-xs text-muted-foreground mt-1">ব্র্যান্ড ক্যাটাগরি থেকে স্বয়ংক্রিয়ভাবে নেওয়া হবে</p>
+                  <FieldError message={formErrors.name} />
+                  {!formErrors.name && (
+                    <p className="text-xs text-muted-foreground mt-1">ব্র্যান্ড ক্যাটাগরি থেকে স্বয়ংক্রিয়ভাবে নেওয়া হবে</p>
+                  )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Category</label>
+                  <label className="block text-sm font-medium mb-2">Category *</label>
                   <Select value={formData.category_id} onValueChange={(value) => {
                     const selectedCat = categories?.find(c => c.id === value);
-                    setFormData({ 
-                      ...formData, 
+                    setFormData({
+                      ...formData,
                       category_id: value,
                       brand: selectedCat?.name || formData.brand
                     });
+                    clearError("category_id");
                   }}>
-                    <SelectTrigger>
+                    <SelectTrigger aria-invalid={!!formErrors.category_id}>
                       <SelectValue placeholder="ক্যাটাগরি / ব্র্যান্ড সিলেক্ট করুন" />
                     </SelectTrigger>
                     <SelectContent>
@@ -663,7 +664,10 @@ export function Products() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground mt-1">ব্র্যান্ড এখান থেকে স্বয়ংক্রিয়ভাবে সেট হবে</p>
+                  <FieldError message={formErrors.category_id} />
+                  {!formErrors.category_id && (
+                    <p className="text-xs text-muted-foreground mt-1">ব্র্যান্ড এখান থেকে স্বয়ংক্রিয়ভাবে সেট হবে</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">IMEI * (15 digits)</label>
@@ -673,14 +677,15 @@ export function Products() {
                       onChange={(e) => {
                         const value = e.target.value.replace(/\D/g, '').slice(0, 15);
                         setFormData({ ...formData, imei: value });
+                        clearError("imei");
                       }}
                       placeholder="Enter 15-digit IMEI"
-                      required
                       pattern="[0-9]{15}"
                       minLength={15}
                       maxLength={15}
                       title="IMEI must be exactly 15 digits"
                       className="flex-1"
+                      aria-invalid={!!formErrors.imei}
                     />
                     <Button
                       type="button"
@@ -692,9 +697,7 @@ export function Products() {
                       <ScanBarcode className="w-4 h-4" />
                     </Button>
                   </div>
-                  {formData.imei && formData.imei.length !== 15 && (
-                    <p className="text-xs text-red-500 mt-1">IMEI must be exactly 15 digits</p>
-                  )}
+                  <FieldError message={formErrors.imei} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">ব্র্যান্ড</label>
@@ -717,9 +720,12 @@ export function Products() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">অবস্থা (Condition)</label>
-                  <Select value={formData.condition || undefined} onValueChange={(value) => setFormData({ ...formData, condition: value })}>
-                    <SelectTrigger>
+                  <label className="block text-sm font-medium mb-2">অবস্থা (Condition) *</label>
+                  <Select value={formData.condition || undefined} onValueChange={(value) => {
+                    setFormData({ ...formData, condition: value });
+                    clearError("condition");
+                  }}>
+                    <SelectTrigger aria-invalid={!!formErrors.condition}>
                       <SelectValue placeholder="নতুন অথবা পুরাতন মোবাইল সিলেক্ট করো" />
                     </SelectTrigger>
                     <SelectContent>
@@ -727,6 +733,7 @@ export function Products() {
                       <SelectItem value="used">Used (পুরাতন)</SelectItem>
                     </SelectContent>
                   </Select>
+                  <FieldError message={formErrors.condition} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">Unit</label>
@@ -736,22 +743,26 @@ export function Products() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Price</label>
+                  <label className="block text-sm font-medium mb-2">Price *</label>
                   <Input
                     type="number"
                     step="0.01"
                     value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                    onChange={(e) => { setFormData({ ...formData, price: e.target.value }); clearError("price"); }}
+                    aria-invalid={!!formErrors.price}
                   />
+                  <FieldError message={formErrors.price} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Cost</label>
+                  <label className="block text-sm font-medium mb-2">Cost *</label>
                   <Input
                     type="number"
                     step="0.01"
                     value={formData.cost}
-                    onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
+                    onChange={(e) => { setFormData({ ...formData, cost: e.target.value }); clearError("cost"); }}
+                    aria-invalid={!!formErrors.cost}
                   />
+                  <FieldError message={formErrors.cost} />
                 </div>
               </div>
 
