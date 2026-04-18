@@ -192,9 +192,31 @@ export function Products() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate IMEI is exactly 15 digits
-    if (!formData.imei || formData.imei.length !== 15) {
+    // Bengali validations
+    if (!formData.name.trim()) {
+      toast.error("প্রোডাক্টের নাম (মডেল) অবশ্যই দিতে হবে");
+      return;
+    }
+    if (!formData.category_id) {
+      toast.error("ক্যাটাগরি সিলেক্ট করুন");
+      return;
+    }
+    if (!formData.condition) {
+      toast.error("নতুন অথবা পুরাতন মোবাইল সিলেক্ট করুন");
+      return;
+    }
+    if (!/^\d{15}$/.test(formData.imei || "")) {
       toast.error("IMEI অবশ্যই ১৫ ডিজিটের হতে হবে");
+      return;
+    }
+    const priceNum = parseFloat(formData.price);
+    const costNum = parseFloat(formData.cost);
+    if (!formData.price || isNaN(priceNum) || priceNum <= 0) {
+      toast.error("বিক্রয় মূল্য অবশ্যই ০ এর বেশি হতে হবে");
+      return;
+    }
+    if (!formData.cost || isNaN(costNum) || costNum < 0) {
+      toast.error("ক্রয় মূল্য সঠিকভাবে দিন");
       return;
     }
 

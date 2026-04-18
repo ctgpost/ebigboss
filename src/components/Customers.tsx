@@ -231,6 +231,8 @@ export function Customers() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const validated = validateWithToast(customerSchema, formData);
+    if (!validated) return;
     if (editingCustomer) {
       updateMutation.mutate({ id: editingCustomer.id, data: formData });
     } else {

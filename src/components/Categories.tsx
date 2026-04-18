@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { categorySchema, validateWithToast } from "@/utils/validation";
 
 export function Categories() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -64,6 +65,8 @@ export function Categories() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const validated = validateWithToast(categorySchema, formData);
+    if (!validated) return;
     addMutation.mutate(formData);
   };
 
