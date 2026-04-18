@@ -6,6 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { uploadToCloudinary } from "@/utils/cloudinary";
 import { toast } from "sonner";
 import { useShopSettings } from "@/hooks/useShopSettings";
+import { FieldError } from "@/components/ui/field-error";
+import { shopSettingsSchema, validateInline } from "@/utils/validation";
 
 export function BrandingSettings() {
   const { settings, logoSrc, refetch } = useShopSettings();
@@ -15,6 +17,7 @@ export function BrandingSettings() {
   const [shopPhone, setShopPhone] = useState("");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const faviconInputRef = useRef<HTMLInputElement>(null);
 
@@ -33,6 +36,19 @@ export function BrandingSettings() {
       toast.error("সেটিংস লোড হয়নি, অনুগ্রহ করে পেজ রিফ্রেশ করুন।");
       return;
     }
+
+    const result = validateInline(shopSettingsSchema, {
+      shop_name: shopName,
+      shop_subtitle: shopSubtitle,
+      shop_address: shopAddress,
+      shop_phone: shopPhone,
+    });
+    setErrors(result.errors);
+    if (!result.success) {
+      toast.error("ফর্মে ভুল আছে — লাল চিহ্নিত ফিল্ডগুলো ঠিক করুন");
+      return;
+    }
+
     setSaving(true);
     try {
       const { error } = await supabase
@@ -54,6 +70,14 @@ export function BrandingSettings() {
       setSaving(false);
     }
   };
+
+  const clearError = (key: string) =>
+    setErrors((p) => {
+      if (!p[key]) return p;
+      const next = { ...p };
+      delete next[key];
+      return next;
+    });
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
