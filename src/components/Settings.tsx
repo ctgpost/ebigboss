@@ -29,6 +29,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export function Settings() {
   const navigate = useNavigate();
@@ -64,6 +73,18 @@ export function Settings() {
   const [isRestoring, setIsRestoring] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [isClearingSales, setIsClearingSales] = useState(false);
+
+  // Restore preview & report state
+  const [previewBackup, setPreviewBackup] = useState<any | null>(null);
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false);
+  const [restoreReport, setRestoreReport] = useState<
+    | {
+        results: { table: string; label: string; total: number; inserted: number; failed: number; errors: { message: string; row?: any }[] }[];
+      }
+    | null
+  >(null);
+  const [showReportDialog, setShowReportDialog] = useState(false);
+
   const [resetStats, setResetStats] = useState<{
     sales: number;
     saleItems: number;
@@ -292,49 +313,63 @@ export function Settings() {
     });
   };
 
-  const safeInsert = async (table: string, rows: any[], label: string) => {
-    if (!rows?.length) return;
+  const safeInsert = async (
+    table: string,
+    rows: any[],
+    label: string,
+  ): Promise<{ table: string; label: string; total: number; inserted: number; failed: number; errors: { message: string; row?: any }[] }> => {
+    const result = { table, label, total: rows?.length || 0, inserted: 0, failed: 0, errors: [] as { message: string; row?: any }[] };
+    if (!rows?.length) return result;
     const cleaned = sanitizeRows(table, rows);
     const CHUNK = 100;
-    let inserted = 0;
-    let failed = 0;
     for (let i = 0; i < cleaned.length; i += CHUNK) {
       const chunk = cleaned.slice(i, i + CHUNK);
       const { error } = await (supabase.from(table as any) as any).insert(chunk);
       if (error) {
-        // Fallback: insert one-by-one so a single bad row doesn't drop the whole chunk
         for (const row of chunk) {
           const { error: rowErr } = await (supabase.from(table as any) as any).insert(row);
           if (rowErr) {
-            failed++;
+            result.failed++;
+            result.errors.push({ message: rowErr.message, row });
             console.warn(`[restore] ${label} row failed:`, rowErr.message, row);
           } else {
-            inserted++;
+            result.inserted++;
           }
         }
       } else {
-        inserted += chunk.length;
+        result.inserted += chunk.length;
       }
     }
-    if (failed > 0) {
-      toast.warning(`${label}: ${inserted} সফল, ${failed} ব্যর্থ`);
+    return result;
+  };
+
+  // Step 1: file selected → parse and show preview dialog
+  const handleRestoreFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const backup = JSON.parse(text);
+      if (!backup.version || !backup.data) {
+        throw new Error("ব্যাকআপ ফাইলের ফরম্যাট সঠিক নয়");
+      }
+      setPreviewBackup(backup);
+      setShowPreviewDialog(true);
+    } catch (error: any) {
+      toast.error("ফাইল পড়তে ব্যর্থ: " + error.message);
     }
   };
 
-  const handleRestore = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
+  // Step 2: user confirms → actually run the restore
+  const runRestore = async () => {
+    if (!previewBackup) return;
+    setShowPreviewDialog(false);
     setIsRestoring(true);
     try {
       toast.info("রিস্টোর শুরু হচ্ছে...");
 
-      const text = await file.text();
-      const backup = JSON.parse(text);
-
-      if (!backup.version || !backup.data) {
-        throw new Error("Invalid backup file format");
-      }
+      const backup = previewBackup;
 
       // Clear existing data first (in correct order respecting foreign keys)
       await supabase.from("returns").delete().neq("id", "00000000-0000-0000-0000-000000000000");
@@ -353,25 +388,35 @@ export function Settings() {
         supabase.from("categories").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
       ]);
 
-      // Insert in dependency order — sanitized, chunked, with row-level fallback
-      await safeInsert("categories", backup.data.categories, "ক্যাটাগরি");
-      await safeInsert("suppliers", backup.data.suppliers, "সরবরাহকারী");
-      await safeInsert("customers", backup.data.customers, "কাস্টমার");
-      await safeInsert("products", backup.data.products, "প্রোডাক্ট");
-      await safeInsert("sales", backup.data.sales, "বিক্রয়");
-      await safeInsert("purchases", backup.data.purchases, "ক্রয়");
-      await safeInsert("sale_items", backup.data.sale_items, "বিক্রয় আইটেম");
-      await safeInsert("purchase_items", backup.data.purchase_items, "ক্রয় আইটেম");
-      await safeInsert("returns", backup.data.returns, "রিটার্ন");
+      const results = [] as { table: string; label: string; total: number; inserted: number; failed: number; errors: { message: string; row?: any }[] }[];
+      results.push(await safeInsert("categories", backup.data.categories, "ক্যাটাগরি"));
+      results.push(await safeInsert("suppliers", backup.data.suppliers, "সরবরাহকারী"));
+      results.push(await safeInsert("customers", backup.data.customers, "কাস্টমার"));
+      results.push(await safeInsert("products", backup.data.products, "প্রোডাক্ট"));
+      results.push(await safeInsert("sales", backup.data.sales, "বিক্রয়"));
+      results.push(await safeInsert("purchases", backup.data.purchases, "ক্রয়"));
+      results.push(await safeInsert("sale_items", backup.data.sale_items, "বিক্রয় আইটেম"));
+      results.push(await safeInsert("purchase_items", backup.data.purchase_items, "ক্রয় আইটেম"));
+      results.push(await safeInsert("returns", backup.data.returns, "রিটার্ন"));
 
-      toast.success("সফলভাবে রিস্টোর হয়েছে! রিফ্রেশ হচ্ছে...");
+      const totalFailed = results.reduce((s, r) => s + r.failed, 0);
+      const totalInserted = results.reduce((s, r) => s + r.inserted, 0);
+
+      setRestoreReport({ results });
+      setShowReportDialog(true);
+
+      if (totalFailed === 0) {
+        toast.success(`সফলভাবে রিস্টোর হয়েছে! মোট ${totalInserted} সারি যুক্ত হয়েছে`);
+      } else {
+        toast.warning(`রিস্টোর সম্পন্ন: ${totalInserted} সফল, ${totalFailed} ব্যর্থ`);
+      }
+
       await ActivityLogger.dataRestore();
-      setTimeout(() => window.location.reload(), 1500);
     } catch (error: any) {
       toast.error("রিস্টোর ব্যর্থ: " + error.message);
     } finally {
       setIsRestoring(false);
-      event.target.value = "";
+      setPreviewBackup(null);
     }
   };
 
@@ -718,13 +763,13 @@ export function Settings() {
           <div className="pt-4 border-t border-border">
             <h3 className="font-medium mb-2">Restore Database</h3>
             <p className="text-sm text-muted-foreground mb-3">
-              Upload a backup file to restore your data. ⚠️ Warning: This will replace all existing data!
+              ব্যাকআপ ফাইল আপলোড করুন। প্রথমে preview দেখানো হবে — আপনি নিশ্চিত করার পরই ডেটা প্রতিস্থাপিত হবে। ⚠️ সতর্কতা: এটি বিদ্যমান সব ডেটা মুছে দেবে!
             </p>
             <div>
               <input
                 type="file"
                 accept=".json"
-                onChange={handleRestore}
+                onChange={handleRestoreFileSelect}
                 disabled={isRestoring}
                 className="hidden"
                 id="restore-file"
@@ -735,10 +780,122 @@ export function Settings() {
                 variant="outline"
                 className="w-full md:w-auto"
               >
-                {isRestoring ? "⏳ Restoring..." : "📤 Upload Backup File"}
+                {isRestoring ? "⏳ Restoring..." : "📤 ব্যাকআপ ফাইল আপলোড করুন"}
               </Button>
             </div>
           </div>
+
+          {/* Preview dialog — shown before restore actually runs */}
+          <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>📋 ব্যাকআপ Preview</DialogTitle>
+                <DialogDescription>
+                  নিচের ডেটা আপনার বর্তমান ডেটাবেজে প্রতিস্থাপিত হবে। নিশ্চিত হলে "রিস্টোর শুরু করুন" চাপুন।
+                </DialogDescription>
+              </DialogHeader>
+              {previewBackup && (
+                <div className="space-y-3">
+                  <div className="text-xs text-muted-foreground">
+                    <div>ভার্সন: <span className="font-mono">{previewBackup.version}</span></div>
+                    <div>তৈরির সময়: <span className="font-mono">{previewBackup.timestamp ? new Date(previewBackup.timestamp).toLocaleString("bn-BD") : "—"}</span></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    {[
+                      { key: "products", label: "📱 প্রোডাক্ট" },
+                      { key: "categories", label: "🏷️ ক্যাটাগরি" },
+                      { key: "customers", label: "👥 কাস্টমার" },
+                      { key: "suppliers", label: "🚚 সরবরাহকারী" },
+                      { key: "sales", label: "💰 বিক্রয়" },
+                      { key: "sale_items", label: "🧾 বিক্রয় আইটেম" },
+                      { key: "purchases", label: "🛒 ক্রয়" },
+                      { key: "purchase_items", label: "📦 ক্রয় আইটেম" },
+                      { key: "returns", label: "↩️ রিটার্ন" },
+                    ].map((row) => (
+                      <div key={row.key} className="flex justify-between rounded border border-border bg-muted/40 px-3 py-2">
+                        <span>{row.label}</span>
+                        <span className="font-semibold">{(previewBackup.data?.[row.key] || []).length}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => { setShowPreviewDialog(false); setPreviewBackup(null); }}>
+                  বাতিল
+                </Button>
+                <Button onClick={runRestore} disabled={isRestoring}>
+                  {isRestoring ? "⏳ চলছে..." : "রিস্টোর শুরু করুন"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Report dialog — shown after restore finishes */}
+          <Dialog open={showReportDialog} onOpenChange={(open) => {
+            setShowReportDialog(open);
+            if (!open) setTimeout(() => window.location.reload(), 300);
+          }}>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>📊 রিস্টোর রিপোর্ট</DialogTitle>
+                <DialogDescription>
+                  প্রতিটি টেবিলের জন্য সফল ও ব্যর্থ সারির বিস্তারিত নিচে দেখানো হলো।
+                </DialogDescription>
+              </DialogHeader>
+              {restoreReport && (
+                <ScrollArea className="max-h-[60vh] pr-3">
+                  <div className="space-y-3">
+                    {restoreReport.results.map((r) => (
+                      <div key={r.table} className="rounded border border-border p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="font-medium">{r.label}</div>
+                          <div className="text-sm">
+                            <span className="text-foreground">মোট {r.total}</span>
+                            <span className="mx-2">·</span>
+                            <span className="text-primary">সফল {r.inserted}</span>
+                            {r.failed > 0 && (
+                              <>
+                                <span className="mx-2">·</span>
+                                <span className="text-destructive">ব্যর্থ {r.failed}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        {r.errors.length > 0 && (
+                          <details className="mt-2">
+                            <summary className="cursor-pointer text-sm text-destructive">ব্যর্থ সারির বিবরণ দেখুন ({r.errors.length})</summary>
+                            <div className="mt-2 space-y-2">
+                              {r.errors.slice(0, 20).map((e, idx) => (
+                                <div key={idx} className="rounded bg-muted/50 p-2 text-xs">
+                                  <div className="font-medium text-destructive">{e.message}</div>
+                                  {e.row?.id && <div className="mt-1 font-mono text-muted-foreground">id: {e.row.id}</div>}
+                                  {(e.row?.name || e.row?.imei) && (
+                                    <div className="mt-1 text-muted-foreground">
+                                      {e.row?.name && <>name: {e.row.name} </>}
+                                      {e.row?.imei && <>· imei: {e.row.imei}</>}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                              {r.errors.length > 20 && (
+                                <div className="text-xs text-muted-foreground">+ আরও {r.errors.length - 20}টি ব্যর্থ সারি (কনসোলে দেখুন)</div>
+                              )}
+                            </div>
+                          </details>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+              <DialogFooter>
+                <Button onClick={() => { setShowReportDialog(false); setTimeout(() => window.location.reload(), 300); }}>
+                  বন্ধ করুন ও রিফ্রেশ করুন
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </Card>
 
