@@ -398,6 +398,7 @@ export function Sales() {
         </CardContent>
         )}
         </Card>
+        </div>
       </div>
 
       {/* Scrollable Content */}
