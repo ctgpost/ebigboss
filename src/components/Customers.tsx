@@ -361,23 +361,53 @@ export function Customers() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">নাম *</label>
-                  <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required />
+                  <Input
+                    value={formData.name}
+                    onChange={(e) => { setFormData({ ...formData, name: e.target.value }); clearError("name"); }}
+                    aria-invalid={!!formErrors.name}
+                  />
+                  <FieldError message={formErrors.name} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">ইমেইল</label>
-                  <Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+                  <Input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => { setFormData({ ...formData, email: e.target.value }); clearError("email"); }}
+                    aria-invalid={!!formErrors.email}
+                  />
+                  <FieldError message={formErrors.email} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">ফোন</label>
-                  <Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
+                  <Input
+                    value={formData.phone}
+                    onChange={(e) => { setFormData({ ...formData, phone: e.target.value }); clearError("phone"); }}
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={11}
+                    placeholder="01XXXXXXXXX"
+                    aria-invalid={!!formErrors.phone}
+                  />
+                  <FieldError message={formErrors.phone} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">ঠিকানা</label>
-                  <Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} />
+                  <Input
+                    value={formData.address}
+                    onChange={(e) => { setFormData({ ...formData, address: e.target.value }); clearError("address"); }}
+                    aria-invalid={!!formErrors.address}
+                  />
+                  <FieldError message={formErrors.address} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">নোট</label>
-                  <Input value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} />
+                  <Input
+                    value={formData.notes}
+                    onChange={(e) => { setFormData({ ...formData, notes: e.target.value }); clearError("notes"); }}
+                    aria-invalid={!!formErrors.notes}
+                  />
+                  <FieldError message={formErrors.notes} />
                 </div>
                 <div>
                   <CloudinaryImageUpload
