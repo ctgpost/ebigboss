@@ -313,49 +313,63 @@ export function Settings() {
     });
   };
 
-  const safeInsert = async (table: string, rows: any[], label: string) => {
-    if (!rows?.length) return;
+  const safeInsert = async (
+    table: string,
+    rows: any[],
+    label: string,
+  ): Promise<{ table: string; label: string; total: number; inserted: number; failed: number; errors: { message: string; row?: any }[] }> => {
+    const result = { table, label, total: rows?.length || 0, inserted: 0, failed: 0, errors: [] as { message: string; row?: any }[] };
+    if (!rows?.length) return result;
     const cleaned = sanitizeRows(table, rows);
     const CHUNK = 100;
-    let inserted = 0;
-    let failed = 0;
     for (let i = 0; i < cleaned.length; i += CHUNK) {
       const chunk = cleaned.slice(i, i + CHUNK);
       const { error } = await (supabase.from(table as any) as any).insert(chunk);
       if (error) {
-        // Fallback: insert one-by-one so a single bad row doesn't drop the whole chunk
         for (const row of chunk) {
           const { error: rowErr } = await (supabase.from(table as any) as any).insert(row);
           if (rowErr) {
-            failed++;
+            result.failed++;
+            result.errors.push({ message: rowErr.message, row });
             console.warn(`[restore] ${label} row failed:`, rowErr.message, row);
           } else {
-            inserted++;
+            result.inserted++;
           }
         }
       } else {
-        inserted += chunk.length;
+        result.inserted += chunk.length;
       }
     }
-    if (failed > 0) {
-      toast.warning(`${label}: ${inserted} সফল, ${failed} ব্যর্থ`);
+    return result;
+  };
+
+  // Step 1: file selected → parse and show preview dialog
+  const handleRestoreFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const backup = JSON.parse(text);
+      if (!backup.version || !backup.data) {
+        throw new Error("ব্যাকআপ ফাইলের ফরম্যাট সঠিক নয়");
+      }
+      setPreviewBackup(backup);
+      setShowPreviewDialog(true);
+    } catch (error: any) {
+      toast.error("ফাইল পড়তে ব্যর্থ: " + error.message);
     }
   };
 
-  const handleRestore = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
+  // Step 2: user confirms → actually run the restore
+  const runRestore = async () => {
+    if (!previewBackup) return;
+    setShowPreviewDialog(false);
     setIsRestoring(true);
     try {
       toast.info("রিস্টোর শুরু হচ্ছে...");
 
-      const text = await file.text();
-      const backup = JSON.parse(text);
-
-      if (!backup.version || !backup.data) {
-        throw new Error("Invalid backup file format");
-      }
+      const backup = previewBackup;
 
       // Clear existing data first (in correct order respecting foreign keys)
       await supabase.from("returns").delete().neq("id", "00000000-0000-0000-0000-000000000000");
@@ -374,25 +388,35 @@ export function Settings() {
         supabase.from("categories").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
       ]);
 
-      // Insert in dependency order — sanitized, chunked, with row-level fallback
-      await safeInsert("categories", backup.data.categories, "ক্যাটাগরি");
-      await safeInsert("suppliers", backup.data.suppliers, "সরবরাহকারী");
-      await safeInsert("customers", backup.data.customers, "কাস্টমার");
-      await safeInsert("products", backup.data.products, "প্রোডাক্ট");
-      await safeInsert("sales", backup.data.sales, "বিক্রয়");
-      await safeInsert("purchases", backup.data.purchases, "ক্রয়");
-      await safeInsert("sale_items", backup.data.sale_items, "বিক্রয় আইটেম");
-      await safeInsert("purchase_items", backup.data.purchase_items, "ক্রয় আইটেম");
-      await safeInsert("returns", backup.data.returns, "রিটার্ন");
+      const results = [] as { table: string; label: string; total: number; inserted: number; failed: number; errors: { message: string; row?: any }[] }[];
+      results.push(await safeInsert("categories", backup.data.categories, "ক্যাটাগরি"));
+      results.push(await safeInsert("suppliers", backup.data.suppliers, "সরবরাহকারী"));
+      results.push(await safeInsert("customers", backup.data.customers, "কাস্টমার"));
+      results.push(await safeInsert("products", backup.data.products, "প্রোডাক্ট"));
+      results.push(await safeInsert("sales", backup.data.sales, "বিক্রয়"));
+      results.push(await safeInsert("purchases", backup.data.purchases, "ক্রয়"));
+      results.push(await safeInsert("sale_items", backup.data.sale_items, "বিক্রয় আইটেম"));
+      results.push(await safeInsert("purchase_items", backup.data.purchase_items, "ক্রয় আইটেম"));
+      results.push(await safeInsert("returns", backup.data.returns, "রিটার্ন"));
 
-      toast.success("সফলভাবে রিস্টোর হয়েছে! রিফ্রেশ হচ্ছে...");
+      const totalFailed = results.reduce((s, r) => s + r.failed, 0);
+      const totalInserted = results.reduce((s, r) => s + r.inserted, 0);
+
+      setRestoreReport({ results });
+      setShowReportDialog(true);
+
+      if (totalFailed === 0) {
+        toast.success(`সফলভাবে রিস্টোর হয়েছে! মোট ${totalInserted} সারি যুক্ত হয়েছে`);
+      } else {
+        toast.warning(`রিস্টোর সম্পন্ন: ${totalInserted} সফল, ${totalFailed} ব্যর্থ`);
+      }
+
       await ActivityLogger.dataRestore();
-      setTimeout(() => window.location.reload(), 1500);
     } catch (error: any) {
       toast.error("রিস্টোর ব্যর্থ: " + error.message);
     } finally {
       setIsRestoring(false);
-      event.target.value = "";
+      setPreviewBackup(null);
     }
   };
 
