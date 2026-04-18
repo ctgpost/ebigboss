@@ -15,6 +15,7 @@ import { ChevronDown, ChevronUp, Filter, Search, CheckSquare } from "lucide-reac
 import { Checkbox } from "@/components/ui/checkbox";
 import { CloudinaryImageUpload } from "./CloudinaryImageUpload";
 import { getCloudinaryThumbnail } from "@/utils/cloudinary";
+import { customerSchema, validateWithToast } from "@/utils/validation";
 
 export function Customers() {
   const { settings } = useShopSettings();
@@ -231,6 +232,8 @@ export function Customers() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const validated = validateWithToast(customerSchema, formData);
+    if (!validated) return;
     if (editingCustomer) {
       updateMutation.mutate({ id: editingCustomer.id, data: formData });
     } else {
