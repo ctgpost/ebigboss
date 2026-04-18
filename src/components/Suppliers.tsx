@@ -233,8 +233,10 @@ export function Suppliers() {
                   formData={formData}
                   onChange={setFormData}
                   onSubmit={handleSubmit}
-                  onCancel={() => { setIsAddDialogOpen(false); setEditingSupplier(null); resetForm(); }}
+                  onCancel={() => { setIsAddDialogOpen(false); setEditingSupplier(null); resetForm(); setFormErrors({}); }}
                   isEditing={!!editingSupplier}
+                  errors={formErrors}
+                  onClearError={clearFormError}
                 />
               </DialogContent>
             </Dialog>
