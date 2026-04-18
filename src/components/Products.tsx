@@ -17,6 +17,7 @@ import { ActivityLogger } from "@/hooks/useActivityLog";
 import * as XLSX from "xlsx";
 import { CloudinaryImageUpload } from "./CloudinaryImageUpload";
 import { getCloudinaryThumbnail } from "@/utils/cloudinary";
+import { FieldError } from "@/components/ui/field-error";
 export function Products() {
   const [supplierMode, setSupplierMode] = useState<"existing" | "custom">("existing");
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
@@ -36,6 +37,8 @@ export function Products() {
   const [sortBy, setSortBy] = useState<string>("name-asc");
   const [viewMode, setViewMode] = useState<"grid" | "compact">("grid");
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const clearError = (key: string) => setFormErrors(p => { if (!p[key]) return p; const n = { ...p }; delete n[key]; return n; });
   const [formData, setFormData] = useState({
     name: "",
     category_id: "",
@@ -192,31 +195,34 @@ export function Products() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Bengali validations
+    // Inline Bengali validations — collect ALL errors then show under each field
+    const errs: Record<string, string> = {};
     if (!formData.name.trim()) {
-      toast.error("প্রোডাক্টের নাম (মডেল) অবশ্যই দিতে হবে");
-      return;
+      errs.name = "প্রোডাক্টের নাম (মডেল) অবশ্যই দিতে হবে";
+    } else if (formData.name.trim().length > 200) {
+      errs.name = "নাম সর্বোচ্চ ২০০ অক্ষরের হতে পারবে";
     }
     if (!formData.category_id) {
-      toast.error("ক্যাটাগরি সিলেক্ট করুন");
-      return;
+      errs.category_id = "ক্যাটাগরি সিলেক্ট করুন";
     }
     if (!formData.condition) {
-      toast.error("নতুন অথবা পুরাতন মোবাইল সিলেক্ট করুন");
-      return;
+      errs.condition = "নতুন অথবা পুরাতন মোবাইল সিলেক্ট করুন";
     }
     if (!/^\d{15}$/.test(formData.imei || "")) {
-      toast.error("IMEI অবশ্যই ১৫ ডিজিটের হতে হবে");
-      return;
+      errs.imei = "IMEI অবশ্যই ১৫ ডিজিটের হতে হবে";
     }
     const priceNum = parseFloat(formData.price);
     const costNum = parseFloat(formData.cost);
     if (!formData.price || isNaN(priceNum) || priceNum <= 0) {
-      toast.error("বিক্রয় মূল্য অবশ্যই ০ এর বেশি হতে হবে");
-      return;
+      errs.price = "বিক্রয় মূল্য অবশ্যই ০ এর বেশি হতে হবে";
     }
     if (!formData.cost || isNaN(costNum) || costNum < 0) {
-      toast.error("ক্রয় মূল্য সঠিকভাবে দিন");
+      errs.cost = "ক্রয় মূল্য সঠিকভাবে দিন (০ বা তার বেশি)";
+    }
+
+    setFormErrors(errs);
+    if (Object.keys(errs).length > 0) {
+      toast.error("ফর্মে ভুল আছে — লাল চিহ্নিত ফিল্ডগুলো ঠিক করুন");
       return;
     }
 
@@ -236,12 +242,12 @@ export function Products() {
       const { data: existingProducts, error } = await query;
 
       if (error) {
-        toast.error("IMEI চেক করতে ব্যর্থ");
+        setFormErrors(p => ({ ...p, imei: "IMEI চেক করতে ব্যর্থ" }));
         return;
       }
 
       if (existingProducts && existingProducts.length > 0) {
-        toast.error(`এই IMEI (${formData.imei}) দিয়ে "${existingProducts[0].name}" ইতিমধ্যে স্টকে আছে। আগে বিক্রি করুন, তারপর আবার এন্ট্রি করতে পারবেন।`);
+        setFormErrors(p => ({ ...p, imei: `এই IMEI দিয়ে "${existingProducts[0].name}" ইতিমধ্যে স্টকে আছে। আগে বিক্রি করুন।` }));
         return;
       }
     }
@@ -551,13 +557,13 @@ export function Products() {
   };
 
   return (
-    <div className="flex flex-col h-screen animate-fade-in">
+    <div className="flex flex-col h-screen animate-fade-in overflow-x-hidden">
       {/* Fixed Header */}
       <div className="sticky top-0 z-10 bg-white dark:bg-gray-950 border-b border-border pb-4 space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Products</h1>
-            <p className="text-sm md:text-base text-muted-foreground mt-1">Manage your inventory</p>
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-4 min-w-0">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground truncate">Products</h1>
+            <p className="text-xs sm:text-sm md:text-base text-muted-foreground mt-1">Manage your inventory</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {/* Download Buttons */}
@@ -599,6 +605,7 @@ export function Products() {
               if (!open) {
                 setIsAddDialogOpen(false);
                 setEditingProduct(null);
+                setFormErrors({});
                 resetForm();
               }
             }}>
@@ -626,28 +633,29 @@ export function Products() {
                     value={formData.name}
                     onChange={(e) => {
                       const newName = e.target.value;
-                      setFormData({ 
-                        ...formData, 
-                        name: newName,
-                        model: newName
-                      });
+                      setFormData({ ...formData, name: newName, model: newName });
+                      clearError("name");
                     }}
                     placeholder="শুধু মডেলের তথ্য দিন (যেমন: Galaxy A15, Note 14 Pro)"
-                    required
+                    aria-invalid={!!formErrors.name}
                   />
-                  <p className="text-xs text-muted-foreground mt-1">ব্র্যান্ড ক্যাটাগরি থেকে স্বয়ংক্রিয়ভাবে নেওয়া হবে</p>
+                  <FieldError message={formErrors.name} />
+                  {!formErrors.name && (
+                    <p className="text-xs text-muted-foreground mt-1">ব্র্যান্ড ক্যাটাগরি থেকে স্বয়ংক্রিয়ভাবে নেওয়া হবে</p>
+                  )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Category</label>
+                  <label className="block text-sm font-medium mb-2">Category *</label>
                   <Select value={formData.category_id} onValueChange={(value) => {
                     const selectedCat = categories?.find(c => c.id === value);
-                    setFormData({ 
-                      ...formData, 
+                    setFormData({
+                      ...formData,
                       category_id: value,
                       brand: selectedCat?.name || formData.brand
                     });
+                    clearError("category_id");
                   }}>
-                    <SelectTrigger>
+                    <SelectTrigger aria-invalid={!!formErrors.category_id}>
                       <SelectValue placeholder="ক্যাটাগরি / ব্র্যান্ড সিলেক্ট করুন" />
                     </SelectTrigger>
                     <SelectContent>
@@ -656,7 +664,10 @@ export function Products() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground mt-1">ব্র্যান্ড এখান থেকে স্বয়ংক্রিয়ভাবে সেট হবে</p>
+                  <FieldError message={formErrors.category_id} />
+                  {!formErrors.category_id && (
+                    <p className="text-xs text-muted-foreground mt-1">ব্র্যান্ড এখান থেকে স্বয়ংক্রিয়ভাবে সেট হবে</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">IMEI * (15 digits)</label>
@@ -666,14 +677,15 @@ export function Products() {
                       onChange={(e) => {
                         const value = e.target.value.replace(/\D/g, '').slice(0, 15);
                         setFormData({ ...formData, imei: value });
+                        clearError("imei");
                       }}
                       placeholder="Enter 15-digit IMEI"
-                      required
                       pattern="[0-9]{15}"
                       minLength={15}
                       maxLength={15}
                       title="IMEI must be exactly 15 digits"
                       className="flex-1"
+                      aria-invalid={!!formErrors.imei}
                     />
                     <Button
                       type="button"
@@ -685,9 +697,7 @@ export function Products() {
                       <ScanBarcode className="w-4 h-4" />
                     </Button>
                   </div>
-                  {formData.imei && formData.imei.length !== 15 && (
-                    <p className="text-xs text-red-500 mt-1">IMEI must be exactly 15 digits</p>
-                  )}
+                  <FieldError message={formErrors.imei} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">ব্র্যান্ড</label>
@@ -710,9 +720,12 @@ export function Products() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">অবস্থা (Condition)</label>
-                  <Select value={formData.condition || undefined} onValueChange={(value) => setFormData({ ...formData, condition: value })}>
-                    <SelectTrigger>
+                  <label className="block text-sm font-medium mb-2">অবস্থা (Condition) *</label>
+                  <Select value={formData.condition || undefined} onValueChange={(value) => {
+                    setFormData({ ...formData, condition: value });
+                    clearError("condition");
+                  }}>
+                    <SelectTrigger aria-invalid={!!formErrors.condition}>
                       <SelectValue placeholder="নতুন অথবা পুরাতন মোবাইল সিলেক্ট করো" />
                     </SelectTrigger>
                     <SelectContent>
@@ -720,6 +733,7 @@ export function Products() {
                       <SelectItem value="used">Used (পুরাতন)</SelectItem>
                     </SelectContent>
                   </Select>
+                  <FieldError message={formErrors.condition} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">Unit</label>
@@ -729,22 +743,26 @@ export function Products() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Price</label>
+                  <label className="block text-sm font-medium mb-2">Price *</label>
                   <Input
                     type="number"
                     step="0.01"
                     value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                    onChange={(e) => { setFormData({ ...formData, price: e.target.value }); clearError("price"); }}
+                    aria-invalid={!!formErrors.price}
                   />
+                  <FieldError message={formErrors.price} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Cost</label>
+                  <label className="block text-sm font-medium mb-2">Cost *</label>
                   <Input
                     type="number"
                     step="0.01"
                     value={formData.cost}
-                    onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
+                    onChange={(e) => { setFormData({ ...formData, cost: e.target.value }); clearError("cost"); }}
+                    aria-invalid={!!formErrors.cost}
                   />
+                  <FieldError message={formErrors.cost} />
                 </div>
               </div>
 

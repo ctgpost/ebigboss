@@ -35,6 +35,8 @@ export function Customers() {
   const [showBulkPayment, setShowBulkPayment] = useState(false);
   const [bulkPaymentMethod, setBulkPaymentMethod] = useState("cash");
   const [bulkPaymentNotes, setBulkPaymentNotes] = useState("");
+  const [paymentErrors, setPaymentErrors] = useState<{ amount?: string; method?: string }>({});
+  const [bulkPaymentErrors, setBulkPaymentErrors] = useState<{ method?: string; selection?: string }>({});
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -268,14 +270,17 @@ export function Customers() {
 
   const handleCollectPayment = (sale: any) => {
     const amount = parseFloat(paymentAmount);
-    if (!amount || amount <= 0) {
-      toast.error("সঠিক পরিমাণ লিখুন");
-      return;
+    const errs: typeof paymentErrors = {};
+    if (!paymentAmount || isNaN(amount) || amount <= 0) {
+      errs.amount = "সঠিক টাকার পরিমাণ দিন (০ এর বেশি)";
+    } else if (amount > Number(sale.due_amount)) {
+      errs.amount = `বাকির (৳${Number(sale.due_amount).toLocaleString('bn-BD')}) চেয়ে বেশি আদায় করা যাবে না`;
     }
-    if (amount > Number(sale.due_amount)) {
-      toast.error("বাকির চেয়ে বেশি আদায় করা যাবে না");
-      return;
+    if (!paymentMethod) {
+      errs.method = "পেমেন্ট পদ্ধতি সিলেক্ট করুন";
     }
+    setPaymentErrors(errs);
+    if (Object.keys(errs).length > 0) return;
     collectPaymentMutation.mutate({
       saleId: sale.id,
       customerId: sale.customer_id,
@@ -715,15 +720,23 @@ export function Customers() {
                 <Input
                   type="number"
                   value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(e.target.value)}
+                  onChange={(e) => {
+                    setPaymentAmount(e.target.value);
+                    if (paymentErrors.amount) setPaymentErrors(p => ({ ...p, amount: undefined }));
+                  }}
                   placeholder="টাকার পরিমাণ"
                   max={Number(selectedCustomerDue.due_amount)}
+                  aria-invalid={!!paymentErrors.amount}
                 />
+                <FieldError message={paymentErrors.amount} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">পেমেন্ট পদ্ধতি</label>
-                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                  <SelectTrigger>
+                <Select value={paymentMethod} onValueChange={(v) => {
+                  setPaymentMethod(v);
+                  if (paymentErrors.method) setPaymentErrors(p => ({ ...p, method: undefined }));
+                }}>
+                  <SelectTrigger aria-invalid={!!paymentErrors.method}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -732,6 +745,7 @@ export function Customers() {
                     <SelectItem value="mobile">📱 মোবাইল</SelectItem>
                   </SelectContent>
                 </Select>
+                <FieldError message={paymentErrors.method} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">নোট (ঐচ্ছিক)</label>
@@ -769,29 +783,41 @@ export function Customers() {
               </p>
               <p className="text-xs text-muted-foreground">{selectedDueSales.size}টি বিক্রয়ের সম্পূর্ণ বাকি আদায় হবে</p>
             </div>
+            <FieldError message={bulkPaymentErrors.selection} />
             <div>
               <label className="block text-sm font-medium mb-2">পেমেন্ট পদ্ধতি</label>
-              <Select value={bulkPaymentMethod} onValueChange={setBulkPaymentMethod}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select value={bulkPaymentMethod} onValueChange={(v) => {
+                setBulkPaymentMethod(v);
+                if (bulkPaymentErrors.method) setBulkPaymentErrors(p => ({ ...p, method: undefined }));
+              }}>
+                <SelectTrigger aria-invalid={!!bulkPaymentErrors.method}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="cash">💵 নগদ</SelectItem>
                   <SelectItem value="card">💳 কার্ড</SelectItem>
                   <SelectItem value="mobile">📱 মোবাইল</SelectItem>
                 </SelectContent>
               </Select>
+              <FieldError message={bulkPaymentErrors.method} />
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">নোট (ঐচ্ছিক)</label>
               <Input value={bulkPaymentNotes} onChange={(e) => setBulkPaymentNotes(e.target.value)} placeholder="বাল্ক আদায়ের নোট" />
             </div>
             <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setShowBulkPayment(false)}>বাতিল</Button>
+              <Button variant="outline" onClick={() => { setShowBulkPayment(false); setBulkPaymentErrors({}); }}>বাতিল</Button>
               <Button
-                onClick={() => bulkCollectMutation.mutate({
-                  saleIds: Array.from(selectedDueSales),
-                  method: bulkPaymentMethod,
-                  notes: bulkPaymentNotes,
-                })}
+                onClick={() => {
+                  const errs: typeof bulkPaymentErrors = {};
+                  if (selectedDueSales.size === 0) errs.selection = "কমপক্ষে একটি বিক্রয় নির্বাচন করুন";
+                  if (!bulkPaymentMethod) errs.method = "পেমেন্ট পদ্ধতি সিলেক্ট করুন";
+                  setBulkPaymentErrors(errs);
+                  if (Object.keys(errs).length > 0) return;
+                  bulkCollectMutation.mutate({
+                    saleIds: Array.from(selectedDueSales),
+                    method: bulkPaymentMethod,
+                    notes: bulkPaymentNotes,
+                  });
+                }}
                 className="bg-green-600 hover:bg-green-700"
                 disabled={bulkCollectMutation.isPending}
               >
