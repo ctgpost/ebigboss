@@ -14,7 +14,7 @@ import { SupplierPaymentDialog } from "./suppliers/SupplierPaymentDialog";
 import { ChevronDown, ChevronUp, Search } from "lucide-react";
 import { CloudinaryImageUpload } from "./CloudinaryImageUpload";
 import { getCloudinaryThumbnail } from "@/utils/cloudinary";
-import { supplierSchema, validateWithToast } from "@/utils/validation";
+import { supplierSchema, validateInline } from "@/utils/validation";
 
 export function Suppliers() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -26,6 +26,14 @@ export function Suppliers() {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [showSummary, setShowSummary] = useState(true);
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", address: "", notes: "", image_url: "" });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const clearFormError = (key: string) =>
+    setFormErrors((p) => {
+      if (!p[key]) return p;
+      const next = { ...p };
+      delete next[key];
+      return next;
+    });
 
   const queryClient = useQueryClient();
 
