@@ -331,15 +331,31 @@ export function Customers() {
     return Number(customers?.find(c => c.id === customerId)?.total_purchases || 0);
   };
 
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
+
   return (
-    <div className="flex flex-col h-screen animate-fade-in">
+    <div className="flex flex-col h-screen animate-fade-in overflow-x-hidden">
       {/* Fixed Header */}
-      <div className="sticky top-0 z-10 bg-white dark:bg-gray-950 border-b border-border pb-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground">কাস্টমার</h1>
-            <p className="text-sm text-muted-foreground mt-1">কাস্টমার ও বাকি হিসাব ব্যবস্থাপনা</p>
-          </div>
+      <div className="sticky top-0 z-10 bg-white dark:bg-gray-950 border-b border-border pb-3 lg:pb-4">
+        <div className="flex items-start justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => setHeaderCollapsed((c) => !c)}
+            className="flex items-start gap-2 flex-1 min-w-0 text-left lg:cursor-default"
+            aria-expanded={!headerCollapsed}
+            aria-label={headerCollapsed ? "হেডার দেখান" : "হেডার লুকান"}
+          >
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg sm:text-2xl md:text-3xl font-bold text-foreground truncate">কাস্টমার</h1>
+              {!headerCollapsed && (
+                <p className="text-xs sm:text-sm text-muted-foreground mt-1">কাস্টমার ও বাকি হিসাব ব্যবস্থাপনা</p>
+              )}
+            </div>
+            <span className="lg:hidden mt-1 text-muted-foreground shrink-0">
+              {headerCollapsed ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
+            </span>
+          </button>
+          <div className={`${headerCollapsed ? "hidden lg:flex" : "flex"} items-center gap-2 shrink-0`}>
           <Dialog open={isAddDialogOpen || !!editingCustomer} onOpenChange={(open) => {
             if (!open) {
               setIsAddDialogOpen(false);
@@ -433,8 +449,10 @@ export function Customers() {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
         {/* Search and Sort */}
+        <div className={`${headerCollapsed ? "hidden lg:block" : "block"}`}>
         <div className="flex gap-2 mt-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -469,6 +487,7 @@ export function Customers() {
         {searchQuery && (
           <p className="text-xs text-muted-foreground mt-2">{filteredCustomers.length}টি কাস্টমার পাওয়া গেছে</p>
         )}
+        </div>
       </div>
 
       {/* Scrollable Content */}

@@ -1,4 +1,5 @@
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -298,15 +299,32 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
     );
   }
 
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
+
   return (
-    <div className="flex flex-col h-screen animate-fade-in">
-      <div className="sticky top-0 z-10 bg-white dark:bg-gray-950 border-b border-border pb-4">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">ড্যাশবোর্ড</h1>
-            <p className="text-muted-foreground mt-1">আপনার ব্যবসার সারসংক্ষেপ</p>
-          </div>
-          <img src={logoSrc} alt={settings.shop_name} className="w-20 h-20" />
+    <div className="flex flex-col h-screen animate-fade-in overflow-x-hidden">
+      <div className="sticky top-0 z-10 bg-white dark:bg-gray-950 border-b border-border pb-3 lg:pb-4">
+        <div className="flex items-start justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => setHeaderCollapsed((c) => !c)}
+            className="flex items-start gap-2 flex-1 min-w-0 text-left lg:cursor-default"
+            aria-expanded={!headerCollapsed}
+            aria-label={headerCollapsed ? "হেডার দেখান" : "হেডার লুকান"}
+          >
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg sm:text-xl lg:text-3xl font-bold text-foreground truncate">ড্যাশবোর্ড</h1>
+              {!headerCollapsed && (
+                <p className="text-muted-foreground mt-1 text-xs sm:text-sm lg:text-base">আপনার ব্যবসার সারসংক্ষেপ</p>
+              )}
+            </div>
+            <span className="lg:hidden mt-1 text-muted-foreground shrink-0">
+              {headerCollapsed ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
+            </span>
+          </button>
+          {!headerCollapsed && (
+            <img src={logoSrc} alt={settings.shop_name} className="w-12 h-12 lg:w-20 lg:h-20 shrink-0" />
+          )}
         </div>
       </div>
 
