@@ -37,6 +37,7 @@ export function Products() {
   const [sortBy, setSortBy] = useState<string>("name-asc");
   const [viewMode, setViewMode] = useState<"grid" | "compact">("grid");
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const clearError = (key: string) => setFormErrors(p => { if (!p[key]) return p; const n = { ...p }; delete n[key]; return n; });
   const [formData, setFormData] = useState({
@@ -561,10 +562,24 @@ export function Products() {
       {/* Fixed Header */}
       <div className="sticky top-0 z-10 bg-white dark:bg-gray-950 border-b border-border pb-4 space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-4 min-w-0">
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground truncate">Products</h1>
-            <p className="text-xs sm:text-sm md:text-base text-muted-foreground mt-1">Manage your inventory</p>
-          </div>
+          <button
+            type="button"
+            onClick={() => setHeaderCollapsed((c) => !c)}
+            className="flex items-start gap-2 min-w-0 text-left lg:cursor-default"
+            aria-expanded={!headerCollapsed}
+            aria-label={headerCollapsed ? "হেডার দেখান" : "হেডার লুকান"}
+          >
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg sm:text-2xl md:text-3xl font-bold text-foreground truncate">Products</h1>
+              {!headerCollapsed && (
+                <p className="text-xs sm:text-sm md:text-base text-muted-foreground mt-1">Manage your inventory</p>
+              )}
+            </div>
+            <span className="lg:hidden mt-1 text-muted-foreground shrink-0">
+              {headerCollapsed ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
+            </span>
+          </button>
+          <div className={`${headerCollapsed ? "hidden lg:flex" : "flex"} flex-wrap items-center gap-2`}>
           <div className="flex flex-wrap items-center gap-2">
             {/* Download Buttons */}
             <Button
