@@ -452,6 +452,7 @@ export function Customers() {
           </div>
         </div>
         {/* Search and Sort */}
+        <div className={`${headerCollapsed ? "hidden lg:block" : "block"}`}>
         <div className="flex gap-2 mt-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -486,6 +487,7 @@ export function Customers() {
         {searchQuery && (
           <p className="text-xs text-muted-foreground mt-2">{filteredCustomers.length}টি কাস্টমার পাওয়া গেছে</p>
         )}
+        </div>
       </div>
 
       {/* Scrollable Content */}
