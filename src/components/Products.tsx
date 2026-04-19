@@ -580,7 +580,6 @@ export function Products() {
             </span>
           </button>
           <div className={`${headerCollapsed ? "hidden lg:flex" : "flex"} flex-wrap items-center gap-2`}>
-          <div className="flex flex-wrap items-center gap-2">
             {/* Download Buttons */}
             <Button
               onClick={downloadExcel}
