@@ -449,6 +449,7 @@ export function Customers() {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
         {/* Search and Sort */}
         <div className="flex gap-2 mt-3">
