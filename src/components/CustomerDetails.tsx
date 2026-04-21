@@ -122,11 +122,11 @@ export function CustomerDetails() {
   const handleCollectPayment = () => {
     const amount = parseFloat(paymentAmount);
     if (!amount || amount <= 0) {
-      toast.error("সঠিক পরিমাণ লিখুন");
+      toast.error("সঠিক পরিমাণ লিখুন (০ এর বেশি)");
       return;
     }
     if (amount > Number(selectedSale.due_amount)) {
-      toast.error("বাকির চেয়ে বেশি আদায় করা যাবে না");
+      toast.error(`এই বিক্রয়ের বাকি ৳${Number(selectedSale.due_amount).toLocaleString('bn-BD')} এর বেশি আদায় করা যাবে না`);
       return;
     }
     collectPaymentMutation.mutate({
