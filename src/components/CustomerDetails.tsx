@@ -232,15 +232,24 @@ export function CustomerDetails() {
         <div className="flex-1 overflow-y-auto pb-6 space-y-4 mt-4">
           {/* Customer Info */}
           <Card className="p-4 md:p-5">
-            <div className="flex items-start justify-between">
-              <div>
+            <div className="flex items-start gap-4 flex-wrap">
+              {/* Customer photo with zoom */}
+              {(selectedCustomer as any)?.image_url && (
+                <ZoomableImage
+                  url={(selectedCustomer as any).image_url}
+                  alt={selectedCustomer?.name || "Customer"}
+                  displayWidth={100}
+                  displayHeight={130}
+                />
+              )}
+              <div className="flex-1 min-w-0">
                 <h2 className="text-xl font-bold text-foreground">{selectedCustomer?.name}</h2>
                 {selectedCustomer?.phone && <p className="text-sm text-muted-foreground">📞 {selectedCustomer.phone}</p>}
                 {selectedCustomer?.email && <p className="text-sm text-muted-foreground">📧 {selectedCustomer.email}</p>}
                 {selectedCustomer?.address && <p className="text-sm text-muted-foreground">📍 {selectedCustomer.address}</p>}
               </div>
               {summary.totalDue > 0 && (
-                <Badge variant="destructive" className="text-lg px-3 py-1">
+                <Badge variant="destructive" className="text-lg px-3 py-1 self-start">
                   বাকি: ৳{summary.totalDue.toLocaleString('bn-BD')}
                 </Badge>
               )}
