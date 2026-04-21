@@ -261,7 +261,8 @@ export function POS() {
     }
 
     const totalAmount = getTotal();
-    const currentPaidAmount = paidAmount > 0 ? Math.min(paidAmount, totalAmount) : totalAmount;
+    // Honor exact paid amount entered by user (0 = full due, totalAmount = full paid)
+    const currentPaidAmount = Math.max(0, Math.min(paidAmount, totalAmount));
     const currentDueAmount = Math.max(0, totalAmount - currentPaidAmount);
 
     const saleData = {
