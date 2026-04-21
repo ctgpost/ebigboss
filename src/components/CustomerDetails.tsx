@@ -313,132 +313,188 @@ export function CustomerDetails() {
           )}
 
 
-          {summary.dueSales.length > 0 && (
-            <Card className="p-4 border-destructive/30 bg-destructive/5">
-              <button onClick={() => setShowDueSales(!showDueSales)} className="flex items-center justify-between w-full">
-                <h3 className="text-lg font-bold text-foreground">💰 বাকি আদায় ({summary.dueSales.length}টি বিক্রয়)</h3>
-                {showDueSales ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-              </button>
-              {showDueSales && (
-                <div className="mt-3 space-y-3">
-                  {summary.dueSales.map(sale => (
-                    <div key={sale.id} className="bg-background rounded-lg p-3 border border-border">
-                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                        <div className="flex-1 space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Badge variant="outline" className="text-xs">#{sale.id.slice(0, 8)}</Badge>
-                            <span className="text-xs text-muted-foreground">{format(new Date(sale.created_at), "dd MMM yyyy")}</span>
-                          </div>
-                          <div className="text-sm">
-                            {(sale.sale_items as any[])?.map((item: any, idx: number) => (
-                              <span key={idx} className="text-muted-foreground">
-                                {item.products?.name} (×{item.quantity}){idx < (sale.sale_items as any[]).length - 1 ? ", " : ""}
-                              </span>
-                            ))}
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            মোট: ৳{Number(sale.total_amount).toLocaleString('bn-BD')} | পরিশোধিত: ৳{Number(sale.paid_amount).toLocaleString('bn-BD')}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="text-right">
-                            <p className="text-lg font-bold text-destructive">৳{Number(sale.due_amount).toLocaleString('bn-BD')}</p>
-                            <p className="text-xs text-muted-foreground">বাকি</p>
-                          </div>
-                          <Button
-                            size="sm"
-                            className="bg-green-600 hover:bg-green-700 whitespace-nowrap"
-                            onClick={() => {
-                              setSelectedSale(sale);
-                              setPaymentAmount(String(sale.due_amount));
-                              setPaymentDialogOpen(true);
-                            }}
-                          >
-                            💵 আদায়
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+          {/* Tabs: Ledger (combined timeline) + Per-Sale Due */}
+          <Tabs defaultValue="ledger" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="ledger">📒 সম্পূর্ণ লেজার</TabsTrigger>
+              <TabsTrigger value="due">💰 বাকি বিক্রয় ({summary.dueSales.length})</TabsTrigger>
+            </TabsList>
+
+            {/* LEDGER TAB — combined chronological timeline with running balance */}
+            <TabsContent value="ledger" className="space-y-2 mt-3">
+              <Card className="p-4">
+                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                  <h3 className="text-lg font-bold text-foreground">📒 লেনদেন টাইমলাইন</h3>
+                  <Button
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={() => {
+                      // General payment — pick first due sale, else latest sale
+                      const target = summary.dueSales[0] || customerSales?.[0];
+                      if (!target) {
+                        toast.error("কোনো বিক্রয় নেই");
+                        return;
+                      }
+                      setSelectedSale(target);
+                      setPaymentAmount("");
+                      setPaymentDialogOpen(true);
+                    }}
+                    disabled={!customerSales?.length}
+                  >
+                    ➕ নতুন পেমেন্ট নিন
+                  </Button>
                 </div>
+                {(() => {
+                  // Build combined timeline
+                  type LedgerRow = { date: string; type: 'sale' | 'payment'; label: string; amount: number; sign: 1 | -1; balance?: number; method?: string };
+                  const rows: LedgerRow[] = [];
+                  customerSales?.forEach(s => {
+                    rows.push({
+                      date: s.created_at,
+                      type: 'sale',
+                      label: `বিক্রয় #${s.id.slice(0, 8)}`,
+                      amount: Number(s.total_amount),
+                      sign: 1, // increases due
+                    });
+                    // Initial paid amount at sale time
+                    if (Number(s.paid_amount) > 0) {
+                      rows.push({
+                        date: s.created_at,
+                        type: 'payment',
+                        label: `প্রাথমিক পরিশোধ #${s.id.slice(0, 8)}`,
+                        amount: Number(s.paid_amount),
+                        sign: -1,
+                        method: s.payment_method,
+                      });
+                    }
+                  });
+                  customerPayments?.forEach(p => {
+                    rows.push({
+                      date: p.created_at,
+                      type: 'payment',
+                      label: `বাকি আদায় #${p.sale_id.slice(0, 8)}`,
+                      amount: Number(p.amount),
+                      sign: -1,
+                      method: p.payment_method,
+                    });
+                  });
+                  rows.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                  let bal = 0;
+                  rows.forEach(r => { bal += r.sign * r.amount; r.balance = bal; });
+
+                  if (rows.length === 0) {
+                    return <p className="text-sm text-muted-foreground text-center py-4">কোনো লেনদেন নেই</p>;
+                  }
+
+                  return (
+                    <div className="space-y-2">
+                      {rows.slice().reverse().map((r, idx) => (
+                        <div key={idx} className="flex items-center justify-between border border-border rounded-lg p-3 gap-2">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <Badge variant={r.type === 'sale' ? 'destructive' : 'default'} className="text-[10px] shrink-0">
+                              {r.type === 'sale' ? '🛒 বিক্রয়' : '💵 পরিশোধ'}
+                            </Badge>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium truncate">{r.label}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {format(new Date(r.date), "dd MMM yyyy, hh:mm a")}
+                                {r.method ? ` • ${r.method === 'cash' ? 'নগদ' : r.method === 'card' ? 'কার্ড' : 'মোবাইল'}` : ''}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className={`text-sm font-bold ${r.sign === 1 ? 'text-destructive' : 'text-green-600'}`}>
+                              {r.sign === 1 ? '+' : '−'}৳{r.amount.toLocaleString('bn-BD')}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              বাকি: ৳{(r.balance || 0).toLocaleString('bn-BD')}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </Card>
+            </TabsContent>
+
+            {/* DUE TAB — per-sale outstanding with payment intake */}
+            <TabsContent value="due" className="space-y-2 mt-3">
+              {summary.dueSales.length === 0 ? (
+                <Card className="p-8 text-center">
+                  <p className="text-sm text-muted-foreground">🎉 কোনো বাকি বিক্রয় নেই</p>
+                </Card>
+              ) : (
+                <Card className="p-4 border-destructive/30 bg-destructive/5">
+                  <div className="space-y-3">
+                    {summary.dueSales.map(sale => (
+                      <div key={sale.id} className="bg-background rounded-lg p-3 border border-border">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                          <div className="flex-1 space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge variant="outline" className="text-xs">#{sale.id.slice(0, 8)}</Badge>
+                              <span className="text-xs text-muted-foreground">{format(new Date(sale.created_at), "dd MMM yyyy")}</span>
+                            </div>
+                            <div className="text-sm">
+                              {(sale.sale_items as any[])?.map((item: any, idx: number) => (
+                                <span key={idx} className="text-muted-foreground">
+                                  {item.products?.name} (×{item.quantity}){idx < (sale.sale_items as any[]).length - 1 ? ", " : ""}
+                                </span>
+                              ))}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              মোট: ৳{Number(sale.total_amount).toLocaleString('bn-BD')} | পরিশোধিত: ৳{Number(sale.paid_amount).toLocaleString('bn-BD')}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <p className="text-lg font-bold text-destructive">৳{Number(sale.due_amount).toLocaleString('bn-BD')}</p>
+                              <p className="text-xs text-muted-foreground">বাকি</p>
+                            </div>
+                            <Button
+                              size="sm"
+                              className="bg-green-600 hover:bg-green-700 whitespace-nowrap"
+                              onClick={() => {
+                                setSelectedSale(sale);
+                                setPaymentAmount("");
+                                setPaymentDialogOpen(true);
+                              }}
+                            >
+                              💵 আদায়
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
               )}
-            </Card>
-          )}
 
-          {/* All Transactions */}
-          <Card className="p-4">
-            <button onClick={() => setShowTransactions(!showTransactions)} className="flex items-center justify-between w-full">
-              <h3 className="text-lg font-bold text-foreground">📊 সকল লেনদেন ({customerSales?.length || 0}টি)</h3>
-              {showTransactions ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-            </button>
-            {showTransactions && customerSales && (
-              <div className="mt-3 space-y-2">
-                {customerSales.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">কোনো লেনদেন নেই</p>
+              {/* Payment History */}
+              <Card className="p-4">
+                <h3 className="text-base font-bold text-foreground mb-2">💳 পেমেন্ট ইতিহাস ({customerPayments?.length || 0}টি)</h3>
+                {customerPayments && customerPayments.length > 0 ? (
+                  <div className="space-y-2">
+                    {customerPayments.map(payment => (
+                      <div key={payment.id} className="flex items-center justify-between border border-border rounded-lg p-3">
+                        <div>
+                          <p className="text-sm font-medium text-green-600">+৳{Number(payment.amount).toLocaleString('bn-BD')}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(payment.created_at), "dd MMM yyyy, hh:mm a")} •
+                            {payment.payment_method === "cash" ? " নগদ" : payment.payment_method === "card" ? " কার্ড" : " মোবাইল"}
+                          </p>
+                          {payment.notes && <p className="text-xs text-muted-foreground">📝 {payment.notes}</p>}
+                        </div>
+                        <Badge variant="outline" className="text-[10px]">#{payment.sale_id.slice(0, 8)}</Badge>
+                      </div>
+                    ))}
+                  </div>
                 ) : (
-                  customerSales.map(sale => (
-                    <div key={sale.id} className="border border-border rounded-lg p-3">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-xs">#{sale.id.slice(0, 8)}</Badge>
-                          <span className="text-xs text-muted-foreground">{format(new Date(sale.created_at), "dd MMM yyyy, hh:mm a")}</span>
-                          <Badge variant={sale.payment_method === "cash" ? "secondary" : "outline"} className="text-[10px]">
-                            {sale.payment_method === "cash" ? "💵 নগদ" : sale.payment_method === "card" ? "💳 কার্ড" : "📱 মোবাইল"}
-                          </Badge>
-                        </div>
-                        <div className="flex gap-3 text-sm">
-                          <span>মোট: <strong>৳{Number(sale.total_amount).toLocaleString('bn-BD')}</strong></span>
-                          {Number(sale.due_amount) > 0 && (
-                            <span className="text-destructive font-semibold">বাকি: ৳{Number(sale.due_amount).toLocaleString('bn-BD')}</span>
-                          )}
-                          {Number(sale.due_amount) === 0 && (
-                            <Badge className="bg-green-100 text-green-700 text-[10px]">পরিশোধিত ✓</Badge>
-                          )}
-                        </div>
-                      </div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {(sale.sale_items as any[])?.map((item: any, idx: number) => (
-                          <span key={idx}>
-                            {item.products?.name} (×{item.quantity}, ৳{Number(item.unit_price).toLocaleString('bn-BD')})
-                            {idx < (sale.sale_items as any[]).length - 1 ? " • " : ""}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-          </Card>
-
-          {/* Payment History */}
-          <Card className="p-4">
-            <button onClick={() => setShowPaymentHistory(!showPaymentHistory)} className="flex items-center justify-between w-full">
-              <h3 className="text-lg font-bold text-foreground">💳 পেমেন্ট ইতিহাস ({customerPayments?.length || 0}টি)</h3>
-              {showPaymentHistory ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-            </button>
-            {showPaymentHistory && customerPayments && (
-              <div className="mt-3 space-y-2">
-                {customerPayments.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4">কোনো আলাদা পেমেন্ট রেকর্ড নেই</p>
-                ) : (
-                  customerPayments.map(payment => (
-                    <div key={payment.id} className="flex items-center justify-between border border-border rounded-lg p-3">
-                      <div>
-                        <p className="text-sm font-medium text-green-600">+৳{Number(payment.amount).toLocaleString('bn-BD')}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {format(new Date(payment.created_at), "dd MMM yyyy, hh:mm a")} • 
-                          {payment.payment_method === "cash" ? " নগদ" : payment.payment_method === "card" ? " কার্ড" : " মোবাইল"}
-                        </p>
-                        {payment.notes && <p className="text-xs text-muted-foreground">📝 {payment.notes}</p>}
-                      </div>
-                      <Badge variant="outline" className="text-[10px]">#{payment.sale_id.slice(0, 8)}</Badge>
-                    </div>
-                  ))
                 )}
-              </div>
-            )}
-          </Card>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </div>
       )}
 
