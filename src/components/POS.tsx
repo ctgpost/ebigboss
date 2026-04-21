@@ -225,7 +225,7 @@ export function POS() {
       }
     }
 
-    // Paid amount validation
+    // Paid amount validation — full custom: 0 to total inclusive
     if (paidAmount < 0) {
       errs.paid_amount = "পরিশোধ ঋণাত্মক হতে পারবে না";
     } else if (paidAmount > getTotal()) {
