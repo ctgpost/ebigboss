@@ -282,6 +282,7 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
   ];
 
   const isLoading = productsLoading || salesLoading;
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
 
   if (isLoading) {
     return (
@@ -298,8 +299,6 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
       </div>
     );
   }
-
-  const [headerCollapsed, setHeaderCollapsed] = useState(false);
 
   return (
     <div className="flex flex-col h-screen animate-fade-in overflow-x-hidden">
