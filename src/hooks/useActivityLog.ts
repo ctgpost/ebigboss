@@ -52,23 +52,32 @@ export const ActivityLogger = {
     details: { sale_id: saleId, amount, item_count: itemCount },
   }),
   
-  productAdded: (productName: string, productId: string) => logActivity({
-    action: `Product added: ${productName}`,
-    actionType: 'product',
-    details: { product_id: productId, product_name: productName },
-  }),
-  
-  productUpdated: (productName: string, productId: string) => logActivity({
-    action: `Product updated: ${productName}`,
-    actionType: 'product',
-    details: { product_id: productId, product_name: productName },
-  }),
-  
-  productDeleted: (productName: string) => logActivity({
-    action: `Product deleted: ${productName}`,
-    actionType: 'product',
-    details: { product_name: productName },
-  }),
+  productAdded: (productName: string, productId: string, condition?: string) => {
+    const condLabel = condition === 'new' ? 'নতুন' : condition === 'used' ? 'ব্যবহৃত' : '';
+    return logActivity({
+      action: `প্রোডাক্ট যুক্ত: ${productName}${condLabel ? ` (${condLabel})` : ''}`,
+      actionType: 'product',
+      details: { product_id: productId, product_name: productName, condition: condition || null },
+    });
+  },
+
+  productUpdated: (productName: string, productId: string, condition?: string) => {
+    const condLabel = condition === 'new' ? 'নতুন' : condition === 'used' ? 'ব্যবহৃত' : '';
+    return logActivity({
+      action: `প্রোডাক্ট আপডেট: ${productName}${condLabel ? ` (${condLabel})` : ''}`,
+      actionType: 'product',
+      details: { product_id: productId, product_name: productName, condition: condition || null },
+    });
+  },
+
+  productDeleted: (productName: string, condition?: string) => {
+    const condLabel = condition === 'new' ? 'নতুন' : condition === 'used' ? 'ব্যবহৃত' : '';
+    return logActivity({
+      action: `প্রোডাক্ট ডিলিট: ${productName}${condLabel ? ` (${condLabel})` : ''}`,
+      actionType: 'product',
+      details: { product_name: productName, condition: condition || null },
+    });
+  },
   
   customerAdded: (customerName: string) => logActivity({
     action: `Customer added: ${customerName}`,

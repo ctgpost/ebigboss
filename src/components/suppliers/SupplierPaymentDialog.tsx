@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { generateSupplierReport } from "@/utils/supplierPdfReport";
 import { useShopSettings } from "@/hooks/useShopSettings";
+import { ZoomableImage } from "@/components/ui/zoomable-image";
 
 interface SupplierPaymentDialogProps {
   open: boolean;

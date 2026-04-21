@@ -99,12 +99,12 @@ export function Products() {
     mutationFn: async (data: any) => {
       const { data: inserted, error } = await supabase.from("products").insert([data]).select().single();
       if (error) throw error;
-      return { ...inserted, name: data.name };
+      return { ...inserted, name: data.name, condition: data.condition };
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success("Product added successfully!");
-      ActivityLogger.productAdded(result.name, result.id);
+      ActivityLogger.productAdded(result.name, result.id, result.condition);
       setIsAddDialogOpen(false);
       resetForm();
     },
@@ -117,12 +117,12 @@ export function Products() {
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
       const { error } = await supabase.from("products").update(data).eq("id", id);
       if (error) throw error;
-      return { id, name: data.name };
+      return { id, name: data.name, condition: data.condition };
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success("Product updated successfully!");
-      ActivityLogger.productUpdated(result.name, result.id);
+      ActivityLogger.productUpdated(result.name, result.id, result.condition);
       setEditingProduct(null);
       resetForm();
     },
@@ -132,15 +132,15 @@ export function Products() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+    mutationFn: async ({ id, name, condition }: { id: string; name: string; condition?: string }) => {
       const { error } = await supabase.from("products").delete().eq("id", id);
       if (error) throw error;
-      return name;
+      return { name, condition };
     },
-    onSuccess: (name) => {
+    onSuccess: ({ name, condition }) => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success("Product deleted successfully!");
-      ActivityLogger.productDeleted(name);
+      ActivityLogger.productDeleted(name, condition);
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to delete product");
@@ -1100,13 +1100,7 @@ export function Products() {
             <div className="space-y-3">
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-3 flex-1 min-w-0">
-                  {product.image_url && (
-                    <img
-                      src={getCloudinaryThumbnail(product.image_url, 100, 100)}
-                      alt={product.name}
-                      className="w-14 h-14 rounded-lg object-cover border border-border shrink-0"
-                    />
-                  )}
+                  {/* Product image hidden on cards — visible in detail modal only */}
                   <div className="min-w-0">
                     <h3 className="font-semibold text-base md:text-lg text-foreground">{product.name}</h3>
                   <div className="flex flex-wrap gap-1 mt-1">
@@ -1189,7 +1183,7 @@ export function Products() {
                 <Button variant="outline" size="sm" onClick={() => startEdit(product)} className="flex-1">✏️</Button>
                 <Button variant="outline" size="sm" onClick={() => setHistoryProduct({ imei: product.imei || "", name: product.name })} className="flex-1" disabled={!product.imei}>📜</Button>
                 <Button variant="destructive" size="sm" onClick={() => {
-                  if (confirm("আপনি কি নিশ্চিত?")) deleteMutation.mutate({ id: product.id, name: product.name });
+                  if (confirm("আপনি কি নিশ্চিত?")) deleteMutation.mutate({ id: product.id, name: product.name, condition: product.condition });
                 }} className="flex-1">🗑️</Button>
               </div>
             </div>

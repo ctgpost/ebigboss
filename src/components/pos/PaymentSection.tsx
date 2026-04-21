@@ -156,18 +156,38 @@ export function PaymentSection({
           </span>
         </div>
 
-        {/* Paid Amount */}
+        {/* Paid Amount — full custom (0 = পুরো বাকি, total = পুরো পরিশোধ) */}
         <div>
           <div className="flex items-center gap-2">
             <label className="text-xs lg:text-sm font-medium text-foreground whitespace-nowrap">পরিশোধ:</label>
             <Input
               type="number"
-              value={paidAmount || ""}
-              onChange={(e) => onPaidAmountChange(Math.max(0, Number(e.target.value)))}
+              value={paidAmount === 0 ? "" : paidAmount}
+              onChange={(e) => {
+                const v = e.target.value;
+                onPaidAmountChange(v === "" ? 0 : Math.max(0, Number(v)));
+              }}
               className="h-8 text-sm flex-1"
-              placeholder="পরিশোধিত টাকা"
+              placeholder="০ = পুরো বাকি"
+              min={0}
+              max={total}
               aria-invalid={!!errors.paid_amount}
             />
+          </div>
+          {/* Quick set buttons */}
+          <div className="flex gap-1 mt-2 flex-wrap">
+            <button type="button" onClick={() => onPaidAmountChange(0)}
+              className="text-[10px] px-2 py-0.5 rounded border border-border hover:bg-muted">
+              ০ (পুরো বাকি)
+            </button>
+            <button type="button" onClick={() => onPaidAmountChange(Math.floor(total / 2))}
+              className="text-[10px] px-2 py-0.5 rounded border border-border hover:bg-muted">
+              অর্ধেক
+            </button>
+            <button type="button" onClick={() => onPaidAmountChange(total)}
+              className="text-[10px] px-2 py-0.5 rounded border border-border hover:bg-muted">
+              পূর্ণ
+            </button>
           </div>
           <FieldError message={errors.paid_amount} />
         </div>

@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
+import { ZoomableImage } from "@/components/ui/zoomable-image";
 
 interface ProductDetailModalProps {
   product: any;
@@ -79,6 +80,19 @@ export function ProductDetailModal({ product, isOpen, onClose }: ProductDetailMo
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* Product Image (passport-size with zoom) */}
+          {product.image_url && (
+            <Card className="p-4 flex justify-center">
+              <ZoomableImage
+                url={product.image_url}
+                alt={product.name}
+                label="📷 প্রোডাক্টের ছবি (ক্লিক করে বড় করুন)"
+                displayWidth={140}
+                displayHeight={180}
+              />
+            </Card>
+          )}
+
           {/* Basic Information */}
           <Card className="p-4">
             <h3 className="text-lg font-semibold mb-3">Basic Information</h3>
