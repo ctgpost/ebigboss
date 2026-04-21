@@ -1189,7 +1189,7 @@ export function Products() {
                 <Button variant="outline" size="sm" onClick={() => startEdit(product)} className="flex-1">✏️</Button>
                 <Button variant="outline" size="sm" onClick={() => setHistoryProduct({ imei: product.imei || "", name: product.name })} className="flex-1" disabled={!product.imei}>📜</Button>
                 <Button variant="destructive" size="sm" onClick={() => {
-                  if (confirm("আপনি কি নিশ্চিত?")) deleteMutation.mutate({ id: product.id, name: product.name });
+                  if (confirm("আপনি কি নিশ্চিত?")) deleteMutation.mutate({ id: product.id, name: product.name, condition: product.condition });
                 }} className="flex-1">🗑️</Button>
               </div>
             </div>
