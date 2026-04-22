@@ -164,8 +164,18 @@ export function SupplierPaymentDialog({ open, onOpenChange, supplier }: Supplier
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <DialogTitle>💰 {supplier.name} — হিসাব নিকাশ</DialogTitle>
+          <div className="flex items-start justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-3">
+              {supplier.image_url && (
+                <ZoomableImage
+                  url={supplier.image_url}
+                  alt={supplier.name}
+                  displayWidth={70}
+                  displayHeight={90}
+                />
+              )}
+              <DialogTitle>💰 {supplier.name} — হিসাব নিকাশ</DialogTitle>
+            </div>
             <Button
               variant="outline"
               size="sm"
