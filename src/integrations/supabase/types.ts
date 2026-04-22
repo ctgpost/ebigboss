@@ -122,6 +122,7 @@ export type Database = {
           id: string
           notes: string | null
           payment_method: string
+          return_id: string | null
           sale_id: string
         }
         Insert: {
@@ -132,6 +133,7 @@ export type Database = {
           id?: string
           notes?: string | null
           payment_method?: string
+          return_id?: string | null
           sale_id: string
         }
         Update: {
@@ -142,6 +144,7 @@ export type Database = {
           id?: string
           notes?: string | null
           payment_method?: string
+          return_id?: string | null
           sale_id?: string
         }
         Relationships: [
@@ -387,7 +390,9 @@ export type Database = {
       returns: {
         Row: {
           created_at: string
+          customer_id: string | null
           id: string
+          is_audit_only: boolean
           processed_by: string | null
           product_id: string
           quantity: number
@@ -401,7 +406,9 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          customer_id?: string | null
           id?: string
+          is_audit_only?: boolean
           processed_by?: string | null
           product_id: string
           quantity: number
@@ -415,7 +422,9 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          customer_id?: string | null
           id?: string
+          is_audit_only?: boolean
           processed_by?: string | null
           product_id?: string
           quantity?: number
