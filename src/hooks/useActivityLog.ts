@@ -8,7 +8,8 @@ export type ActionType =
   | 'supplier' 
   | 'category'
   | 'settings'
-  | 'user_management';
+  | 'user_management'
+  | 'return';
 
 export interface LogActivityParams {
   action: string;
@@ -122,5 +123,17 @@ export const ActivityLogger = {
   dataReset: () => logActivity({
     action: 'Database reset performed',
     actionType: 'settings',
+  }),
+
+  returnCreated: (productName: string, qty: number, refund: number, isAuditOnly: boolean, reason: string, returnId: string) => logActivity({
+    action: `${isAuditOnly ? 'রিটার্ন নোট (অডিট-অনলি)' : 'রিটার্ন তৈরি'}: ${productName} (×${qty}) — ৳${refund.toFixed(2)} | কারণ: ${reason}`,
+    actionType: 'return',
+    details: { return_id: returnId, product_name: productName, quantity: qty, refund_amount: refund, is_audit_only: isAuditOnly, reason_code: reason },
+  }),
+
+  returnProcessed: (returnId: string, status: string, productName: string, refund: number) => logActivity({
+    action: `রিটার্ন ${status === 'completed' ? 'অনুমোদন ও সম্পন্ন' : 'প্রত্যাখ্যাত'}: ${productName} — ৳${refund.toFixed(2)}`,
+    actionType: 'return',
+    details: { return_id: returnId, status, product_name: productName, refund_amount: refund },
   }),
 };

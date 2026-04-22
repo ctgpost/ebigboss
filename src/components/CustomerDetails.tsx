@@ -369,12 +369,16 @@ export function CustomerDetails() {
                     }
                   });
                   customerPayments?.forEach(p => {
+                    const isRefund = Number(p.amount) < 0;
                     rows.push({
                       date: p.created_at,
                       type: 'payment',
-                      label: `বাকি আদায় #${p.sale_id.slice(0, 8)}`,
-                      amount: Number(p.amount),
-                      sign: -1,
+                      label: isRefund
+                        ? `🔄 রিটার্ন রিফান্ড #${p.sale_id.slice(0, 8)}`
+                        : `বাকি আদায় #${p.sale_id.slice(0, 8)}`,
+                      amount: Math.abs(Number(p.amount)),
+                      // Refund (negative amount) increases due (sign +1); collected payment decreases due (-1)
+                      sign: isRefund ? 1 : -1,
                       method: p.payment_method,
                     });
                   });
@@ -475,19 +479,25 @@ export function CustomerDetails() {
                 <h3 className="text-base font-bold text-foreground mb-2">💳 পেমেন্ট ইতিহাস ({customerPayments?.length || 0}টি)</h3>
                 {customerPayments && customerPayments.length > 0 ? (
                   <div className="space-y-2">
-                    {customerPayments.map(payment => (
-                      <div key={payment.id} className="flex items-center justify-between border border-border rounded-lg p-3">
-                        <div>
-                          <p className="text-sm font-medium text-green-600">+৳{Number(payment.amount).toLocaleString('bn-BD')}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {format(new Date(payment.created_at), "dd MMM yyyy, hh:mm a")} •
-                            {payment.payment_method === "cash" ? " নগদ" : payment.payment_method === "card" ? " কার্ড" : " মোবাইল"}
-                          </p>
-                          {payment.notes && <p className="text-xs text-muted-foreground">📝 {payment.notes}</p>}
+                    {customerPayments.map(payment => {
+                      const isRefund = Number(payment.amount) < 0;
+                      return (
+                        <div key={payment.id} className="flex items-center justify-between border border-border rounded-lg p-3">
+                          <div>
+                            <p className={`text-sm font-medium ${isRefund ? 'text-destructive' : 'text-green-600'}`}>
+                              {isRefund ? '−' : '+'}৳{Math.abs(Number(payment.amount)).toLocaleString('bn-BD')}
+                              {isRefund && <Badge variant="destructive" className="ml-2 text-[10px]">রিটার্ন রিফান্ড</Badge>}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {format(new Date(payment.created_at), "dd MMM yyyy, hh:mm a")} •
+                              {payment.payment_method === "cash" ? " নগদ" : payment.payment_method === "card" ? " কার্ড" : " মোবাইল"}
+                            </p>
+                            {payment.notes && <p className="text-xs text-muted-foreground">📝 {payment.notes}</p>}
+                          </div>
+                          <Badge variant="outline" className="text-[10px]">#{payment.sale_id.slice(0, 8)}</Badge>
                         </div>
-                        <Badge variant="outline" className="text-[10px]">#{payment.sale_id.slice(0, 8)}</Badge>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground text-center py-4">কোনো আলাদা পেমেন্ট রেকর্ড নেই</p>
