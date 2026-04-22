@@ -1077,7 +1077,6 @@ export function Products() {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-sm font-bold text-foreground">৳{Number(product.price).toLocaleString('bn-BD')}</p>
-                    <p className="text-xs text-muted-foreground">ক্রয়: ৳{Number(product.cost).toLocaleString('bn-BD')}</p>
                   </div>
                   <div className="flex gap-1 shrink-0">
                     <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => {
@@ -1129,7 +1128,7 @@ export function Products() {
               {/* Always visible: price and IMEI */}
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">মূল্য: <span className="font-semibold text-foreground">৳{Number(product.price).toLocaleString('bn-BD')}</span></span>
-                <span className="text-muted-foreground">ক্রয়: <span className="font-semibold text-foreground">৳{Number(product.cost).toLocaleString('bn-BD')}</span></span>
+                <span className="text-xs text-muted-foreground">স্টক: {product.stock_quantity}</span>
               </div>
               {product.imei && (
                 <p className="text-xs text-muted-foreground font-mono">IMEI: {product.imei}</p>
