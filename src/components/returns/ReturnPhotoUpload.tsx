@@ -54,8 +54,7 @@ export function ReturnPhotoUpload({ currentUrl, onChange }: Props) {
 
       {currentUrl ? (
         <div className="relative inline-block">
-          <ZoomableImage src={currentUrl} alt="ত্রুটিপূর্ণ পণ্যের ছবি"
-            className="w-32 h-32 object-cover rounded-lg border-2 border-border" />
+          <ZoomableImage url={currentUrl} alt="ত্রুটিপূর্ণ পণ্যের ছবি" displayWidth={128} displayHeight={128} />
           <Button size="icon" variant="destructive" type="button"
             className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
             onClick={() => onChange(null)}>
