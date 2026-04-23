@@ -665,9 +665,15 @@ export function Returns() {
                     </div>
                     <div className="flex flex-col items-end gap-2">
                       {getStatusBadge(ret.status)}
-                      <Button size="sm" variant="ghost" onClick={() => setReceiptRecord(ret)} className="h-7 px-2">
-                        <Printer className="h-3 w-3 mr-1" />রসিদ
-                      </Button>
+                      {ret.status === "completed" ? (
+                        <Button size="sm" variant="default" onClick={() => setReceiptRecord(ret)} className="h-7 px-2 gap-1">
+                          <Printer className="h-3 w-3" />রসিদ পুনঃপ্রিন্ট
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="ghost" onClick={() => setReceiptRecord(ret)} className="h-7 px-2 gap-1">
+                          <Printer className="h-3 w-3" />রসিদ
+                        </Button>
+                      )}
                     </div>
                   </div>
 
@@ -693,6 +699,51 @@ export function Returns() {
                       <ZoomableImage url={ret.defect_photo_url} alt="ত্রুটির প্রমাণ" displayWidth={80} displayHeight={80} />
                     </div>
                   )}
+
+                  {/* Approval Timeline */}
+                  <div className="mt-3 pt-3 border-t">
+                    <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1">
+                      <Clock className="h-3 w-3" />অনুমোদন টাইমলাইন
+                    </p>
+                    <div className="space-y-1.5 text-xs">
+                      <div className="flex items-start gap-2">
+                        <div className="w-2 h-2 rounded-full bg-blue-500 mt-1 shrink-0" />
+                        <div className="flex-1">
+                          <span className="font-medium">তৈরি</span>
+                          <span className="text-muted-foreground"> — {ret.processed_by_profile?.full_name || ret.processed_by_profile?.email || "সিস্টেম"}</span>
+                          <span className="text-muted-foreground"> · {format(new Date(ret.created_at), "dd MMM yyyy, hh:mm a", { locale: bn })}</span>
+                        </div>
+                      </div>
+                      {ret.approved_at && ret.status === "completed" && (
+                        <div className="flex items-start gap-2">
+                          <div className="w-2 h-2 rounded-full bg-green-500 mt-1 shrink-0" />
+                          <div className="flex-1">
+                            <span className="font-medium text-green-700 dark:text-green-400">অনুমোদিত</span>
+                            <span className="text-muted-foreground"> — {ret.approved_by_profile?.full_name || ret.approved_by_profile?.email || "—"}</span>
+                            <span className="text-muted-foreground"> · {format(new Date(ret.approved_at), "dd MMM yyyy, hh:mm a", { locale: bn })}</span>
+                          </div>
+                        </div>
+                      )}
+                      {ret.approved_at && ret.status === "rejected" && (
+                        <div className="flex items-start gap-2">
+                          <div className="w-2 h-2 rounded-full bg-red-500 mt-1 shrink-0" />
+                          <div className="flex-1">
+                            <span className="font-medium text-red-700 dark:text-red-400">প্রত্যাখ্যাত</span>
+                            <span className="text-muted-foreground"> — {ret.approved_by_profile?.full_name || ret.approved_by_profile?.email || "—"}</span>
+                            <span className="text-muted-foreground"> · {format(new Date(ret.approved_at), "dd MMM yyyy, hh:mm a", { locale: bn })}</span>
+                          </div>
+                        </div>
+                      )}
+                      {ret.status === "pending" && (
+                        <div className="flex items-start gap-2">
+                          <div className="w-2 h-2 rounded-full bg-yellow-500 mt-1 shrink-0 animate-pulse" />
+                          <div className="flex-1">
+                            <span className="font-medium text-yellow-700 dark:text-yellow-400">অনুমোদনের অপেক্ষায়</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
                   {ret.status === "pending" && !ret.is_audit_only && canApprove && (
                     <div className="flex gap-2 pt-3 mt-3 border-t">
