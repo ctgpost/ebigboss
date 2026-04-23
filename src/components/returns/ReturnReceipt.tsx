@@ -112,6 +112,27 @@ export function ReturnReceipt({ open, onClose, returnRecord }: Props) {
           </div>
           <hr />
 
+          <hr />
+
+          <div className="bold">অনুমোদন টাইমলাইন:</div>
+          <div className="row">
+            <span>তৈরি:</span>
+            <span>{format(new Date(returnRecord.created_at), "dd MMM yyyy, hh:mm a", { locale: bn })}</span>
+          </div>
+          {returnRecord.approved_at && (
+            <div className="row">
+              <span>{returnRecord.status === "rejected" ? "প্রত্যাখ্যাত:" : "অনুমোদিত:"}</span>
+              <span>{format(new Date(returnRecord.approved_at), "dd MMM yyyy, hh:mm a", { locale: bn })}</span>
+            </div>
+          )}
+          {(returnRecord.approved_by_profile?.full_name || returnRecord.approved_by_profile?.email) && (
+            <div className="row">
+              <span>অনুমোদনকারী:</span>
+              <span>{returnRecord.approved_by_profile?.full_name || returnRecord.approved_by_profile?.email}</span>
+            </div>
+          )}
+          <hr />
+
           <div className="center" style={{ fontSize: 10, marginTop: 8 }}>
             স্ট্যাটাস: <span className="bold">{returnRecord.status === "completed" ? "✓ অনুমোদিত" : returnRecord.status === "rejected" ? "✗ প্রত্যাখ্যাত" : "⏳ অপেক্ষমাণ"}</span>
           </div>
