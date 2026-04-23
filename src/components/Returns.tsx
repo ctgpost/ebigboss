@@ -14,9 +14,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { bn } from "date-fns/locale";
-import { RotateCcw, Search, Package, Calendar, CheckCircle, XCircle, Clock, BarChart3, FileText } from "lucide-react";
+import {
+  RotateCcw, Search, Package, Calendar, CheckCircle, XCircle, Clock,
+  BarChart3, FileText, Printer, Image as ImageIcon, MessageSquare,
+} from "lucide-react";
 import { ActivityLogger } from "@/hooks/useActivityLog";
+import { useUserRole } from "@/hooks/useUserRole";
 import { ReturnAnalytics } from "./ReturnAnalytics";
+import { ReturnReceipt } from "./returns/ReturnReceipt";
+import { ReturnPhotoUpload } from "./returns/ReturnPhotoUpload";
+import { ZoomableImage } from "@/components/ui/zoomable-image";
 
 const REASON_LABELS: Record<string, string> = {
   defective: "ত্রুটিপূর্ণ পণ্য",
@@ -27,7 +34,19 @@ const REASON_LABELS: Record<string, string> = {
   other: "অন্যান্য",
 };
 
+const METHOD_LABELS: Record<string, string> = {
+  cash: "নগদ ফেরত",
+  due_adjust: "বাকি সমন্বয়",
+  exchange: "পণ্য বিনিময়",
+};
+
+type RefundMethod = "cash" | "due_adjust" | "exchange";
+
 export function Returns() {
+  const { isAdmin, isManager, userId } = useUserRole();
+  const canApprove = isAdmin || isManager;
+
+  // ─── Form state ──────────────────────────────────────────────
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [searchSaleId, setSearchSaleId] = useState("");
   const [selectedSale, setSelectedSale] = useState<any>(null);
@@ -36,10 +55,25 @@ export function Returns() {
   const [reasonCode, setReasonCode] = useState("defective");
   const [reasonNotes, setReasonNotes] = useState("");
   const [isAuditOnly, setIsAuditOnly] = useState(false);
+  const [refundMethod, setRefundMethod] = useState<RefundMethod>("cash");
+  const [defectPhotoUrl, setDefectPhotoUrl] = useState<string | null>(null);
+
+  // Exchange-specific state
+  const [exchangeProductId, setExchangeProductId] = useState<string>("");
+  const [exchangeQty, setExchangeQty] = useState<number>(1);
+  const [exchangeUnitPrice, setExchangeUnitPrice] = useState<number>(0);
+
+  // Reject dialog
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+
+  // Filters & view
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [receiptRecord, setReceiptRecord] = useState<any>(null);
 
   const queryClient = useQueryClient();
 
+  // ─── Queries ─────────────────────────────────────────────────
   const { data: returns, isLoading } = useQuery({
     queryKey: ["returns"],
     queryFn: async () => {
@@ -47,7 +81,7 @@ export function Returns() {
         .from("returns")
         .select(`
           *,
-          sales (id, total_amount, created_at, customer_id, customers (name, phone)),
+          sales (id, total_amount, created_at, customer_id, instant_customer_name, instant_customer_phone, customers (name, phone)),
           sale_items (quantity, unit_price, total_price),
           products (name, imei, brand, model, condition, supplier_name)
         `)
@@ -57,26 +91,121 @@ export function Returns() {
     },
   });
 
+  const { data: stockProducts } = useQuery({
+    queryKey: ["return-exchange-products"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, name, brand, model, imei, price, stock_quantity")
+        .gt("stock_quantity", 0)
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: refundMethod === "exchange",
+  });
+
+  // ─── Helpers ─────────────────────────────────────────────────
+  const sendCustomerSms = async (phone: string | null | undefined, body: string) => {
+    if (!phone) return;
+    try {
+      await supabase.functions.invoke("send-return-sms", { body: { to: phone, body } });
+    } catch (e) {
+      // Non-blocking — SMS may not be configured yet.
+      console.warn("SMS skipped:", e);
+    }
+  };
+
+  const restoreStock = async (productId: string, qty: number) => {
+    const { data: prod } = await supabase
+      .from("products").select("stock_quantity, imei").eq("id", productId).single();
+    if (!prod) return;
+    let newStock = (prod.stock_quantity || 0) + qty;
+    if (prod.imei && newStock > 1) newStock = 1; // honor unique-IMEI invariant
+    await supabase.from("products").update({ stock_quantity: newStock }).eq("id", productId);
+  };
+
+  const reduceExchangeStock = async (productId: string, qty: number) => {
+    const { data: prod } = await supabase
+      .from("products").select("stock_quantity").eq("id", productId).single();
+    if (!prod) return;
+    const newStock = Math.max(0, (prod.stock_quantity || 0) - qty);
+    await supabase.from("products").update({ stock_quantity: newStock }).eq("id", productId);
+  };
+
+  const applyFinanceImpact = async (
+    saleId: string,
+    customerId: string | null,
+    refundAmount: number,
+    method: RefundMethod,
+    productName: string,
+    returnId: string,
+    exchangeValue: number,
+  ) => {
+    const { data: sale } = await supabase
+      .from("sales").select("total_amount, paid_amount, due_amount").eq("id", saleId).single();
+    if (!sale) return;
+
+    // Net refund value owed to customer = refund − exchange value (if any)
+    const netRefund = Math.max(0, refundAmount - exchangeValue);
+    const newTotal = Math.max(0, Number(sale.total_amount) - netRefund);
+
+    let newPaid = Number(sale.paid_amount);
+    let cashRefund = 0;
+
+    if (method === "cash") {
+      cashRefund = Math.min(newPaid, netRefund);
+      newPaid -= cashRefund;
+    } else if (method === "due_adjust") {
+      // No cash leaves the till — just reduce total so due drops.
+      cashRefund = 0;
+    } else if (method === "exchange") {
+      // Exchange cancels out the refund; nothing else to do here financially.
+      cashRefund = 0;
+    }
+
+    const newDue = Math.max(0, newTotal - newPaid);
+    const newStatus = newTotal === 0 ? "returned" : "completed";
+    await supabase.from("sales").update({
+      total_amount: newTotal, paid_amount: newPaid, due_amount: newDue, status: newStatus,
+    }).eq("id", saleId);
+
+    // Ledger entry for cash refunds
+    if (method === "cash" && cashRefund > 0 && customerId) {
+      await supabase.from("payments").insert([{
+        sale_id: saleId, customer_id: customerId,
+        amount: -cashRefund, payment_method: "cash",
+        notes: `রিটার্ন রিফান্ড: ${productName}`,
+        collected_by: userId, return_id: returnId,
+      }]);
+    }
+  };
+
+  // ─── Search ──────────────────────────────────────────────────
   const searchSale = async () => {
     if (!searchSaleId.trim()) {
-      toast.error("বিক্রয় আইডি লিখুন");
-      return;
+      toast.error("বিক্রয় আইডি লিখুন"); return;
     }
     const { data, error } = await supabase
       .from("sales")
-      .select(`*, customers (name, phone), sale_items (*, products (name, imei, brand, condition))`)
-      .ilike("id", `%${searchSaleId}%`)
+      .select(`*, customers (name, phone),
+        sale_items (*, products (name, imei, brand, condition))`)
+      .ilike("id", `%${searchSaleId.trim()}%`)
       .maybeSingle();
     if (error || !data) { toast.error("বিক্রয় পাওয়া যায়নি"); return; }
     setSelectedSale(data);
   };
 
-  // Create + auto-process if NOT audit-only
+  // ─── Create return ──────────────────────────────────────────
   const createReturnMutation = useMutation({
     mutationFn: async () => {
       if (!selectedItem || !selectedSale) throw new Error("আইটেম নির্বাচন করুন");
-      const { data: { user } } = await supabase.auth.getUser();
       const refundAmount = Number(selectedItem.unit_price) * returnQuantity;
+      const exchangeValue = refundMethod === "exchange" ? exchangeUnitPrice * exchangeQty : 0;
+
+      // Role-based auto-approval: admin = auto-approve, others = pending (unless audit-only).
+      const autoApprove = isAdmin || isAuditOnly;
+      const finalStatus = autoApprove ? "completed" : "pending";
 
       // 1. Insert return record
       const { data: returnRow, error: retErr } = await supabase
@@ -91,140 +220,102 @@ export function Returns() {
           reason_notes: reasonNotes || null,
           is_audit_only: isAuditOnly,
           customer_id: selectedSale.customer_id,
-          status: isAuditOnly ? "completed" : "pending",
-          processed_by: user?.id,
+          status: finalStatus,
+          processed_by: userId,
+          approved_by: autoApprove ? userId : null,
+          approved_at: autoApprove ? new Date().toISOString() : null,
+          refund_method: refundMethod,
+          defect_photo_url: defectPhotoUrl,
+          exchange_product_id: refundMethod === "exchange" ? exchangeProductId || null : null,
+          exchange_quantity: refundMethod === "exchange" ? exchangeQty : 0,
+          exchange_unit_price: refundMethod === "exchange" ? exchangeUnitPrice : 0,
         }])
-        .select()
+        .select("*, products(name)")
         .single();
       if (retErr) throw retErr;
 
-      // If audit-only: log and stop. No stock/finance impact.
-      if (isAuditOnly) {
+      // Stop here if pending or audit-only (no stock/finance side-effects)
+      if (!autoApprove || isAuditOnly) {
         await ActivityLogger.returnCreated(
           selectedItem.products?.name || "পণ্য",
-          returnQuantity,
-          refundAmount,
-          true,
-          REASON_LABELS[reasonCode] || reasonCode,
-          returnRow.id
+          returnQuantity, refundAmount, isAuditOnly,
+          REASON_LABELS[reasonCode] || reasonCode, returnRow.id,
         );
         return returnRow;
       }
 
-      // Full return: stock + finance + ledger
-      // 2. Restore stock (with IMEI conflict guard: never exceed 1 if IMEI is set)
-      const { data: prod } = await supabase
-        .from("products")
-        .select("stock_quantity, imei, name")
-        .eq("id", selectedItem.product_id)
-        .single();
-      if (prod) {
-        let newStock = (prod.stock_quantity || 0) + returnQuantity;
-        if (prod.imei && newStock > 1) {
-          // IMEI-tracked: cap at 1 to honor unique-IMEI rule
-          newStock = 1;
-        }
-        await supabase.from("products").update({ stock_quantity: newStock }).eq("id", selectedItem.product_id);
+      // 2. Side-effects: stock + finance + ledger
+      await restoreStock(selectedItem.product_id, returnQuantity);
+      if (refundMethod === "exchange" && exchangeProductId && exchangeQty > 0) {
+        await reduceExchangeStock(exchangeProductId, exchangeQty);
       }
-
-      // 3. Adjust sale totals — reduce total_amount and due_amount; refund any over-paid
-      const { data: sale } = await supabase
-        .from("sales")
-        .select("total_amount, paid_amount, due_amount, status")
-        .eq("id", selectedSale.id)
-        .single();
-      if (sale) {
-        const newTotal = Math.max(0, Number(sale.total_amount) - refundAmount);
-        const newDue = Math.max(0, newTotal - Number(sale.paid_amount));
-        const cashRefund = Math.max(0, Number(sale.paid_amount) - newTotal);
-        const newPaid = Number(sale.paid_amount) - cashRefund;
-
-        // Determine status: if everything is returned (newTotal===0) mark 'returned'
-        const newStatus = newTotal === 0 ? "returned" : "completed";
-        await supabase.from("sales").update({
-          total_amount: newTotal,
-          due_amount: newDue,
-          paid_amount: newPaid,
-          status: newStatus,
-        }).eq("id", selectedSale.id);
-
-        // 4. If customer had paid more than the new total, record a negative payment (refund) to the customer ledger
-        if (cashRefund > 0 && selectedSale.customer_id) {
-          await supabase.from("payments").insert([{
-            sale_id: selectedSale.id,
-            customer_id: selectedSale.customer_id,
-            amount: -cashRefund, // negative = refund out
-            payment_method: "cash",
-            notes: `রিটার্ন রিফান্ড: ${selectedItem.products?.name} (×${returnQuantity}) — ${REASON_LABELS[reasonCode]}`,
-            collected_by: user?.id,
-            return_id: returnRow.id,
-          }]);
-        }
-      }
+      await applyFinanceImpact(
+        selectedSale.id, selectedSale.customer_id, refundAmount, refundMethod,
+        selectedItem.products?.name || "পণ্য", returnRow.id, exchangeValue,
+      );
 
       await ActivityLogger.returnCreated(
         selectedItem.products?.name || "পণ্য",
-        returnQuantity,
-        refundAmount,
-        false,
-        REASON_LABELS[reasonCode] || reasonCode,
-        returnRow.id
+        returnQuantity, refundAmount, false,
+        REASON_LABELS[reasonCode] || reasonCode, returnRow.id,
       );
+
+      // SMS notification (graceful no-op if Twilio not configured)
+      const phone = selectedSale.customers?.phone || selectedSale.instant_customer_phone;
+      await sendCustomerSms(phone,
+        `প্রিয় গ্রাহক, আপনার রিটার্ন (${returnRow.return_number}) সম্পন্ন হয়েছে। ` +
+        `${METHOD_LABELS[refundMethod]}: ৳${refundAmount.toLocaleString("bn-BD")}। ধন্যবাদ — ${"" }`);
+
       return returnRow;
     },
-    onSuccess: () => {
+    onSuccess: (row: any) => {
       queryClient.invalidateQueries({ queryKey: ["returns"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["customer-sales"] });
       queryClient.invalidateQueries({ queryKey: ["customer-payments"] });
-      toast.success(isAuditOnly ? "রিটার্ন নোট সংরক্ষিত (অডিট-অনলি)!" : "রিটার্ন সফলভাবে সম্পন্ন হয়েছে!");
+      toast.success(
+        isAuditOnly ? "রিটার্ন নোট সংরক্ষিত!" :
+        (isAdmin ? "রিটার্ন সফলভাবে সম্পন্ন হয়েছে!" : "রিটার্ন তৈরি হয়েছে — অনুমোদনের অপেক্ষায়"),
+      );
+      // Auto-show receipt for completed (non-audit) returns
+      if (row?.status === "completed" && !row.is_audit_only) {
+        setReceiptRecord({ ...row, sales: selectedSale, products: { name: selectedItem.products?.name, imei: selectedItem.products?.imei, brand: selectedItem.products?.brand } });
+      }
       resetForm();
     },
     onError: (err: any) => toast.error(err.message || "রিটার্ন তৈরি করতে ব্যর্থ"),
   });
 
-  // For pending returns: approve (apply effects) or reject
-  const processReturnMutation = useMutation({
-    mutationFn: async ({ returnId, status }: { returnId: string; status: string }) => {
+  // ─── Approve / reject pending ───────────────────────────────
+  const approveReturnMutation = useMutation({
+    mutationFn: async (returnId: string) => {
       const { data: ret } = await supabase
-        .from("returns")
-        .select("*, products(name, stock_quantity, imei), sales(customer_id, total_amount, paid_amount)")
-        .eq("id", returnId)
-        .single();
+        .from("returns").select("*, products(name), sales(customer_id, customers(phone), instant_customer_phone)").eq("id", returnId).single();
       if (!ret) throw new Error("রিটার্ন পাওয়া যায়নি");
 
-      await supabase.from("returns").update({ status, updated_at: new Date().toISOString() }).eq("id", returnId);
+      await supabase.from("returns").update({
+        status: "completed", approved_by: userId, approved_at: new Date().toISOString(),
+      }).eq("id", returnId);
 
-      if (status === "completed" && !ret.is_audit_only) {
-        // Restore stock
-        if (ret.products) {
-          let newStock = (ret.products.stock_quantity || 0) + ret.quantity;
-          if (ret.products.imei && newStock > 1) newStock = 1;
-          await supabase.from("products").update({ stock_quantity: newStock }).eq("id", ret.product_id);
+      if (!ret.is_audit_only) {
+        await restoreStock(ret.product_id, ret.quantity);
+        if (ret.refund_method === "exchange" && ret.exchange_product_id && ret.exchange_quantity > 0) {
+          await reduceExchangeStock(ret.exchange_product_id, ret.exchange_quantity);
         }
-        // Adjust sale + ledger refund
-        if (ret.sales) {
-          const newTotal = Math.max(0, Number(ret.sales.total_amount) - Number(ret.refund_amount));
-          const cashRefund = Math.max(0, Number(ret.sales.paid_amount) - newTotal);
-          const newPaid = Number(ret.sales.paid_amount) - cashRefund;
-          const newDue = Math.max(0, newTotal - newPaid);
-          await supabase.from("sales").update({
-            total_amount: newTotal, paid_amount: newPaid, due_amount: newDue,
-            status: newTotal === 0 ? "returned" : "completed",
-          }).eq("id", ret.sale_id);
-          if (cashRefund > 0 && ret.sales.customer_id) {
-            const { data: { user } } = await supabase.auth.getUser();
-            await supabase.from("payments").insert([{
-              sale_id: ret.sale_id, customer_id: ret.sales.customer_id,
-              amount: -cashRefund, payment_method: "cash",
-              notes: `রিটার্ন রিফান্ড: ${ret.products?.name}`,
-              collected_by: user?.id, return_id: returnId,
-            }]);
-          }
-        }
+        const exchangeValue = ret.refund_method === "exchange"
+          ? Number(ret.exchange_unit_price) * Number(ret.exchange_quantity) : 0;
+        await applyFinanceImpact(
+          ret.sale_id, ret.customer_id, Number(ret.refund_amount),
+          ret.refund_method as RefundMethod, ret.products?.name || "পণ্য",
+          returnId, exchangeValue,
+        );
       }
-      await ActivityLogger.returnProcessed(returnId, status, ret.products?.name || "পণ্য", Number(ret.refund_amount));
+      await ActivityLogger.returnProcessed(returnId, "completed", ret.products?.name || "পণ্য", Number(ret.refund_amount));
+      const phone = ret.sales?.customers?.phone || ret.sales?.instant_customer_phone;
+      await sendCustomerSms(phone,
+        `আপনার রিটার্ন (${ret.return_number}) অনুমোদিত হয়েছে। ` +
+        `${METHOD_LABELS[ret.refund_method]}: ৳${Number(ret.refund_amount).toLocaleString("bn-BD")}।`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["returns"] });
@@ -232,21 +323,48 @@ export function Returns() {
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["customer-sales"] });
       queryClient.invalidateQueries({ queryKey: ["customer-payments"] });
-      toast.success("রিটার্ন প্রসেস সম্পন্ন!");
+      toast.success("রিটার্ন অনুমোদিত");
     },
-    onError: (e: any) => toast.error(e.message || "প্রসেস করতে ব্যর্থ"),
+    onError: (e: any) => toast.error(e.message || "অনুমোদন ব্যর্থ"),
   });
 
+  const rejectReturnMutation = useMutation({
+    mutationFn: async ({ returnId, reason }: { returnId: string; reason: string }) => {
+      const { data: ret } = await supabase
+        .from("returns").select("*, products(name), sales(customers(phone), instant_customer_phone)").eq("id", returnId).single();
+      await supabase.from("returns").update({
+        status: "rejected", rejected_reason: reason, approved_by: userId, approved_at: new Date().toISOString(),
+      }).eq("id", returnId);
+      await ActivityLogger.returnProcessed(returnId, "rejected", ret?.products?.name || "পণ্য", Number(ret?.refund_amount || 0));
+      const phone = ret?.sales?.customers?.phone || ret?.sales?.instant_customer_phone;
+      await sendCustomerSms(phone,
+        `দুঃখিত, আপনার রিটার্ন (${ret?.return_number}) প্রত্যাখ্যাত হয়েছে। কারণ: ${reason}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["returns"] });
+      toast.success("রিটার্ন প্রত্যাখ্যাত");
+      setRejectingId(null); setRejectReason("");
+    },
+    onError: (e: any) => toast.error(e.message || "প্রত্যাখ্যান ব্যর্থ"),
+  });
+
+  // ─── UI helpers ─────────────────────────────────────────────
   const resetForm = () => {
     setSearchSaleId(""); setSelectedSale(null); setSelectedItem(null);
     setReturnQuantity(1); setReasonCode("defective"); setReasonNotes("");
-    setIsAuditOnly(false); setIsAddDialogOpen(false);
+    setIsAuditOnly(false); setRefundMethod("cash"); setDefectPhotoUrl(null);
+    setExchangeProductId(""); setExchangeQty(1); setExchangeUnitPrice(0);
+    setIsAddDialogOpen(false);
   };
 
   const handleSubmit = () => {
     if (!selectedItem) { toast.error("আইটেম নির্বাচন করুন"); return; }
     if (returnQuantity < 1 || returnQuantity > selectedItem.quantity) {
       toast.error(`পরিমাণ ১ থেকে ${selectedItem.quantity}`); return;
+    }
+    if (refundMethod === "exchange") {
+      if (!exchangeProductId) { toast.error("বিনিময়ের জন্য পণ্য নির্বাচন করুন"); return; }
+      if (exchangeQty < 1 || exchangeUnitPrice <= 0) { toast.error("বিনিময় পরিমাণ ও মূল্য সঠিক দিন"); return; }
     }
     createReturnMutation.mutate();
   };
@@ -273,6 +391,10 @@ export function Returns() {
     return <div className="flex items-center justify-center h-64 text-muted-foreground">লোড হচ্ছে...</div>;
   }
 
+  const refundTotal = selectedItem ? selectedItem.unit_price * returnQuantity : 0;
+  const exchangeValue = refundMethod === "exchange" ? exchangeUnitPrice * exchangeQty : 0;
+  const netRefund = Math.max(0, refundTotal - exchangeValue);
+
   return (
     <div className="flex flex-col h-screen animate-fade-in">
       <Tabs defaultValue="list" className="flex-1 flex flex-col">
@@ -282,7 +404,7 @@ export function Returns() {
               <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
                 <RotateCcw className="h-7 w-7 text-primary" />রিটার্ন ও রিফান্ড
               </h1>
-              <p className="text-sm text-muted-foreground">পূর্ণ রিটার্ন বা অডিট-অনলি রিটার্ন নোট</p>
+              <p className="text-sm text-muted-foreground">পূর্ণ অনুমোদন-চালিত রিটার্ন ব্যবস্থাপনা</p>
             </div>
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
               <DialogTrigger asChild>
@@ -296,7 +418,7 @@ export function Returns() {
                 </DialogHeader>
                 {!selectedSale ? (
                   <div className="space-y-4 py-4">
-                    <label className="block text-sm font-medium">বিক্রয় আইডি দিয়ে খুঁজুন</label>
+                    <Label className="block">বিক্রয় আইডি দিয়ে খুঁজুন</Label>
                     <div className="flex gap-2">
                       <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -310,12 +432,14 @@ export function Returns() {
                 ) : (
                   <div className="space-y-4 py-4">
                     <Card className="p-4 bg-muted/50 border-primary/20">
-                      <h3 className="font-semibold mb-3 flex items-center gap-2"><Package className="h-4 w-4 text-primary" />বিক্রয় তথ্য</h3>
+                      <h3 className="font-semibold mb-3 flex items-center gap-2">
+                        <Package className="h-4 w-4 text-primary" />বিক্রয় তথ্য
+                      </h3>
                       <div className="grid grid-cols-2 gap-3 text-sm">
                         <div><p className="text-muted-foreground">আইডি</p><p className="font-mono">{selectedSale.id.slice(0, 8)}</p></div>
                         <div><p className="text-muted-foreground">তারিখ</p><p>{format(new Date(selectedSale.created_at), "dd MMM yyyy", { locale: bn })}</p></div>
-                        <div><p className="text-muted-foreground">ক্রেতা</p><p>{selectedSale.customers?.name || "সাধারণ"}</p></div>
-                        <div><p className="text-muted-foreground">মোট</p><p className="text-primary font-semibold">৳{selectedSale.total_amount?.toLocaleString('bn-BD')}</p></div>
+                        <div><p className="text-muted-foreground">ক্রেতা</p><p>{selectedSale.customers?.name || selectedSale.instant_customer_name || "সাধারণ"}</p></div>
+                        <div><p className="text-muted-foreground">মোট</p><p className="text-primary font-semibold">৳{selectedSale.total_amount?.toLocaleString("bn-BD")}</p></div>
                       </div>
                     </Card>
 
@@ -329,7 +453,7 @@ export function Returns() {
                         <SelectContent>
                           {selectedSale.sale_items?.map((it: any) => (
                             <SelectItem key={it.id} value={it.id}>
-                              {it.products?.name} — পরিমাণ: {it.quantity} — ৳{it.unit_price?.toLocaleString('bn-BD')}
+                              {it.products?.name} — পরিমাণ: {it.quantity} — ৳{it.unit_price?.toLocaleString("bn-BD")}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -338,30 +462,39 @@ export function Returns() {
 
                     {selectedItem && (
                       <>
-                        <div>
-                          <Label className="mb-2 block">পরিমাণ (সর্বোচ্চ {selectedItem.quantity})</Label>
-                          <Input type="number" min={1} max={selectedItem.quantity}
-                            value={returnQuantity}
-                            onChange={(e) => setReturnQuantity(parseInt(e.target.value) || 1)} />
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="mb-2 block">পরিমাণ (সর্বোচ্চ {selectedItem.quantity})</Label>
+                            <Input type="number" min={1} max={selectedItem.quantity}
+                              value={returnQuantity}
+                              onChange={(e) => setReturnQuantity(parseInt(e.target.value) || 1)} />
+                          </div>
+                          <div>
+                            <Label className="mb-2 block">কারণ</Label>
+                            <Select value={reasonCode} onValueChange={setReasonCode}>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {Object.entries(REASON_LABELS).map(([k, v]) => (
+                                  <SelectItem key={k} value={k}>{v}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
-                        <div>
-                          <Label className="mb-2 block">কারণ</Label>
-                          <Select value={reasonCode} onValueChange={setReasonCode}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              {Object.entries(REASON_LABELS).map(([k, v]) => (
-                                <SelectItem key={k} value={k}>{v}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
+
                         <div>
                           <Label className="mb-2 block">অতিরিক্ত মন্তব্য</Label>
-                          <Textarea value={reasonNotes} onChange={(e) => setReasonNotes(e.target.value)} rows={2} />
+                          <Textarea value={reasonNotes} onChange={(e) => setReasonNotes(e.target.value)} rows={2}
+                            placeholder="রিটার্নের বিস্তারিত..." />
+                        </div>
+
+                        <div>
+                          <Label className="mb-2 flex items-center gap-1"><ImageIcon className="h-4 w-4" />ত্রুটির ছবি (প্রমাণ)</Label>
+                          <ReturnPhotoUpload currentUrl={defectPhotoUrl} onChange={setDefectPhotoUrl} />
                         </div>
 
                         {/* Audit-only toggle */}
-                        <Card className={`p-4 ${isAuditOnly ? 'bg-blue-50 dark:bg-blue-950/20 border-blue-300' : 'bg-muted/30'}`}>
+                        <Card className={`p-4 ${isAuditOnly ? "bg-blue-50 dark:bg-blue-950/20 border-blue-300" : "bg-muted/30"}`}>
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
@@ -370,21 +503,83 @@ export function Returns() {
                               </div>
                               <p className="text-xs text-muted-foreground mt-1">
                                 {isAuditOnly
-                                  ? "✓ স্টক, বাকি, ও ফাইন্যান্সে কোনো প্রভাব পড়বে না — শুধু রেকর্ড থাকবে"
-                                  : "অফ থাকলে: স্টক বাড়বে, সেইলস টোটাল কমবে, এবং কাস্টমার লেজারে রিফান্ড এন্ট্রি যাবে"}
+                                  ? "✓ স্টক/ফাইন্যান্স অপরিবর্তিত থাকবে — শুধু রেকর্ড"
+                                  : "অফ থাকলে: স্টক, সেইলস টোটাল ও কাস্টমার লেজার আপডেট হবে"}
                               </p>
                             </div>
                             <Switch id="audit-only" checked={isAuditOnly} onCheckedChange={setIsAuditOnly} />
                           </div>
                         </Card>
 
-                        <Card className="p-4 bg-primary/5 border-primary/20">
-                          <p className="text-sm text-muted-foreground">
-                            {isAuditOnly ? "নোট পরিমাণ (রেকর্ডের জন্য)" : "রিফান্ড পরিমাণ"}
-                          </p>
-                          <p className="text-3xl font-bold text-primary">
-                            ৳{(selectedItem.unit_price * returnQuantity).toLocaleString('bn-BD')}
-                          </p>
+                        {/* Refund method (hidden in audit-only) */}
+                        {!isAuditOnly && (
+                          <div>
+                            <Label className="mb-2 block">রিফান্ড পদ্ধতি</Label>
+                            <Select value={refundMethod} onValueChange={(v) => setRefundMethod(v as RefundMethod)}>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="cash">💵 নগদ ফেরত</SelectItem>
+                                <SelectItem value="due_adjust">📒 কাস্টমারের বাকি সমন্বয়</SelectItem>
+                                <SelectItem value="exchange">🔄 অন্য পণ্যের সাথে বিনিময়</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+
+                        {/* Exchange product picker */}
+                        {!isAuditOnly && refundMethod === "exchange" && (
+                          <Card className="p-3 bg-amber-50 dark:bg-amber-950/20 border-amber-300 space-y-3">
+                            <div className="text-sm font-semibold flex items-center gap-1">🔄 বিনিময় পণ্য</div>
+                            <Select value={exchangeProductId} onValueChange={(v) => {
+                              setExchangeProductId(v);
+                              const p = stockProducts?.find(x => x.id === v);
+                              if (p) setExchangeUnitPrice(Number(p.price));
+                            }}>
+                              <SelectTrigger><SelectValue placeholder="পণ্য নির্বাচন..." /></SelectTrigger>
+                              <SelectContent>
+                                {stockProducts?.map(p => (
+                                  <SelectItem key={p.id} value={p.id}>
+                                    {p.name} {p.imei ? `(IMEI: ${p.imei})` : ""} — ৳{Number(p.price).toLocaleString("bn-BD")}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <Label className="text-xs">পরিমাণ</Label>
+                                <Input type="number" min={1} value={exchangeQty}
+                                  onChange={(e) => setExchangeQty(parseInt(e.target.value) || 1)} />
+                              </div>
+                              <div>
+                                <Label className="text-xs">প্রতি ইউনিট মূল্য</Label>
+                                <Input type="number" min={0} value={exchangeUnitPrice}
+                                  onChange={(e) => setExchangeUnitPrice(parseFloat(e.target.value) || 0)} />
+                              </div>
+                            </div>
+                          </Card>
+                        )}
+
+                        {/* Summary */}
+                        <Card className="p-4 bg-primary/5 border-primary/20 space-y-1">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">রিটার্ন মূল্য</span>
+                            <span className="font-semibold">৳{refundTotal.toLocaleString("bn-BD")}</span>
+                          </div>
+                          {refundMethod === "exchange" && (
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">বিনিময় মূল্য</span>
+                              <span className="font-semibold">− ৳{exchangeValue.toLocaleString("bn-BD")}</span>
+                            </div>
+                          )}
+                          <div className="border-t pt-1 mt-1 flex justify-between">
+                            <span className="font-semibold">{isAuditOnly ? "নোট পরিমাণ" : refundMethod === "exchange" ? "নিট সমন্বয়" : "নিট রিফান্ড"}</span>
+                            <span className="text-2xl font-bold text-primary">৳{(isAuditOnly ? refundTotal : netRefund).toLocaleString("bn-BD")}</span>
+                          </div>
+                          {!isAdmin && !isAuditOnly && (
+                            <p className="text-xs text-amber-700 dark:text-amber-400 pt-1">
+                              ⚠️ এই রিটার্নটি Admin/Manager-এর অনুমোদন ছাড়া কার্যকর হবে না
+                            </p>
+                          )}
                         </Card>
                       </>
                     )}
@@ -392,7 +587,8 @@ export function Returns() {
                     <div className="flex gap-2 justify-end pt-4 border-t">
                       <Button variant="outline" onClick={resetForm}>বাতিল</Button>
                       <Button onClick={handleSubmit} disabled={!selectedItem || createReturnMutation.isPending}>
-                        {createReturnMutation.isPending ? "তৈরি হচ্ছে..." : (isAuditOnly ? "নোট সংরক্ষণ" : "রিটার্ন সম্পন্ন")}
+                        {createReturnMutation.isPending ? "তৈরি হচ্ছে..."
+                          : (isAuditOnly ? "নোট সংরক্ষণ" : (isAdmin ? "রিটার্ন সম্পন্ন" : "অনুমোদনের জন্য পাঠান"))}
                       </Button>
                     </div>
                   </div>
@@ -413,7 +609,7 @@ export function Returns() {
             <Card className="p-3"><p className="text-xs text-muted-foreground">অপেক্ষমাণ</p><p className="text-2xl font-bold text-yellow-600">{pendingCount}</p></Card>
             <Card className="p-3"><p className="text-xs text-muted-foreground">সম্পন্ন</p><p className="text-2xl font-bold text-green-600">{completedCount}</p></Card>
             <Card className="p-3"><p className="text-xs text-muted-foreground">অডিট-অনলি নোট</p><p className="text-2xl font-bold text-blue-600">{auditOnlyCount}</p></Card>
-            <Card className="p-3"><p className="text-xs text-muted-foreground">মোট রিফান্ড</p><p className="text-lg font-bold text-primary">৳{totalRefund.toLocaleString('bn-BD')}</p></Card>
+            <Card className="p-3"><p className="text-xs text-muted-foreground">মোট রিফান্ড</p><p className="text-lg font-bold text-primary">৳{totalRefund.toLocaleString("bn-BD")}</p></Card>
           </div>
 
           <Card className="p-3">
@@ -442,21 +638,29 @@ export function Returns() {
                       </div>
                       <div className="min-w-0">
                         <h3 className="font-semibold truncate">{ret.products?.name}</h3>
-                        <p className="text-xs text-muted-foreground font-mono">#{ret.id.slice(0, 8)}</p>
+                        <p className="text-xs text-muted-foreground font-mono">{ret.return_number || `#${ret.id.slice(0, 8)}`}</p>
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                           {ret.products?.imei && <Badge variant="outline" className="text-[10px]">IMEI: {ret.products.imei}</Badge>}
                           {ret.products?.brand && <Badge variant="secondary" className="text-[10px]">{ret.products.brand}</Badge>}
                           {ret.is_audit_only && <Badge className="bg-blue-100 text-blue-800 text-[10px]">📋 অডিট-অনলি</Badge>}
+                          {ret.refund_method && !ret.is_audit_only && (
+                            <Badge variant="outline" className="text-[10px]">{METHOD_LABELS[ret.refund_method]}</Badge>
+                          )}
                         </div>
                       </div>
                     </div>
-                    {getStatusBadge(ret.status)}
+                    <div className="flex flex-col items-end gap-2">
+                      {getStatusBadge(ret.status)}
+                      <Button size="sm" variant="ghost" onClick={() => setReceiptRecord(ret)} className="h-7 px-2">
+                        <Printer className="h-3 w-3 mr-1" />রসিদ
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm p-3 bg-muted/30 rounded mb-3">
                     <div><p className="text-xs text-muted-foreground">বিক্রয়</p><p className="font-mono">{ret.sale_id.slice(0, 8)}</p></div>
                     <div><p className="text-xs text-muted-foreground">পরিমাণ</p><p>{ret.quantity}টি</p></div>
-                    <div><p className="text-xs text-muted-foreground">{ret.is_audit_only ? "নোট মূল্য" : "রিফান্ড"}</p><p className="text-primary font-semibold">৳{Number(ret.refund_amount).toLocaleString('bn-BD')}</p></div>
+                    <div><p className="text-xs text-muted-foreground">{ret.is_audit_only ? "নোট মূল্য" : "রিফান্ড"}</p><p className="text-primary font-semibold">৳{Number(ret.refund_amount).toLocaleString("bn-BD")}</p></div>
                     <div><p className="text-xs text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" />তারিখ</p><p>{format(new Date(ret.created_at), "dd MMM yy", { locale: bn })}</p></div>
                   </div>
 
@@ -464,19 +668,32 @@ export function Returns() {
                     <span className="text-muted-foreground">কারণ: </span>
                     <span className="font-medium">{REASON_LABELS[ret.reason_code] || ret.reason_code}</span>
                     {ret.reason_notes && <p className="text-xs italic text-muted-foreground mt-1">"{ret.reason_notes}"</p>}
+                    {ret.rejected_reason && (
+                      <p className="text-xs text-red-600 mt-1">প্রত্যাখ্যানের কারণ: {ret.rejected_reason}</p>
+                    )}
                   </div>
 
-                  {ret.status === "pending" && !ret.is_audit_only && (
+                  {ret.defect_photo_url && (
+                    <div className="mt-3">
+                      <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><ImageIcon className="h-3 w-3" />ত্রুটির প্রমাণ</p>
+                      <ZoomableImage url={ret.defect_photo_url} alt="ত্রুটির প্রমাণ" displayWidth={80} displayHeight={80} />
+                    </div>
+                  )}
+
+                  {ret.status === "pending" && !ret.is_audit_only && canApprove && (
                     <div className="flex gap-2 pt-3 mt-3 border-t">
-                      <Button size="sm" onClick={() => processReturnMutation.mutate({ returnId: ret.id, status: "completed" })}
-                        disabled={processReturnMutation.isPending}>
+                      <Button size="sm" onClick={() => approveReturnMutation.mutate(ret.id)}
+                        disabled={approveReturnMutation.isPending}>
                         <CheckCircle className="h-4 w-4 mr-1" />অনুমোদন
                       </Button>
-                      <Button size="sm" variant="destructive"
-                        onClick={() => processReturnMutation.mutate({ returnId: ret.id, status: "rejected" })}
-                        disabled={processReturnMutation.isPending}>
+                      <Button size="sm" variant="destructive" onClick={() => setRejectingId(ret.id)}>
                         <XCircle className="h-4 w-4 mr-1" />প্রত্যাখ্যান
                       </Button>
+                    </div>
+                  )}
+                  {ret.status === "pending" && !canApprove && (
+                    <div className="pt-3 mt-3 border-t text-xs text-amber-600 flex items-center gap-1">
+                      <Clock className="h-3 w-3" />Admin/Manager-এর অনুমোদনের অপেক্ষায়
                     </div>
                   )}
                 </Card>
@@ -494,6 +711,32 @@ export function Returns() {
           <ReturnAnalytics returns={returns || []} />
         </TabsContent>
       </Tabs>
+
+      {/* Receipt modal */}
+      <ReturnReceipt open={!!receiptRecord} onClose={() => setReceiptRecord(null)} returnRecord={receiptRecord} />
+
+      {/* Reject reason dialog */}
+      <Dialog open={!!rejectingId} onOpenChange={(o) => !o && setRejectingId(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5 text-red-600" />প্রত্যাখ্যানের কারণ
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="কেন এই রিটার্ন প্রত্যাখ্যান করা হচ্ছে?" rows={3} />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setRejectingId(null)}>বাতিল</Button>
+              <Button variant="destructive"
+                disabled={!rejectReason.trim() || rejectReturnMutation.isPending}
+                onClick={() => rejectingId && rejectReturnMutation.mutate({ returnId: rejectingId, reason: rejectReason.trim() })}>
+                প্রত্যাখ্যান নিশ্চিত
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
