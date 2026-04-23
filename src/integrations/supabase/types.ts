@@ -389,48 +389,78 @@ export type Database = {
       }
       returns: {
         Row: {
+          approved_at: string | null
+          approved_by: string | null
           created_at: string
           customer_id: string | null
+          defect_photo_url: string | null
+          exchange_product_id: string | null
+          exchange_quantity: number
+          exchange_unit_price: number
           id: string
           is_audit_only: boolean
+          notification_sent: boolean
           processed_by: string | null
           product_id: string
           quantity: number
           reason_code: string
           reason_notes: string | null
           refund_amount: number
+          refund_method: string
+          rejected_reason: string | null
+          return_number: string | null
           sale_id: string
           sale_item_id: string
           status: string
           updated_at: string
         }
         Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           customer_id?: string | null
+          defect_photo_url?: string | null
+          exchange_product_id?: string | null
+          exchange_quantity?: number
+          exchange_unit_price?: number
           id?: string
           is_audit_only?: boolean
+          notification_sent?: boolean
           processed_by?: string | null
           product_id: string
           quantity: number
           reason_code: string
           reason_notes?: string | null
           refund_amount?: number
+          refund_method?: string
+          rejected_reason?: string | null
+          return_number?: string | null
           sale_id: string
           sale_item_id: string
           status?: string
           updated_at?: string
         }
         Update: {
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           customer_id?: string | null
+          defect_photo_url?: string | null
+          exchange_product_id?: string | null
+          exchange_quantity?: number
+          exchange_unit_price?: number
           id?: string
           is_audit_only?: boolean
+          notification_sent?: boolean
           processed_by?: string | null
           product_id?: string
           quantity?: number
           reason_code?: string
           reason_notes?: string | null
           refund_amount?: number
+          refund_method?: string
+          rejected_reason?: string | null
+          return_number?: string | null
           sale_id?: string
           sale_item_id?: string
           status?: string
