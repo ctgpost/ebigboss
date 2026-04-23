@@ -87,7 +87,21 @@ export function Returns() {
         `)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data || [];
+      // Hydrate processor/approver names from profiles (separate query — no FK)
+      const ids = Array.from(new Set(
+        (data || []).flatMap((r: any) => [r.processed_by, r.approved_by]).filter(Boolean),
+      ));
+      let profileMap: Record<string, { full_name: string | null; email: string | null }> = {};
+      if (ids.length) {
+        const { data: profs } = await supabase
+          .from("profiles").select("id, full_name, email").in("id", ids);
+        profileMap = Object.fromEntries((profs || []).map(p => [p.id, { full_name: p.full_name, email: p.email }]));
+      }
+      return (data || []).map((r: any) => ({
+        ...r,
+        processed_by_profile: r.processed_by ? profileMap[r.processed_by] : null,
+        approved_by_profile: r.approved_by ? profileMap[r.approved_by] : null,
+      }));
     },
   });
 
