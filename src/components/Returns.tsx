@@ -16,7 +16,7 @@ import { format } from "date-fns";
 import { bn } from "date-fns/locale";
 import {
   RotateCcw, Search, Package, Calendar, CheckCircle, XCircle, Clock,
-  BarChart3, FileText, Printer, Image as ImageIcon, MessageSquare,
+  BarChart3, FileText, Printer, Image as ImageIcon, MessageSquare, History, Banknote,
 } from "lucide-react";
 import { ActivityLogger } from "@/hooks/useActivityLog";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -72,6 +72,7 @@ export function Returns() {
   // Filters & view
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [receiptRecord, setReceiptRecord] = useState<any>(null);
+  const [expandedHistoryItemId, setExpandedHistoryItemId] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -157,21 +158,25 @@ export function Returns() {
     if (!data.sale_items?.length) { toast.error("এই বিক্রয়ের কোনো আইটেম পাওয়া যায়নি"); return; }
     const { data: existingReturns } = await supabase
       .from("returns")
-      .select("sale_item_id, quantity, status")
+      .select("id, return_number, sale_item_id, quantity, status, refund_amount, refund_method, reason_code, created_at, approved_at")
       .eq("sale_id", data.id)
       .in("status", ["pending", "completed"]);
     const returnedByItem = new Map<string, number>();
+    const historyByItem = new Map<string, any[]>();
     (existingReturns || []).forEach((r: any) => returnedByItem.set(r.sale_item_id, (returnedByItem.get(r.sale_item_id) || 0) + Number(r.quantity || 0)));
+    (existingReturns || []).forEach((r: any) => historyByItem.set(r.sale_item_id, [...(historyByItem.get(r.sale_item_id) || []), r]));
     const saleWithAvailability = {
       ...data,
       sale_items: (data.sale_items || []).map((it: any) => ({
         ...it,
         already_returned_quantity: returnedByItem.get(it.id) || 0,
         returnable_quantity: Math.max(0, Number(it.quantity || 0) - (returnedByItem.get(it.id) || 0)),
+        return_history: historyByItem.get(it.id) || [],
       })),
     };
     setSelectedSale(saleWithAvailability);
     setSelectedItem(null);
+    setExpandedHistoryItemId(null);
     toast.success(`বিক্রয় পাওয়া গেছে: #${data.id.slice(0, 8)}`);
   };
 
@@ -428,6 +433,38 @@ export function Returns() {
                           ))}
                         </SelectContent>
                       </Select>
+                      <div className="mt-3 grid grid-cols-1 gap-2">
+                        {selectedSale.sale_items?.map((it: any) => (
+                          <Card key={it.id} className="p-3 bg-muted/30">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="font-semibold break-words">{it.products?.name}</p>
+                                <p className="text-xs text-muted-foreground break-all">IMEI: {it.products?.imei || "N/A"} • রিটার্নযোগ্য {it.returnable_quantity}/{it.quantity}</p>
+                              </div>
+                              <div className="flex gap-2 flex-wrap">
+                                <Button size="sm" variant="outline" disabled={it.returnable_quantity <= 0} onClick={() => { setSelectedItem(it); setRefundMethod("cash"); setReturnQuantity(1); }}>
+                                  <RotateCcw className="h-4 w-4 mr-1" />রিটার্ন
+                                </Button>
+                                <Button size="sm" variant="outline" disabled={it.returnable_quantity <= 0} onClick={() => { setSelectedItem(it); setRefundMethod("cash"); setReturnQuantity(1); }}>
+                                  <Banknote className="h-4 w-4 mr-1" />রিফান্ড
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => setExpandedHistoryItemId(expandedHistoryItemId === it.id ? null : it.id)}>
+                                  <History className="h-4 w-4 mr-1" />হিস্টোরি ({it.return_history?.length || 0})
+                                </Button>
+                              </div>
+                            </div>
+                            {expandedHistoryItemId === it.id && (
+                              <div className="mt-3 border-l-2 border-primary/30 pl-3 space-y-2 text-xs">
+                                {it.return_history?.length ? it.return_history.map((h: any) => (
+                                  <div key={h.id} className="break-words">
+                                    <b>{h.return_number || h.id.slice(0, 8)}</b> • {h.status} • Qty {h.quantity} • ৳{Number(h.refund_amount || 0).toLocaleString("bn-BD")} • {format(new Date(h.created_at), "dd MMM yyyy, hh:mm a", { locale: bn })}
+                                  </div>
+                                )) : <div className="text-muted-foreground">এই আইটেমে কোনো রিটার্ন/রিফান্ড ইতিহাস নেই</div>}
+                              </div>
+                            )}
+                          </Card>
+                        ))}
+                      </div>
                     </div>
 
                     {selectedItem && (

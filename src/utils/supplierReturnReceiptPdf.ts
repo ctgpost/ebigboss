@@ -5,10 +5,18 @@ const money = (value: number) => `Tk ${Number(value || 0).toLocaleString("en-BD"
 const fmt = (value?: string | null) => value ? new Date(value).toLocaleString("en-BD") : "-";
 const label = (value?: string | null) => String(value || "-").replace(/_/g, " ");
 
-export function generateSupplierReturnReceiptPdf(ret: any) {
-  const doc = new jsPDF();
+export function generateSupplierReturnReceiptPdf(ret: any, format: "a4" | "letter" = "a4") {
+  const doc = new jsPDF({ unit: "mm", format });
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 12;
   let y = 16;
+  const ensureSpace = (needed = 28) => {
+    if (y > pageHeight - needed) {
+      doc.addPage();
+      y = 16;
+    }
+  };
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
@@ -36,11 +44,12 @@ export function generateSupplierReturnReceiptPdf(ret: any) {
     startY: y,
     body: infoRows,
     theme: "grid",
-    styles: { fontSize: 8, cellPadding: 2 },
-    columnStyles: { 0: { fontStyle: "bold", cellWidth: 28 }, 2: { fontStyle: "bold", cellWidth: 28 } },
-    margin: { left: 14, right: 14 },
+    styles: { fontSize: 8, cellPadding: 2, overflow: "linebreak", valign: "top" },
+    columnStyles: { 0: { fontStyle: "bold", cellWidth: 26 }, 1: { cellWidth: 58 }, 2: { fontStyle: "bold", cellWidth: 26 }, 3: { cellWidth: pageWidth - 2 * margin - 110 } },
+    margin: { left: margin, right: margin },
   });
   y = (doc as any).lastAutoTable.finalY + 8;
+  ensureSpace(36);
 
   const itemRows = (ret.supplier_return_items || []).map((it: any, index: number) => [
     String(index + 1),
@@ -60,11 +69,14 @@ export function generateSupplierReturnReceiptPdf(ret: any) {
     body: itemRows,
     theme: "grid",
     headStyles: { fillColor: [197, 143, 13], textColor: [255, 255, 255], fontSize: 8 },
-    bodyStyles: { fontSize: 8 },
-    margin: { left: 14, right: 14 },
-    columnStyles: { 1: { cellWidth: 38 }, 2: { cellWidth: 28 } },
+    bodyStyles: { fontSize: 7.5 },
+    styles: { cellPadding: 1.6, overflow: "linebreak", valign: "top" },
+    margin: { left: margin, right: margin },
+    columnStyles: { 0: { cellWidth: 8 }, 1: { cellWidth: 34 }, 2: { cellWidth: 27 }, 3: { cellWidth: 22 }, 4: { cellWidth: 22 }, 5: { cellWidth: 12 }, 6: { cellWidth: 22 }, 7: { cellWidth: 24 } },
+    horizontalPageBreak: true,
   });
   y = (doc as any).lastAutoTable.finalY + 8;
+  ensureSpace(34);
 
   const timelineRows = [
     ["Created", ret.processed_by_profile?.full_name || ret.processed_by_profile?.email || "System", fmt(ret.created_at)],
@@ -83,23 +95,28 @@ export function generateSupplierReturnReceiptPdf(ret: any) {
     theme: "grid",
     headStyles: { fillColor: [20, 36, 69], textColor: [255, 255, 255], fontSize: 8 },
     bodyStyles: { fontSize: 8 },
-    margin: { left: 14, right: 14 },
+    styles: { cellPadding: 2, overflow: "linebreak", valign: "top" },
+    columnStyles: { 0: { cellWidth: 36 }, 1: { cellWidth: pageWidth - 2 * margin - 86 }, 2: { cellWidth: 50 } },
+    margin: { left: margin, right: margin },
   });
   y = (doc as any).lastAutoTable.finalY + 8;
 
   if (ret.defect_photo_url) {
-    if (y > doc.internal.pageSize.getHeight() - 35) {
-      doc.addPage();
-      y = 16;
-    }
+    ensureSpace(38);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
-    doc.text("Defect Photo Link", 14, y);
+    doc.text("Defect Photo Link", margin, y);
     y += 6;
     doc.setFont("helvetica", "normal");
     doc.setTextColor(0, 80, 180);
-    const lines = doc.splitTextToSize(ret.defect_photo_url, pageWidth - 28);
-    lines.forEach((line: string, index: number) => doc.textWithLink(line, 14, y + index * 5, { url: ret.defect_photo_url }));
+    const lines = doc.splitTextToSize(ret.defect_photo_url, pageWidth - 2 * margin);
+    lines.forEach((line: string, index: number) => {
+      if (y + index * 5 > pageHeight - 16) {
+        doc.addPage();
+        y = 16 - index * 5;
+      }
+      doc.textWithLink(line, margin, y + index * 5, { url: ret.defect_photo_url });
+    });
     doc.setTextColor(0, 0, 0);
   }
 
@@ -107,7 +124,7 @@ export function generateSupplierReturnReceiptPdf(ret: any) {
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
     doc.setFontSize(8);
-    doc.text(`Supplier Return Receipt | Page ${i} of ${pageCount}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: "center" });
+    doc.text(`Supplier Return Receipt | ${format.toUpperCase()} | Page ${i} of ${pageCount}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: "center" });
   }
 
   doc.save(`supplier-return-${ret.return_number || ret.id}.pdf`);

@@ -15,15 +15,18 @@ interface CreatePurchaseDialogProps {
   onOpenChange: (open: boolean) => void;
   suppliers: any[];
   products: any[];
+  purchases?: any[];
 }
 
-export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }: CreatePurchaseDialogProps) {
+export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products, purchases = [] }: CreatePurchaseDialogProps) {
   const queryClient = useQueryClient();
   const [supplierId, setSupplierId] = useState("");
   const [notes, setNotes] = useState("");
   const [productSearch, setProductSearch] = useState("");
   const [brandFilter, setBrandFilter] = useState("all");
   const [conditionFilter, setConditionFilter] = useState("all");
+  const [poFilter, setPoFilter] = useState("all");
+  const [stockFilter, setStockFilter] = useState("all");
   const [scannerIndex, setScannerIndex] = useState<number | null>(null);
   const [items, setItems] = useState<{ product_id: string; quantity: number; unit_cost: number }[]>([
     { product_id: "", quantity: 1, unit_cost: 0 },
@@ -35,16 +38,25 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
   );
   const totalAmount = validItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_cost || 0), 0);
   const brands = useMemo(() => Array.from(new Set((products || []).map(p => p.brand).filter(Boolean))).sort(), [products]);
+  const poProductIds = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    (purchases || []).forEach((po) => map.set(po.id, new Set((po.purchase_items || []).map((it: any) => it.product_id).filter(Boolean))));
+    return map;
+  }, [purchases]);
   const selectedProductIds = useMemo(() => new Set(items.map((item) => item.product_id).filter(Boolean)), [items]);
   const filteredProducts = useMemo(() => {
     const q = productSearch.trim().toLowerCase();
+    const selectedPoProducts = poFilter === "all" ? null : poProductIds.get(poFilter);
     return (products || []).filter((p) => {
       const matchesText = !q || `${p.name || ""} ${p.imei || ""} ${p.barcode || ""} ${p.sku || ""} ${p.model || ""}`.toLowerCase().includes(q);
       const matchesBrand = brandFilter === "all" || p.brand === brandFilter;
       const matchesCondition = conditionFilter === "all" || p.condition === conditionFilter;
-      return matchesText && matchesBrand && matchesCondition;
+      const matchesPo = !selectedPoProducts || selectedPoProducts.has(p.id);
+      const stock = Number(p.stock_quantity || 0);
+      const matchesStock = stockFilter === "all" || (stockFilter === "available" ? stock > 0 : stock <= 0);
+      return matchesText && matchesBrand && matchesCondition && matchesPo && matchesStock;
     }).slice(0, 80);
-  }, [products, productSearch, brandFilter, conditionFilter]);
+  }, [products, productSearch, brandFilter, conditionFilter, poFilter, poProductIds, stockFilter]);
 
   const createPurchaseMutation = useMutation({
     mutationFn: async () => {
@@ -151,8 +163,8 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
 
           <div>
             <label className="block text-sm font-medium mb-2">আইটেমসমূহ</label>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3 rounded-lg border bg-muted/30 p-3">
-              <div className="relative md:col-span-1">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-2 mb-3 rounded-lg border bg-muted/30 p-3">
+              <div className="relative md:col-span-2">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="নাম, IMEI, SKU, বারকোড..." className="pl-9" />
               </div>
@@ -163,6 +175,14 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
               <Select value={conditionFilter} onValueChange={setConditionFilter}>
                 <SelectTrigger><SelectValue placeholder="কন্ডিশন" /></SelectTrigger>
                 <SelectContent><SelectItem value="all">সব কন্ডিশন</SelectItem><SelectItem value="new">নতুন</SelectItem><SelectItem value="used">ব্যবহৃত</SelectItem></SelectContent>
+              </Select>
+              <Select value={poFilter} onValueChange={setPoFilter}>
+                <SelectTrigger><SelectValue placeholder="PO" /></SelectTrigger>
+                <SelectContent><SelectItem value="all">সব PO</SelectItem>{purchases.map((po: any) => <SelectItem key={po.id} value={po.id}>{po.purchase_number}</SelectItem>)}</SelectContent>
+              </Select>
+              <Select value={stockFilter} onValueChange={setStockFilter}>
+                <SelectTrigger><SelectValue placeholder="স্টক" /></SelectTrigger>
+                <SelectContent><SelectItem value="all">সব স্টক</SelectItem><SelectItem value="available">স্টকে আছে</SelectItem><SelectItem value="out">স্টক নেই</SelectItem></SelectContent>
               </Select>
             </div>
             {items.map((item, idx) => (
