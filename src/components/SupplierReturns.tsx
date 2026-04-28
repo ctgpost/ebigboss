@@ -151,13 +151,28 @@ export function SupplierReturns() {
     const newTotal = Math.max(0, Number(purchase.total_amount) - Number(ret.refund_amount));
     let newPaid = Number(purchase.paid_amount || 0);
 
-    if (ret.finance_action === "supplier_refund" && Number(ret.refund_amount) > 0) {
-      newPaid = Math.max(0, newPaid - Number(ret.refund_amount));
+    if ((ret.finance_action === "supplier_refund" || ret.finance_action === "due_adjust") && Number(ret.refund_amount) > 0) {
+      const ledgerAdjustment = Math.min(newPaid, Number(ret.refund_amount));
+      newPaid = Math.max(0, newPaid - ledgerAdjustment);
+      if (ledgerAdjustment > 0) {
+        await db.from("supplier_payments").insert({
+          supplier_id: ret.supplier_id,
+          purchase_id: ret.purchase_id,
+          supplier_return_id: ret.id,
+          amount: -ledgerAdjustment,
+          payment_method: ret.finance_action === "supplier_refund" ? "supplier_refund" : "supplier_due_adjust",
+          notes: `সাপ্লায়ার রিটার্ন ${ret.finance_action === "supplier_refund" ? "রিফান্ড" : "বাকি সমন্বয়"}: ${ret.return_number}`,
+          paid_by: userId,
+        });
+      }
+    }
+
+    if (ret.finance_action === "supplier_refund" && Number(ret.refund_amount) > 0 && newPaid === 0) {
       await db.from("supplier_payments").insert({
         supplier_id: ret.supplier_id,
         purchase_id: ret.purchase_id,
         supplier_return_id: ret.id,
-        amount: -Number(ret.refund_amount),
+        amount: 0,
         payment_method: "supplier_refund",
         notes: `সাপ্লায়ার রিটার্ন রিফান্ড: ${ret.return_number}`,
         paid_by: userId,
