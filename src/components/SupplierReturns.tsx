@@ -19,7 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { ReturnPhotoUpload } from "@/components/returns/ReturnPhotoUpload";
 import { ZoomableImage } from "@/components/ui/zoomable-image";
 import { toast } from "sonner";
-import { BarChart3, CheckCircle, Clock, FileText, Package, Printer, RefreshCcw, Search, Truck, XCircle } from "lucide-react";
+import { BarChart3, CheckCircle, Clock, Edit, Eye, FileText, Package, Printer, RefreshCcw, Search, Truck, XCircle } from "lucide-react";
 
 type ReturnMethod = "cash_refund" | "due_adjust" | "replacement";
 type FinanceAction = "none" | "supplier_refund" | "due_adjust";
@@ -68,6 +68,13 @@ export function SupplierReturns() {
   const [rejectReason, setRejectReason] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [detailsReturn, setDetailsReturn] = useState<any | null>(null);
+  const [editingReturn, setEditingReturn] = useState<any | null>(null);
+  const [editReasonCode, setEditReasonCode] = useState("defective");
+  const [editReasonNotes, setEditReasonNotes] = useState("");
+  const [editStockAction, setEditStockAction] = useState<StockAction>("deduct_stock");
+  const [editReturnMethod, setEditReturnMethod] = useState<ReturnMethod>("due_adjust");
+  const [editReplacementNote, setEditReplacementNote] = useState("");
 
   const { data: suppliers } = useQuery({
     queryKey: ["supplier-return-suppliers"],
@@ -138,42 +145,24 @@ export function SupplierReturns() {
     setIsDialogOpen(false);
   };
 
-  const deductStock = async (productId: string, qty: number) => {
-    const { data: product } = await db.from("products").select("stock_quantity").eq("id", productId).single();
-    if (!product) return;
-    await db.from("products").update({ stock_quantity: Math.max(0, Number(product.stock_quantity || 0) - qty) }).eq("id", productId);
+  const invalidateSupplierReturnData = () => {
+    queryClient.invalidateQueries({ queryKey: ["supplier-returns"] });
+    queryClient.invalidateQueries({ queryKey: ["purchases"] });
+    queryClient.invalidateQueries({ queryKey: ["supplier-return-purchases"] });
+    queryClient.invalidateQueries({ queryKey: ["products"] });
+    queryClient.invalidateQueries({ queryKey: ["supplier-payments-all"] });
   };
 
-  const applyFinance = async (ret: any, items: any[]) => {
-    if (!ret.purchase_id || ret.finance_action === "none") return;
-    const { data: purchase } = await db.from("purchases").select("total_amount, paid_amount, due_amount, status").eq("id", ret.purchase_id).single();
-    if (!purchase) return;
-
-    const newTotal = Math.max(0, Number(purchase.total_amount) - Number(ret.refund_amount));
-    let newPaid = Number(purchase.paid_amount || 0);
-
-    if ((ret.finance_action === "supplier_refund" || ret.finance_action === "due_adjust") && Number(ret.refund_amount) > 0) {
-      const ledgerAdjustment = Math.min(newPaid, Number(ret.refund_amount));
-      newPaid = Math.max(0, newPaid - ledgerAdjustment);
-      if (ledgerAdjustment > 0) {
-        await db.from("supplier_payments").insert({
-          supplier_id: ret.supplier_id,
-          purchase_id: ret.purchase_id,
-          supplier_return_id: ret.id,
-          amount: -ledgerAdjustment,
-          payment_method: ret.finance_action === "supplier_refund" ? "supplier_refund" : "supplier_due_adjust",
-          notes: `সাপ্লায়ার রিটার্ন ${ret.finance_action === "supplier_refund" ? "রিফান্ড" : "বাকি সমন্বয়"}: ${ret.return_number}`,
-          paid_by: userId,
-        });
-      }
-    }
-    const newDue = Math.max(0, newTotal - newPaid);
-    await db.from("purchases").update({
-      total_amount: newTotal,
-      paid_amount: newPaid,
-      due_amount: newDue,
-      status: newTotal === 0 ? "returned" : newDue <= 0 ? "paid" : purchase.status,
-    }).eq("id", ret.purchase_id);
+  const processSupplierReturn = async (ret: any, action: "approve" | "reject", reason?: string) => {
+    if (!userId) throw new Error("ব্যবহারকারী পাওয়া যায়নি");
+    const { data, error } = await db.rpc("process_supplier_return", {
+      _return_id: ret.id,
+      _action: action,
+      _actor_id: userId,
+      _reject_reason: reason || null,
+    });
+    if (error) throw error;
+    return data;
   };
 
   const createReturnMutation = useMutation({
@@ -189,15 +178,15 @@ export function SupplierReturns() {
         reason_code: reasonCode,
         reason_notes: reasonNotes || null,
         return_method: returnMethod,
-        status: autoApprove ? "completed" : "pending",
+        status: "pending",
         finance_action: financeAction,
         stock_action: stockAction,
         refund_amount: refundAmount,
         replacement_note: replacementNote || null,
         defect_photo_url: defectPhotoUrl,
         processed_by: userId,
-        approved_by: autoApprove ? userId : null,
-        approved_at: autoApprove ? new Date().toISOString() : null,
+        approved_by: null,
+        approved_at: null,
       }).select("*").single();
       if (error) throw error;
 
@@ -208,25 +197,20 @@ export function SupplierReturns() {
         quantity,
         unit_cost: Number(selectedItem.unit_cost),
         total_cost: refundAmount,
-        stock_deducted: autoApprove && stockAction === "deduct_stock",
+        stock_deducted: false,
       };
       const { error: itemError } = await db.from("supplier_return_items").insert(returnItem);
       if (itemError) throw itemError;
 
       if (autoApprove) {
-        if (stockAction === "deduct_stock") await deductStock(selectedItem.product_id, quantity);
-        await applyFinance(ret, [returnItem]);
+        await processSupplierReturn(ret, "approve");
       }
 
       await ActivityLogger.supplierReturnCreated?.(ret.return_number, selectedPurchase.suppliers?.name || "সাপ্লায়ার", refundAmount, ret.status);
       return ret;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["supplier-returns"] });
-      queryClient.invalidateQueries({ queryKey: ["purchases"] });
-      queryClient.invalidateQueries({ queryKey: ["supplier-return-purchases"] });
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["supplier-payments-all"] });
+      invalidateSupplierReturnData();
       toast.success(isAdmin ? "সাপ্লায়ার রিটার্ন সম্পন্ন হয়েছে" : "সাপ্লায়ার রিটার্ন অনুমোদনের অপেক্ষায় সংরক্ষিত");
       resetForm();
     },
@@ -236,28 +220,11 @@ export function SupplierReturns() {
   const approveMutation = useMutation({
     mutationFn: async (ret: any) => {
       if (!canApprove) throw new Error("অনুমোদনের অনুমতি নেই");
-      const { data: items } = await db.from("supplier_return_items").select("*").eq("supplier_return_id", ret.id);
-      const returnItems = items || [];
-      for (const item of returnItems) {
-        if (ret.stock_action === "deduct_stock" && !item.stock_deducted) {
-          await deductStock(item.product_id, item.quantity);
-          await db.from("supplier_return_items").update({ stock_deducted: true }).eq("id", item.id);
-        }
-      }
-      await applyFinance(ret, returnItems);
-      const { error } = await db.from("supplier_returns").update({
-        status: "completed",
-        approved_by: userId,
-        approved_at: new Date().toISOString(),
-      }).eq("id", ret.id);
-      if (error) throw error;
+      await processSupplierReturn(ret, "approve");
       await ActivityLogger.supplierReturnProcessed?.(ret.return_number, "completed", ret.suppliers?.name || "সাপ্লায়ার", Number(ret.refund_amount));
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["supplier-returns"] });
-      queryClient.invalidateQueries({ queryKey: ["supplier-return-purchases"] });
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["supplier-payments-all"] });
+      invalidateSupplierReturnData();
       toast.success("সাপ্লায়ার রিটার্ন অনুমোদিত");
     },
     onError: (e: any) => toast.error(e.message || "অনুমোদন ব্যর্থ"),
@@ -265,22 +232,48 @@ export function SupplierReturns() {
 
   const rejectMutation = useMutation({
     mutationFn: async ({ ret, reason }: { ret: any; reason: string }) => {
-      const { error } = await db.from("supplier_returns").update({
-        status: "rejected",
-        rejected_reason: reason,
-        approved_by: userId,
-        approved_at: new Date().toISOString(),
-      }).eq("id", ret.id);
-      if (error) throw error;
+      await processSupplierReturn(ret, "reject", reason);
       await ActivityLogger.supplierReturnProcessed?.(ret.return_number, "rejected", ret.suppliers?.name || "সাপ্লায়ার", Number(ret.refund_amount));
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["supplier-returns"] });
+      invalidateSupplierReturnData();
       toast.success("সাপ্লায়ার রিটার্ন প্রত্যাখ্যাত");
       setRejectingId(null);
       setRejectReason("");
     },
     onError: (e: any) => toast.error(e.message || "প্রত্যাখ্যান ব্যর্থ"),
+  });
+
+  const openEditDialog = (ret: any) => {
+    if (ret.status !== "pending") return toast.error("শুধু অপেক্ষমাণ রিটার্ন এডিট করা যাবে");
+    setEditingReturn(ret);
+    setEditReasonCode(ret.reason_code || "defective");
+    setEditReasonNotes(ret.reason_notes || "");
+    setEditStockAction(ret.stock_action || "deduct_stock");
+    setEditReturnMethod(ret.return_method || "due_adjust");
+    setEditReplacementNote(ret.replacement_note || "");
+  };
+
+  const editMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingReturn || editingReturn.status !== "pending") throw new Error("শুধু অপেক্ষমাণ রিটার্ন এডিট করা যাবে");
+      const nextFinanceAction: FinanceAction = editReturnMethod === "cash_refund" ? "supplier_refund" : editReturnMethod === "due_adjust" ? "due_adjust" : "none";
+      const { error } = await db.from("supplier_returns").update({
+        reason_code: editReasonCode,
+        reason_notes: editReasonNotes || null,
+        stock_action: editStockAction,
+        return_method: editReturnMethod,
+        finance_action: nextFinanceAction,
+        replacement_note: editReplacementNote || null,
+      }).eq("id", editingReturn.id).eq("status", "pending");
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidateSupplierReturnData();
+      toast.success("সাপ্লায়ার রিটার্ন আপডেট হয়েছে");
+      setEditingReturn(null);
+    },
+    onError: (e: any) => toast.error(e.message || "আপডেট ব্যর্থ"),
   });
 
   const filteredReturns = useMemo(() => {
@@ -401,13 +394,13 @@ export function SupplierReturns() {
             <Card key={ret.id} className="p-4 space-y-3">
               <div className="flex items-start justify-between gap-3 flex-wrap"><div className="flex items-start gap-3">{ret.suppliers?.image_url && <ZoomableImage url={ret.suppliers.image_url} alt={ret.suppliers.name} displayWidth={56} displayHeight={72} />}<div><div className="flex items-center gap-2 flex-wrap"><h3 className="font-semibold">{ret.return_number}</h3>{statusBadge(ret.status)}</div><p className="text-sm text-muted-foreground">{ret.suppliers?.name || "অজানা"} • PO #{ret.purchases?.purchase_number || "N/A"}</p><p className="text-xs text-muted-foreground">{format(new Date(ret.created_at), "dd MMM yyyy, hh:mm a", { locale: bn })}</p></div></div><div className="text-right"><p className="text-xl font-bold text-primary">৳{Number(ret.refund_amount).toLocaleString("bn-BD")}</p><p className="text-xs text-muted-foreground">{METHOD_LABELS[ret.return_method]}</p></div></div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">{ret.supplier_return_items?.map((it: any) => <div key={it.id} className="p-2 rounded bg-muted"><b>{it.products?.name || "পণ্য"}</b><p className="text-xs text-muted-foreground">IMEI: {it.products?.imei || "N/A"}</p><p>Qty {it.quantity} × ৳{Number(it.unit_cost).toLocaleString("bn-BD")}</p></div>)}<div className="p-2 rounded bg-muted"><b>কারণ</b><p>{REASON_LABELS[ret.reason_code] || ret.reason_code}</p>{ret.reason_notes && <p className="text-xs text-muted-foreground">{ret.reason_notes}</p>}</div><div className="p-2 rounded bg-muted"><b>স্টক/ফাইন্যান্স</b><p>{ret.stock_action === "deduct_stock" ? "স্টক কমেছে" : "স্টক অপরিবর্তিত"}</p><p className="text-xs text-muted-foreground">{ret.finance_action === "supplier_refund" ? "ক্যাশ রিফান্ড" : ret.finance_action === "due_adjust" ? "বাকি সমন্বয়" : "ফাইন্যান্স নেই"}</p></div></div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">{ret.supplier_return_items?.map((it: any) => <div key={it.id} className="p-2 rounded bg-muted"><b>{it.products?.name || "পণ্য"}</b><p className="text-xs text-muted-foreground">IMEI: {it.products?.imei || "N/A"}</p><p>Qty {it.quantity} × ৳{Number(it.unit_cost).toLocaleString("bn-BD")}</p></div>)}<div className="p-2 rounded bg-muted"><b>কারণ</b><p>{REASON_LABELS[ret.reason_code] || ret.reason_code}</p>{ret.reason_notes && <p className="text-xs text-muted-foreground">{ret.reason_notes}</p>}</div><div className="p-2 rounded bg-muted"><b>স্টক/ফাইন্যান্স</b><p>{ret.stock_action === "deduct_stock" ? (ret.stock_applied ? "স্টক কমানো হয়েছে" : "স্টক কমানো বাকি") : "স্টক অপরিবর্তিত"}</p><p className="text-xs text-muted-foreground">{ret.finance_action === "supplier_refund" ? "ক্যাশ রিফান্ড" : ret.finance_action === "due_adjust" ? "বাকি সমন্বয়" : "ফাইন্যান্স নেই"} {ret.finance_action !== "none" ? `• ${ret.finance_applied ? "Applied" : "Pending"}` : ""}</p></div></div>
 
               {ret.defect_photo_url && <div><p className="text-xs text-muted-foreground mb-1">প্রমাণ ছবি</p><ZoomableImage url={ret.defect_photo_url} alt="সাপ্লায়ার রিটার্ন প্রমাণ" displayWidth={96} displayHeight={96} /></div>}
 
               <div className="border-l-2 border-primary/30 pl-3 space-y-2 text-xs"><div><b>তৈরি:</b> {ret.processed_by_profile?.full_name || ret.processed_by_profile?.email || "সিস্টেম"} • {format(new Date(ret.created_at), "dd MMM yyyy, hh:mm a", { locale: bn })}</div><div><b>{ret.status === "rejected" ? "প্রত্যাখ্যান" : ret.status === "completed" ? "অনুমোদন" : "স্ট্যাটাস"}:</b> {ret.status === "pending" ? "অনুমোদনের অপেক্ষায়" : `${ret.approved_by_profile?.full_name || ret.approved_by_profile?.email || "সিস্টেম"} • ${ret.approved_at ? format(new Date(ret.approved_at), "dd MMM yyyy, hh:mm a", { locale: bn }) : ""}`}</div>{ret.rejected_reason && <div className="text-destructive"><b>কারণ:</b> {ret.rejected_reason}</div>}</div>
 
-              <div className="flex gap-2 justify-end flex-wrap">{ret.status === "completed" && <Button size="sm" variant="outline" onClick={() => printReceipt(ret)}><Printer className="h-4 w-4 mr-1" />রসিদ পুনঃপ্রিন্ট</Button>}{ret.status === "pending" && canApprove && <><Button size="sm" onClick={() => approveMutation.mutate(ret)}><CheckCircle className="h-4 w-4 mr-1" />অনুমোদন</Button><Button size="sm" variant="destructive" onClick={() => setRejectingId(ret.id)}><XCircle className="h-4 w-4 mr-1" />প্রত্যাখ্যান</Button></>}</div>
+              <div className="flex gap-2 justify-end flex-wrap"><Button size="sm" variant="outline" onClick={() => setDetailsReturn(ret)}><Eye className="h-4 w-4 mr-1" />বিস্তারিত</Button>{ret.status === "pending" && <Button size="sm" variant="outline" onClick={() => openEditDialog(ret)}><Edit className="h-4 w-4 mr-1" />এডিট</Button>}{ret.status === "completed" && <Button size="sm" variant="outline" onClick={() => printReceipt(ret)}><Printer className="h-4 w-4 mr-1" />রসিদ পুনঃপ্রিন্ট</Button>}{ret.status === "pending" && canApprove && <><Button size="sm" onClick={() => approveMutation.mutate(ret)} disabled={approveMutation.isPending}><CheckCircle className="h-4 w-4 mr-1" />অনুমোদন</Button><Button size="sm" variant="destructive" onClick={() => setRejectingId(ret.id)}><XCircle className="h-4 w-4 mr-1" />প্রত্যাখ্যান</Button></>}</div>
             </Card>
           ))}
           {filteredReturns.length === 0 && <Card className="p-12 text-center"><Package className="h-12 w-12 mx-auto text-muted-foreground mb-3" /><h3 className="font-semibold">কোনো সাপ্লায়ার রিটার্ন নেই</h3><p className="text-sm text-muted-foreground">নতুন রিটার্ন তৈরি করুন</p></Card>}
@@ -415,7 +408,11 @@ export function SupplierReturns() {
         <TabsContent value="analytics" className="space-y-3 pb-6"><Card className="p-4"><h3 className="font-semibold flex items-center gap-2 mb-3"><BarChart3 className="h-5 w-5 text-primary" />সাপ্লায়ার ভিত্তিক রিটার্ন</h3><div className="space-y-2">{analytics.bySupplier.map((s) => <div key={s.name} className="flex items-center justify-between p-2 rounded bg-muted"><span>{s.name}</span><span className="font-semibold">{s.count} বার • ৳{s.amount.toLocaleString("bn-BD")}</span></div>)}{analytics.bySupplier.length === 0 && <p className="text-sm text-muted-foreground">এখনো সম্পন্ন রিটার্ন নেই</p>}</div></Card><Card className="p-4"><h3 className="font-semibold flex items-center gap-2 mb-2"><FileText className="h-5 w-5 text-primary" />অডিট সংযোগ</h3><p className="text-sm text-muted-foreground">প্রতিটি তৈরি, অনুমোদন ও প্রত্যাখ্যান Activity Logs-এ সাপ্লায়ার অ্যাকশন হিসেবে সংরক্ষিত হচ্ছে।</p></Card></TabsContent>
       </Tabs>
 
-      <Dialog open={!!rejectingId} onOpenChange={(open) => { if (!open) setRejectingId(null); }}><DialogContent><DialogHeader><DialogTitle>রিটার্ন প্রত্যাখ্যান</DialogTitle></DialogHeader><div className="space-y-3"><Label>প্রত্যাখ্যানের কারণ</Label><Textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} /><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setRejectingId(null)}>বাতিল</Button><Button variant="destructive" onClick={() => { const ret = supplierReturns?.find((r: any) => r.id === rejectingId); if (!rejectReason.trim()) return toast.error("কারণ লিখুন"); if (ret) rejectMutation.mutate({ ret, reason: rejectReason }); }}>প্রত্যাখ্যান করুন</Button></div></div></DialogContent></Dialog>
+      <Dialog open={!!rejectingId} onOpenChange={(open) => { if (!open) setRejectingId(null); }}><DialogContent><DialogHeader><DialogTitle>রিটার্ন প্রত্যাখ্যান</DialogTitle></DialogHeader><div className="space-y-3"><Label>প্রত্যাখ্যানের কারণ</Label><Textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} /><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setRejectingId(null)}>বাতিল</Button><Button variant="destructive" disabled={rejectMutation.isPending} onClick={() => { const ret = supplierReturns?.find((r: any) => r.id === rejectingId); if (!rejectReason.trim()) return toast.error("কারণ লিখুন"); if (ret) rejectMutation.mutate({ ret, reason: rejectReason }); }}>প্রত্যাখ্যান করুন</Button></div></div></DialogContent></Dialog>
+
+      <Dialog open={!!editingReturn} onOpenChange={(open) => { if (!open) setEditingReturn(null); }}><DialogContent><DialogHeader><DialogTitle>সাপ্লায়ার রিটার্ন এডিট</DialogTitle></DialogHeader><div className="space-y-3"><div className="grid grid-cols-1 md:grid-cols-2 gap-3"><div><Label className="mb-2 block">কারণ</Label><Select value={editReasonCode} onValueChange={setEditReasonCode}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(REASON_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent></Select></div><div><Label className="mb-2 block">রিটার্ন পদ্ধতি</Label><Select value={editReturnMethod} onValueChange={(v) => setEditReturnMethod(v as ReturnMethod)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="due_adjust">📒 বাকি সমন্বয়</SelectItem><SelectItem value="cash_refund">💵 সাপ্লায়ার নগদ ফেরত</SelectItem><SelectItem value="replacement">🔄 রিপ্লেসমেন্ট</SelectItem></SelectContent></Select></div></div><Card className="p-4 bg-muted/30"><div className="flex items-center justify-between gap-3"><div><Label className="font-semibold">অনুমোদনের সময় স্টক কমবে</Label><p className="text-xs text-muted-foreground">Completed হলে আর পরিবর্তন করা যাবে না</p></div><Switch checked={editStockAction === "deduct_stock"} onCheckedChange={(v) => setEditStockAction(v ? "deduct_stock" : "no_stock_change")} /></div></Card>{editReturnMethod === "replacement" && <div><Label className="mb-2 block">রিপ্লেসমেন্ট নোট</Label><Textarea value={editReplacementNote} onChange={(e) => setEditReplacementNote(e.target.value)} /></div>}<div><Label className="mb-2 block">বিস্তারিত মন্তব্য</Label><Textarea value={editReasonNotes} onChange={(e) => setEditReasonNotes(e.target.value)} /></div><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEditingReturn(null)}>বাতিল</Button><Button onClick={() => editMutation.mutate()} disabled={editMutation.isPending}>আপডেট করুন</Button></div></div></DialogContent></Dialog>
+
+      <Dialog open={!!detailsReturn} onOpenChange={(open) => { if (!open) setDetailsReturn(null); }}><DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>রিটার্ন বিস্তারিত — {detailsReturn?.return_number}</DialogTitle></DialogHeader>{detailsReturn && <div className="space-y-4"><div className="grid grid-cols-2 gap-3 text-sm"><Card className="p-3"><p className="text-muted-foreground">সাপ্লায়ার</p><b>{detailsReturn.suppliers?.name || "অজানা"}</b></Card><Card className="p-3"><p className="text-muted-foreground">PO</p><b>{detailsReturn.purchases?.purchase_number || "N/A"}</b></Card><Card className="p-3"><p className="text-muted-foreground">স্টক প্রসেসিং</p><b>{detailsReturn.stock_action === "deduct_stock" ? (detailsReturn.stock_applied ? "Applied" : "Pending") : "No change"}</b></Card><Card className="p-3"><p className="text-muted-foreground">ফাইন্যান্স প্রসেসিং</p><b>{detailsReturn.finance_action === "none" ? "No change" : detailsReturn.finance_applied ? `Applied ৳${Number(detailsReturn.applied_refund_amount || detailsReturn.refund_amount).toLocaleString("bn-BD")}` : "Pending"}</b></Card></div><div className="space-y-2">{detailsReturn.supplier_return_items?.map((it: any) => <Card key={it.id} className="p-3 text-sm"><b>{it.products?.name || "পণ্য"}</b><p className="text-muted-foreground">IMEI: {it.products?.imei || "N/A"} • Brand: {it.products?.brand || "N/A"} • Model: {it.products?.model || "N/A"}</p><p>Qty {it.quantity} × ৳{Number(it.unit_cost).toLocaleString("bn-BD")} = ৳{Number(it.total_cost).toLocaleString("bn-BD")}</p></Card>)}</div><Card className="p-3 text-sm"><b>অডিট টাইমলাইন</b><div className="mt-2 border-l-2 border-primary/30 pl-3 space-y-2"><div>তৈরি: {detailsReturn.processed_by_profile?.full_name || detailsReturn.processed_by_profile?.email || "সিস্টেম"} • {format(new Date(detailsReturn.created_at), "dd MMM yyyy, hh:mm a", { locale: bn })}</div>{detailsReturn.status !== "pending" ? <div>{detailsReturn.status === "completed" ? "অনুমোদন" : "প্রত্যাখ্যান"}: {detailsReturn.approved_by_profile?.full_name || detailsReturn.approved_by_profile?.email || "সিস্টেম"} • {detailsReturn.approved_at ? format(new Date(detailsReturn.approved_at), "dd MMM yyyy, hh:mm a", { locale: bn }) : ""}</div> : <div>স্ট্যাটাস: অনুমোদনের অপেক্ষায়</div>}{detailsReturn.rejected_reason && <div className="text-destructive">কারণ: {detailsReturn.rejected_reason}</div>}</div></Card>{detailsReturn.defect_photo_url && <ZoomableImage url={detailsReturn.defect_photo_url} alt="সাপ্লায়ার রিটার্ন প্রমাণ" displayWidth={120} displayHeight={120} />}</div>}</DialogContent></Dialog>
     </div>
   );
 }
