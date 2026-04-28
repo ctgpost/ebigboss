@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { SupplierForm } from "./suppliers/SupplierForm";
 import { CreatePurchaseDialog } from "./suppliers/CreatePurchaseDialog";
 import { SupplierPaymentDialog } from "./suppliers/SupplierPaymentDialog";
-import { ChevronDown, ChevronUp, Search } from "lucide-react";
+import { ChevronDown, ChevronUp, RefreshCcw, Search } from "lucide-react";
 import { CloudinaryImageUpload } from "./CloudinaryImageUpload";
 import { getCloudinaryThumbnail } from "@/utils/cloudinary";
 import { supplierSchema, validateInline } from "@/utils/validation";
@@ -218,6 +218,9 @@ export function Suppliers() {
             <p className="text-muted-foreground mt-1">সাপ্লায়ার, ক্রয় অর্ডার ও হিসাব নিকাশ</p>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-supplier-returns'))}>
+              <RefreshCcw className="h-4 w-4 mr-1" /> সাপ্লায়ার রিটার্ন
+            </Button>
             <Button onClick={() => setIsPurchaseDialogOpen(true)} variant="outline">📋 নতুন ক্রয় অর্ডার</Button>
             <Dialog open={isAddDialogOpen || !!editingSupplier} onOpenChange={(open) => {
               if (!open) { setIsAddDialogOpen(false); setEditingSupplier(null); resetForm(); }
