@@ -329,23 +329,13 @@ export function Returns() {
         .from("returns").select("*, products(name), sales(customer_id, customers(phone), instant_customer_phone)").eq("id", returnId).single();
       if (!ret) throw new Error("রিটার্ন পাওয়া যায়নি");
 
-      await supabase.from("returns").update({
-        status: "completed", approved_by: userId, approved_at: new Date().toISOString(),
-      }).eq("id", returnId);
-
-      if (!ret.is_audit_only) {
-        await restoreStock(ret.product_id, ret.quantity);
-        if (ret.refund_method === "exchange" && ret.exchange_product_id && ret.exchange_quantity > 0) {
-          await reduceExchangeStock(ret.exchange_product_id, ret.exchange_quantity);
-        }
-        const exchangeValue = ret.refund_method === "exchange"
-          ? Number(ret.exchange_unit_price) * Number(ret.exchange_quantity) : 0;
-        await applyFinanceImpact(
-          ret.sale_id, ret.customer_id, Number(ret.refund_amount),
-          ret.refund_method as RefundMethod, ret.products?.name || "পণ্য",
-          returnId, exchangeValue,
-        );
-      }
+      const { error } = await db.rpc("process_sales_return", {
+        _return_id: returnId,
+        _action: "approve",
+        _actor_id: userId,
+        _reject_reason: null,
+      });
+      if (error) throw error;
       await ActivityLogger.returnProcessed(returnId, "completed", ret.products?.name || "পণ্য", Number(ret.refund_amount));
       const phone = ret.sales?.customers?.phone || ret.sales?.instant_customer_phone;
       await sendCustomerSms(phone,
@@ -367,9 +357,13 @@ export function Returns() {
     mutationFn: async ({ returnId, reason }: { returnId: string; reason: string }) => {
       const { data: ret } = await supabase
         .from("returns").select("*, products(name), sales(customers(phone), instant_customer_phone)").eq("id", returnId).single();
-      await supabase.from("returns").update({
-        status: "rejected", rejected_reason: reason, approved_by: userId, approved_at: new Date().toISOString(),
-      }).eq("id", returnId);
+      const { error } = await db.rpc("process_sales_return", {
+        _return_id: returnId,
+        _action: "reject",
+        _actor_id: userId,
+        _reject_reason: reason,
+      });
+      if (error) throw error;
       await ActivityLogger.returnProcessed(returnId, "rejected", ret?.products?.name || "পণ্য", Number(ret?.refund_amount || 0));
       const phone = ret?.sales?.customers?.phone || ret?.sales?.instant_customer_phone;
       await sendCustomerSms(phone,
