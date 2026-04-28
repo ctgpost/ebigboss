@@ -445,7 +445,7 @@ export function Returns() {
                                 <Button size="sm" variant="outline" disabled={it.returnable_quantity <= 0} onClick={() => { setSelectedItem(it); setRefundMethod("cash"); setReturnQuantity(1); }}>
                                   <RotateCcw className="h-4 w-4 mr-1" />রিটার্ন
                                 </Button>
-                                <Button size="sm" variant="outline" disabled={it.returnable_quantity <= 0} onClick={() => { setSelectedItem(it); setRefundMethod("due_adjust"); setReturnQuantity(1); }}>
+                                <Button size="sm" variant="outline" disabled={it.returnable_quantity <= 0} onClick={() => { setSelectedItem(it); setRefundMethod("cash"); setReturnQuantity(1); }}>
                                   <Banknote className="h-4 w-4 mr-1" />রিফান্ড
                                 </Button>
                                 <Button size="sm" variant="outline" onClick={() => setExpandedHistoryItemId(expandedHistoryItemId === it.id ? null : it.id)}>
