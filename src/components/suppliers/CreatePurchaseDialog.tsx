@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { BarcodeScanner } from "@/components/BarcodeScanner";
+import { Filter, ScanLine, Search } from "lucide-react";
 
 interface CreatePurchaseDialogProps {
   open: boolean;
@@ -19,11 +21,25 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
   const queryClient = useQueryClient();
   const [supplierId, setSupplierId] = useState("");
   const [notes, setNotes] = useState("");
+  const [productSearch, setProductSearch] = useState("");
+  const [brandFilter, setBrandFilter] = useState("all");
+  const [conditionFilter, setConditionFilter] = useState("all");
+  const [scannerIndex, setScannerIndex] = useState<number | null>(null);
   const [items, setItems] = useState<{ product_id: string; quantity: number; unit_cost: number }[]>([
     { product_id: "", quantity: 1, unit_cost: 0 },
   ]);
 
   const totalAmount = items.reduce((sum, item) => sum + item.quantity * item.unit_cost, 0);
+  const brands = useMemo(() => Array.from(new Set((products || []).map(p => p.brand).filter(Boolean))).sort(), [products]);
+  const filteredProducts = useMemo(() => {
+    const q = productSearch.trim().toLowerCase();
+    return (products || []).filter((p) => {
+      const matchesText = !q || `${p.name || ""} ${p.imei || ""} ${p.barcode || ""} ${p.sku || ""} ${p.model || ""}`.toLowerCase().includes(q);
+      const matchesBrand = brandFilter === "all" || p.brand === brandFilter;
+      const matchesCondition = conditionFilter === "all" || p.condition === conditionFilter;
+      return matchesText && matchesBrand && matchesCondition;
+    }).slice(0, 80);
+  }, [products, productSearch, brandFilter, conditionFilter]);
 
   const createPurchaseMutation = useMutation({
     mutationFn: async () => {
@@ -84,11 +100,30 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
     setItems(updated);
   };
 
+  const selectProduct = (idx: number, productId: string) => {
+    const product = products?.find(p => p.id === productId);
+    const updated = [...items];
+    updated[idx] = { ...updated[idx], product_id: productId, unit_cost: Number(product?.cost || updated[idx].unit_cost || 0) };
+    setItems(updated);
+  };
+
+  const handleBarcodeScan = (code: string) => {
+    const normalized = code.trim().toLowerCase();
+    const product = products?.find(p => [p.barcode, p.imei, p.sku].filter(Boolean).some((v: string) => v.toLowerCase() === normalized));
+    if (!product || scannerIndex === null) {
+      toast.error("এই বারকোড/IMEI দিয়ে প্রোডাক্ট পাওয়া যায়নি");
+      return;
+    }
+    selectProduct(scannerIndex, product.id);
+    toast.success(`${product.name} নির্বাচিত হয়েছে`);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>নতুন ক্রয় অর্ডার</DialogTitle>
+          <DialogDescription>প্রোডাক্ট সার্চ, ফিল্টার বা বারকোড/IMEI স্ক্যান করে দ্রুত আইটেম যোগ করুন।</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div>
@@ -105,29 +140,46 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
 
           <div>
             <label className="block text-sm font-medium mb-2">আইটেমসমূহ</label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3 rounded-lg border bg-muted/30 p-3">
+              <div className="relative md:col-span-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="নাম, IMEI, SKU, বারকোড..." className="pl-9" />
+              </div>
+              <Select value={brandFilter} onValueChange={setBrandFilter}>
+                <SelectTrigger><Filter className="h-4 w-4 mr-2" /><SelectValue placeholder="ব্র্যান্ড" /></SelectTrigger>
+                <SelectContent><SelectItem value="all">সব ব্র্যান্ড</SelectItem>{brands.map((b: string) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
+              </Select>
+              <Select value={conditionFilter} onValueChange={setConditionFilter}>
+                <SelectTrigger><SelectValue placeholder="কন্ডিশন" /></SelectTrigger>
+                <SelectContent><SelectItem value="all">সব কন্ডিশন</SelectItem><SelectItem value="new">নতুন</SelectItem><SelectItem value="used">ব্যবহৃত</SelectItem></SelectContent>
+              </Select>
+            </div>
             {items.map((item, idx) => (
-              <div key={idx} className="flex gap-2 mb-2 items-end">
-                <div className="flex-1">
+              <div key={idx} className="grid grid-cols-12 gap-2 mb-2 items-end">
+                <div className="col-span-10 md:col-span-6">
                   {idx === 0 && <label className="text-xs text-muted-foreground">প্রোডাক্ট</label>}
-                  <Select value={item.product_id} onValueChange={(v) => updateItem(idx, "product_id", v)}>
+                  <Select value={item.product_id} onValueChange={(v) => selectProduct(idx, v)}>
                     <SelectTrigger className="h-9"><SelectValue placeholder="প্রোডাক্ট" /></SelectTrigger>
                     <SelectContent>
-                      {products?.map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.name} {p.imei ? `(${p.imei})` : ""}</SelectItem>
+                      {filteredProducts?.map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.name} {p.imei ? `(${p.imei})` : ""} {p.brand ? `• ${p.brand}` : ""}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="w-20">
+                <Button type="button" variant="outline" size="icon" className="h-9 col-span-2 md:col-span-1" onClick={() => setScannerIndex(idx)} title="বারকোড/IMEI স্ক্যান">
+                  <ScanLine className="h-4 w-4" />
+                </Button>
+                <div className="col-span-5 md:col-span-2">
                   {idx === 0 && <label className="text-xs text-muted-foreground">পরিমাণ</label>}
                   <Input type="number" min={1} value={item.quantity} onChange={(e) => updateItem(idx, "quantity", Number(e.target.value))} className="h-9" />
                 </div>
-                <div className="w-28">
+                <div className="col-span-5 md:col-span-3">
                   {idx === 0 && <label className="text-xs text-muted-foreground">দাম (৳)</label>}
                   <Input type="number" min={0} value={item.unit_cost || ""} onChange={(e) => updateItem(idx, "unit_cost", Number(e.target.value))} className="h-9" />
                 </div>
                 {items.length > 1 && (
-                  <Button type="button" variant="ghost" size="sm" onClick={() => removeItem(idx)} className="h-9 px-2 text-destructive">✕</Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => removeItem(idx)} className="h-9 px-2 text-destructive col-span-2 md:col-span-1">✕</Button>
                 )}
               </div>
             ))}
@@ -152,6 +204,7 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
           </div>
         </div>
       </DialogContent>
+      <BarcodeScanner isOpen={scannerIndex !== null} onClose={() => setScannerIndex(null)} onScan={handleBarcodeScan} title="ক্রয় অর্ডারের প্রোডাক্ট স্ক্যান" />
     </Dialog>
   );
 }

@@ -389,6 +389,7 @@ export type Database = {
       }
       returns: {
         Row: {
+          applied_refund_amount: number
           approved_at: string | null
           approved_by: string | null
           created_at: string
@@ -397,6 +398,9 @@ export type Database = {
           exchange_product_id: string | null
           exchange_quantity: number
           exchange_unit_price: number
+          finance_applied: boolean
+          finance_applied_at: string | null
+          finance_applied_by: string | null
           id: string
           is_audit_only: boolean
           notification_sent: boolean
@@ -412,9 +416,13 @@ export type Database = {
           sale_id: string
           sale_item_id: string
           status: string
+          stock_applied: boolean
+          stock_applied_at: string | null
+          stock_applied_by: string | null
           updated_at: string
         }
         Insert: {
+          applied_refund_amount?: number
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
@@ -423,6 +431,9 @@ export type Database = {
           exchange_product_id?: string | null
           exchange_quantity?: number
           exchange_unit_price?: number
+          finance_applied?: boolean
+          finance_applied_at?: string | null
+          finance_applied_by?: string | null
           id?: string
           is_audit_only?: boolean
           notification_sent?: boolean
@@ -438,9 +449,13 @@ export type Database = {
           sale_id: string
           sale_item_id: string
           status?: string
+          stock_applied?: boolean
+          stock_applied_at?: string | null
+          stock_applied_by?: string | null
           updated_at?: string
         }
         Update: {
+          applied_refund_amount?: number
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
@@ -449,6 +464,9 @@ export type Database = {
           exchange_product_id?: string | null
           exchange_quantity?: number
           exchange_unit_price?: number
+          finance_applied?: boolean
+          finance_applied_at?: string | null
+          finance_applied_by?: string | null
           id?: string
           is_audit_only?: boolean
           notification_sent?: boolean
@@ -464,6 +482,9 @@ export type Database = {
           sale_id?: string
           sale_item_id?: string
           status?: string
+          stock_applied?: boolean
+          stock_applied_at?: string | null
+          stock_applied_by?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -920,6 +941,53 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      process_sales_return: {
+        Args: {
+          _action: string
+          _actor_id: string
+          _reject_reason?: string
+          _return_id: string
+        }
+        Returns: {
+          applied_refund_amount: number
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          customer_id: string | null
+          defect_photo_url: string | null
+          exchange_product_id: string | null
+          exchange_quantity: number
+          exchange_unit_price: number
+          finance_applied: boolean
+          finance_applied_at: string | null
+          finance_applied_by: string | null
+          id: string
+          is_audit_only: boolean
+          notification_sent: boolean
+          processed_by: string | null
+          product_id: string
+          quantity: number
+          reason_code: string
+          reason_notes: string | null
+          refund_amount: number
+          refund_method: string
+          rejected_reason: string | null
+          return_number: string | null
+          sale_id: string
+          sale_item_id: string
+          status: string
+          stock_applied: boolean
+          stock_applied_at: string | null
+          stock_applied_by: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "returns"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       process_supplier_return: {
         Args: {
           _action: string
@@ -962,6 +1030,12 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      search_sale_ids_for_return: {
+        Args: { _limit?: number; _search: string }
+        Returns: {
+          id: string
+        }[]
       }
     }
     Enums: {
