@@ -7,6 +7,7 @@ import { POS } from "@/components/POS";
 import { Customers } from "@/components/Customers";
 import { CustomerDetails } from "@/components/CustomerDetails";
 import { Suppliers } from "@/components/Suppliers";
+import { SupplierReturns } from "@/components/SupplierReturns";
 import { Reports } from "@/components/Reports";
 import { Settings } from "@/components/Settings";
 import { Categories } from "@/components/Categories";
@@ -68,15 +69,24 @@ export default function Index({ user }: IndexProps) {
     const handleNavigateToCustomerDetails = () => {
       setActiveTab("customer-details");
     };
+    const handleNavigateToSupplierReturns = () => {
+      if (!permissions.canManageSuppliers) {
+        toast.error('আপনার "Supplier Returns" পেজে অ্যাক্সেস নেই');
+        return;
+      }
+      setActiveTab("supplier-returns");
+    };
     
     window.addEventListener('navigate-to-customers', handleNavigateToCustomers);
     window.addEventListener('navigate-to-categories', handleNavigateToCategories);
     window.addEventListener('navigate-to-customer-details', handleNavigateToCustomerDetails);
+    window.addEventListener('navigate-to-supplier-returns', handleNavigateToSupplierReturns);
     
     return () => {
       window.removeEventListener('navigate-to-customers', handleNavigateToCustomers);
       window.removeEventListener('navigate-to-categories', handleNavigateToCategories);
       window.removeEventListener('navigate-to-customer-details', handleNavigateToCustomerDetails);
+      window.removeEventListener('navigate-to-supplier-returns', handleNavigateToSupplierReturns);
     };
   }, [permissions]);
 
@@ -124,6 +134,7 @@ export default function Index({ user }: IndexProps) {
     { id: "sales", label: "Sales", icon: TrendingUp, permission: 'canAccessSales' },
     { id: "returns", label: "Returns", icon: RefreshCcw, permission: 'canAccessSales' },
     { id: "suppliers", label: "Suppliers", icon: Truck, permission: 'canManageSuppliers' },
+    { id: "supplier-returns", label: "Supplier Returns", icon: RefreshCcw, permission: 'canManageSuppliers' },
     { id: "reports", label: "Reports", icon: FileText, permission: 'canAccessReports' },
     { id: "settings", label: "Settings", icon: SettingsIcon, permission: 'canAccessSettings' },
   ];
@@ -170,6 +181,8 @@ export default function Index({ user }: IndexProps) {
         return <CustomerDetails />;
       case "suppliers":
         return <Suppliers />;
+      case "supplier-returns":
+        return <SupplierReturns />;
       case "reports":
         return <Reports />;
       case "settings":
