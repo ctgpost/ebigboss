@@ -433,6 +433,38 @@ export function Returns() {
                           ))}
                         </SelectContent>
                       </Select>
+                      <div className="mt-3 grid grid-cols-1 gap-2">
+                        {selectedSale.sale_items?.map((it: any) => (
+                          <Card key={it.id} className="p-3 bg-muted/30">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="font-semibold break-words">{it.products?.name}</p>
+                                <p className="text-xs text-muted-foreground break-all">IMEI: {it.products?.imei || "N/A"} • রিটার্নযোগ্য {it.returnable_quantity}/{it.quantity}</p>
+                              </div>
+                              <div className="flex gap-2 flex-wrap">
+                                <Button size="sm" variant="outline" disabled={it.returnable_quantity <= 0} onClick={() => { setSelectedItem(it); setRefundMethod("cash"); setReturnQuantity(1); }}>
+                                  <RotateCcw className="h-4 w-4 mr-1" />রিটার্ন
+                                </Button>
+                                <Button size="sm" variant="outline" disabled={it.returnable_quantity <= 0} onClick={() => { setSelectedItem(it); setRefundMethod("due_adjust"); setReturnQuantity(1); }}>
+                                  <Banknote className="h-4 w-4 mr-1" />রিফান্ড
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => setExpandedHistoryItemId(expandedHistoryItemId === it.id ? null : it.id)}>
+                                  <History className="h-4 w-4 mr-1" />হিস্টোরি ({it.return_history?.length || 0})
+                                </Button>
+                              </div>
+                            </div>
+                            {expandedHistoryItemId === it.id && (
+                              <div className="mt-3 border-l-2 border-primary/30 pl-3 space-y-2 text-xs">
+                                {it.return_history?.length ? it.return_history.map((h: any) => (
+                                  <div key={h.id} className="break-words">
+                                    <b>{h.return_number || h.id.slice(0, 8)}</b> • {h.status} • Qty {h.quantity} • ৳{Number(h.refund_amount || 0).toLocaleString("bn-BD")} • {format(new Date(h.created_at), "dd MMM yyyy, hh:mm a", { locale: bn })}
+                                  </div>
+                                )) : <div className="text-muted-foreground">এই আইটেমে কোনো রিটার্ন/রিফান্ড ইতিহাস নেই</div>}
+                              </div>
+                            )}
+                          </Card>
+                        ))}
+                      </div>
                     </div>
 
                     {selectedItem && (
