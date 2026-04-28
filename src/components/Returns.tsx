@@ -16,7 +16,7 @@ import { format } from "date-fns";
 import { bn } from "date-fns/locale";
 import {
   RotateCcw, Search, Package, Calendar, CheckCircle, XCircle, Clock,
-  BarChart3, FileText, Printer, Image as ImageIcon, MessageSquare,
+  BarChart3, FileText, Printer, Image as ImageIcon, MessageSquare, History, Banknote,
 } from "lucide-react";
 import { ActivityLogger } from "@/hooks/useActivityLog";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -72,6 +72,7 @@ export function Returns() {
   // Filters & view
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [receiptRecord, setReceiptRecord] = useState<any>(null);
+  const [expandedHistoryItemId, setExpandedHistoryItemId] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
 
