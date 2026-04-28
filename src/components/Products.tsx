@@ -14,6 +14,7 @@ import { BarcodeScanner } from "./BarcodeScanner";
 import { ProductQuickView } from "./ProductQuickView";
 import { Eye, ScanBarcode, Download, FileSpreadsheet, FileText, ChevronDown, ChevronUp, Filter, ArrowUpDown, LayoutGrid, List } from "lucide-react";
 import { ActivityLogger } from "@/hooks/useActivityLog";
+import { queueIfOffline } from "@/utils/offlineQueue";
 import * as XLSX from "xlsx";
 import { CloudinaryImageUpload } from "./CloudinaryImageUpload";
 import { getCloudinaryThumbnail } from "@/utils/cloudinary";
@@ -97,9 +98,14 @@ export function Products() {
 
   const addMutation = useMutation({
     mutationFn: async (data: any) => {
-      const { data: inserted, error } = await supabase.from("products").insert([data]).select().single();
-      if (error) throw error;
-      return { ...inserted, name: data.name, condition: data.condition };
+      try {
+        const { data: inserted, error } = await supabase.from("products").insert([data]).select().single();
+        if (error) throw error;
+        return { ...inserted, name: data.name, condition: data.condition };
+      } catch (error) {
+        queueIfOffline("product_insert", { data }, error);
+        return { ...data, id: `offline-${Date.now()}` };
+      }
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
