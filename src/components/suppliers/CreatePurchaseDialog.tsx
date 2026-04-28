@@ -35,6 +35,7 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
   );
   const totalAmount = validItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_cost || 0), 0);
   const brands = useMemo(() => Array.from(new Set((products || []).map(p => p.brand).filter(Boolean))).sort(), [products]);
+  const selectedProductIds = useMemo(() => new Set(items.map((item) => item.product_id).filter(Boolean)), [items]);
   const filteredProducts = useMemo(() => {
     const q = productSearch.trim().toLowerCase();
     return (products || []).filter((p) => {
@@ -118,6 +119,11 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
       toast.error("এই বারকোড/IMEI দিয়ে প্রোডাক্ট পাওয়া যায়নি");
       return;
     }
+    if (selectedProductIds.has(product.id) && items[scannerIndex]?.product_id !== product.id) {
+      toast.error("এই প্রোডাক্টটি ইতোমধ্যে অর্ডারে আছে");
+      setScannerIndex(null);
+      return;
+    }
     selectProduct(scannerIndex, product.id);
     toast.success(`${product.name} নির্বাচিত হয়েছে`);
     setScannerIndex(null);
@@ -167,8 +173,9 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
                     <SelectTrigger className="h-9"><SelectValue placeholder="প্রোডাক্ট" /></SelectTrigger>
                     <SelectContent>
                       {filteredProducts?.map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.name} {p.imei ? `(${p.imei})` : ""} {p.brand ? `• ${p.brand}` : ""}</SelectItem>
+                        <SelectItem key={p.id} value={p.id} disabled={selectedProductIds.has(p.id) && item.product_id !== p.id}>{p.name} {p.imei ? `(${p.imei})` : ""} {p.brand ? `• ${p.brand}` : ""}</SelectItem>
                       ))}
+                      {filteredProducts.length === 0 && <SelectItem value="no-products" disabled>কোনো প্রোডাক্ট পাওয়া যায়নি</SelectItem>}
                     </SelectContent>
                   </Select>
                 </div>
