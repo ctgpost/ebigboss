@@ -15,15 +15,18 @@ interface CreatePurchaseDialogProps {
   onOpenChange: (open: boolean) => void;
   suppliers: any[];
   products: any[];
+  purchases?: any[];
 }
 
-export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }: CreatePurchaseDialogProps) {
+export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products, purchases = [] }: CreatePurchaseDialogProps) {
   const queryClient = useQueryClient();
   const [supplierId, setSupplierId] = useState("");
   const [notes, setNotes] = useState("");
   const [productSearch, setProductSearch] = useState("");
   const [brandFilter, setBrandFilter] = useState("all");
   const [conditionFilter, setConditionFilter] = useState("all");
+  const [poFilter, setPoFilter] = useState("all");
+  const [stockFilter, setStockFilter] = useState("all");
   const [scannerIndex, setScannerIndex] = useState<number | null>(null);
   const [items, setItems] = useState<{ product_id: string; quantity: number; unit_cost: number }[]>([
     { product_id: "", quantity: 1, unit_cost: 0 },
@@ -35,16 +38,25 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
   );
   const totalAmount = validItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_cost || 0), 0);
   const brands = useMemo(() => Array.from(new Set((products || []).map(p => p.brand).filter(Boolean))).sort(), [products]);
+  const poProductIds = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    (purchases || []).forEach((po) => map.set(po.id, new Set((po.purchase_items || []).map((it: any) => it.product_id).filter(Boolean))));
+    return map;
+  }, [purchases]);
   const selectedProductIds = useMemo(() => new Set(items.map((item) => item.product_id).filter(Boolean)), [items]);
   const filteredProducts = useMemo(() => {
     const q = productSearch.trim().toLowerCase();
+    const selectedPoProducts = poFilter === "all" ? null : poProductIds.get(poFilter);
     return (products || []).filter((p) => {
       const matchesText = !q || `${p.name || ""} ${p.imei || ""} ${p.barcode || ""} ${p.sku || ""} ${p.model || ""}`.toLowerCase().includes(q);
       const matchesBrand = brandFilter === "all" || p.brand === brandFilter;
       const matchesCondition = conditionFilter === "all" || p.condition === conditionFilter;
-      return matchesText && matchesBrand && matchesCondition;
+      const matchesPo = !selectedPoProducts || selectedPoProducts.has(p.id);
+      const stock = Number(p.stock_quantity || 0);
+      const matchesStock = stockFilter === "all" || (stockFilter === "available" ? stock > 0 : stock <= 0);
+      return matchesText && matchesBrand && matchesCondition && matchesPo && matchesStock;
     }).slice(0, 80);
-  }, [products, productSearch, brandFilter, conditionFilter]);
+  }, [products, productSearch, brandFilter, conditionFilter, poFilter, poProductIds, stockFilter]);
 
   const createPurchaseMutation = useMutation({
     mutationFn: async () => {
