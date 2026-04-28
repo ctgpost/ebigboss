@@ -166,19 +166,6 @@ export function SupplierReturns() {
         });
       }
     }
-
-    if (ret.finance_action === "supplier_refund" && Number(ret.refund_amount) > 0 && newPaid === 0) {
-      await db.from("supplier_payments").insert({
-        supplier_id: ret.supplier_id,
-        purchase_id: ret.purchase_id,
-        supplier_return_id: ret.id,
-        amount: 0,
-        payment_method: "supplier_refund",
-        notes: `সাপ্লায়ার রিটার্ন রিফান্ড: ${ret.return_number}`,
-        paid_by: userId,
-      });
-    }
-
     const newDue = Math.max(0, newTotal - newPaid);
     await db.from("purchases").update({
       total_amount: newTotal,
