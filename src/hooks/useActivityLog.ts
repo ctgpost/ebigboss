@@ -136,4 +136,16 @@ export const ActivityLogger = {
     actionType: 'return',
     details: { return_id: returnId, status, product_name: productName, refund_amount: refund },
   }),
+
+  supplierReturnCreated: (returnNumber: string, supplierName: string, amount: number, status: string) => logActivity({
+    action: `সাপ্লায়ার রিটার্ন তৈরি: ${returnNumber} — ${supplierName} — ৳${amount.toFixed(2)} (${status === 'completed' ? 'সম্পন্ন' : 'অপেক্ষমাণ'})`,
+    actionType: 'supplier',
+    details: { supplier_return_number: returnNumber, supplier_name: supplierName, refund_amount: amount, status },
+  }),
+
+  supplierReturnProcessed: (returnNumber: string, status: string, supplierName: string, amount: number) => logActivity({
+    action: `সাপ্লায়ার রিটার্ন ${status === 'completed' ? 'অনুমোদন ও সম্পন্ন' : 'প্রত্যাখ্যাত'}: ${returnNumber} — ${supplierName} — ৳${amount.toFixed(2)}`,
+    actionType: 'supplier',
+    details: { supplier_return_number: returnNumber, status, supplier_name: supplierName, refund_amount: amount },
+  }),
 };
