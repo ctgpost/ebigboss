@@ -643,6 +643,7 @@ export type Database = {
           payment_method: string
           purchase_id: string | null
           supplier_id: string
+          supplier_return_id: string | null
         }
         Insert: {
           amount: number
@@ -653,6 +654,7 @@ export type Database = {
           payment_method?: string
           purchase_id?: string | null
           supplier_id: string
+          supplier_return_id?: string | null
         }
         Update: {
           amount?: number
@@ -663,6 +665,7 @@ export type Database = {
           payment_method?: string
           purchase_id?: string | null
           supplier_id?: string
+          supplier_return_id?: string | null
         }
         Relationships: [
           {
@@ -680,6 +683,111 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      supplier_return_items: {
+        Row: {
+          created_at: string
+          id: string
+          product_id: string
+          purchase_item_id: string | null
+          quantity: number
+          stock_deducted: boolean
+          supplier_return_id: string
+          total_cost: number
+          unit_cost: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          product_id: string
+          purchase_item_id?: string | null
+          quantity?: number
+          stock_deducted?: boolean
+          supplier_return_id: string
+          total_cost?: number
+          unit_cost?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          product_id?: string
+          purchase_item_id?: string | null
+          quantity?: number
+          stock_deducted?: boolean
+          supplier_return_id?: string
+          total_cost?: number
+          unit_cost?: number
+        }
+        Relationships: []
+      }
+      supplier_returns: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          defect_photo_url: string | null
+          finance_action: string
+          id: string
+          processed_by: string | null
+          purchase_id: string | null
+          reason_code: string
+          reason_notes: string | null
+          refund_amount: number
+          rejected_reason: string | null
+          replacement_note: string | null
+          return_date: string
+          return_method: string
+          return_number: string | null
+          status: string
+          stock_action: string
+          supplier_id: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          defect_photo_url?: string | null
+          finance_action?: string
+          id?: string
+          processed_by?: string | null
+          purchase_id?: string | null
+          reason_code: string
+          reason_notes?: string | null
+          refund_amount?: number
+          rejected_reason?: string | null
+          replacement_note?: string | null
+          return_date?: string
+          return_method?: string
+          return_number?: string | null
+          status?: string
+          stock_action?: string
+          supplier_id: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          defect_photo_url?: string | null
+          finance_action?: string
+          id?: string
+          processed_by?: string | null
+          purchase_id?: string | null
+          reason_code?: string
+          reason_notes?: string | null
+          refund_amount?: number
+          rejected_reason?: string | null
+          replacement_note?: string | null
+          return_date?: string
+          return_method?: string
+          return_number?: string | null
+          status?: string
+          stock_action?: string
+          supplier_id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       suppliers: {
         Row: {
