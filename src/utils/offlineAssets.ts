@@ -23,7 +23,10 @@ export const cacheUrl = async (url?: string | null) => {
   try {
     const cache = await caches.open(ASSET_CACHE);
     const cached = await cache.match(url);
-    if (!cached && navigator.onLine) await cache.add(new Request(url, { mode: "no-cors" }));
+    if (!cached && navigator.onLine) {
+      const response = await fetch(url, { mode: "cors" });
+      if (response.ok) await cache.put(url, response.clone());
+    }
   } catch { /* ignore */ }
   return url;
 };
@@ -32,7 +35,13 @@ export const getCachedObjectUrl = async (url: string) => {
   if (!("caches" in window)) return url;
   try {
     const cached = await (await caches.open(ASSET_CACHE)).match(url);
-    if (!cached) return url;
+    if (!cached) {
+      await cacheUrl(url);
+      const fresh = await (await caches.open(ASSET_CACHE)).match(url);
+      if (!fresh) return url;
+      const freshBlob = await fresh.blob();
+      return freshBlob.size ? URL.createObjectURL(freshBlob) : url;
+    }
     const blob = await cached.blob();
     return blob.size ? URL.createObjectURL(blob) : url;
   } catch {
