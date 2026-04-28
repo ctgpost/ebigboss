@@ -178,15 +178,15 @@ export function SupplierReturns() {
         reason_code: reasonCode,
         reason_notes: reasonNotes || null,
         return_method: returnMethod,
-        status: autoApprove ? "completed" : "pending",
+        status: "pending",
         finance_action: financeAction,
         stock_action: stockAction,
         refund_amount: refundAmount,
         replacement_note: replacementNote || null,
         defect_photo_url: defectPhotoUrl,
         processed_by: userId,
-        approved_by: autoApprove ? userId : null,
-        approved_at: autoApprove ? new Date().toISOString() : null,
+        approved_by: null,
+        approved_at: null,
       }).select("*").single();
       if (error) throw error;
 
@@ -197,25 +197,20 @@ export function SupplierReturns() {
         quantity,
         unit_cost: Number(selectedItem.unit_cost),
         total_cost: refundAmount,
-        stock_deducted: autoApprove && stockAction === "deduct_stock",
+        stock_deducted: false,
       };
       const { error: itemError } = await db.from("supplier_return_items").insert(returnItem);
       if (itemError) throw itemError;
 
       if (autoApprove) {
-        if (stockAction === "deduct_stock") await deductStock(selectedItem.product_id, quantity);
-        await applyFinance(ret, [returnItem]);
+        await processSupplierReturn(ret, "approve");
       }
 
       await ActivityLogger.supplierReturnCreated?.(ret.return_number, selectedPurchase.suppliers?.name || "সাপ্লায়ার", refundAmount, ret.status);
       return ret;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["supplier-returns"] });
-      queryClient.invalidateQueries({ queryKey: ["purchases"] });
-      queryClient.invalidateQueries({ queryKey: ["supplier-return-purchases"] });
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["supplier-payments-all"] });
+      invalidateSupplierReturnData();
       toast.success(isAdmin ? "সাপ্লায়ার রিটার্ন সম্পন্ন হয়েছে" : "সাপ্লায়ার রিটার্ন অনুমোদনের অপেক্ষায় সংরক্ষিত");
       resetForm();
     },
@@ -225,28 +220,11 @@ export function SupplierReturns() {
   const approveMutation = useMutation({
     mutationFn: async (ret: any) => {
       if (!canApprove) throw new Error("অনুমোদনের অনুমতি নেই");
-      const { data: items } = await db.from("supplier_return_items").select("*").eq("supplier_return_id", ret.id);
-      const returnItems = items || [];
-      for (const item of returnItems) {
-        if (ret.stock_action === "deduct_stock" && !item.stock_deducted) {
-          await deductStock(item.product_id, item.quantity);
-          await db.from("supplier_return_items").update({ stock_deducted: true }).eq("id", item.id);
-        }
-      }
-      await applyFinance(ret, returnItems);
-      const { error } = await db.from("supplier_returns").update({
-        status: "completed",
-        approved_by: userId,
-        approved_at: new Date().toISOString(),
-      }).eq("id", ret.id);
-      if (error) throw error;
+      await processSupplierReturn(ret, "approve");
       await ActivityLogger.supplierReturnProcessed?.(ret.return_number, "completed", ret.suppliers?.name || "সাপ্লায়ার", Number(ret.refund_amount));
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["supplier-returns"] });
-      queryClient.invalidateQueries({ queryKey: ["supplier-return-purchases"] });
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["supplier-payments-all"] });
+      invalidateSupplierReturnData();
       toast.success("সাপ্লায়ার রিটার্ন অনুমোদিত");
     },
     onError: (e: any) => toast.error(e.message || "অনুমোদন ব্যর্থ"),
@@ -254,17 +232,11 @@ export function SupplierReturns() {
 
   const rejectMutation = useMutation({
     mutationFn: async ({ ret, reason }: { ret: any; reason: string }) => {
-      const { error } = await db.from("supplier_returns").update({
-        status: "rejected",
-        rejected_reason: reason,
-        approved_by: userId,
-        approved_at: new Date().toISOString(),
-      }).eq("id", ret.id);
-      if (error) throw error;
+      await processSupplierReturn(ret, "reject", reason);
       await ActivityLogger.supplierReturnProcessed?.(ret.return_number, "rejected", ret.suppliers?.name || "সাপ্লায়ার", Number(ret.refund_amount));
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["supplier-returns"] });
+      invalidateSupplierReturnData();
       toast.success("সাপ্লায়ার রিটার্ন প্রত্যাখ্যাত");
       setRejectingId(null);
       setRejectReason("");
