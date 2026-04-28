@@ -120,6 +120,7 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
     }
     selectProduct(scannerIndex, product.id);
     toast.success(`${product.name} নির্বাচিত হয়েছে`);
+    setScannerIndex(null);
   };
 
   return (
@@ -202,8 +203,8 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
 
           <div className="flex gap-2 justify-end">
             <Button variant="outline" onClick={() => onOpenChange(false)}>বাতিল</Button>
-            <Button onClick={() => createPurchaseMutation.mutate()} className="bg-gradient-to-r from-primary to-accent">
-              ক্রয় অর্ডার তৈরি করুন
+            <Button onClick={() => createPurchaseMutation.mutate()} disabled={!supplierId || validItems.length === 0 || createPurchaseMutation.isPending} className="bg-gradient-to-r from-primary to-accent">
+              {createPurchaseMutation.isPending ? "তৈরি হচ্ছে..." : "ক্রয় অর্ডার তৈরি করুন"}
             </Button>
           </div>
         </div>
