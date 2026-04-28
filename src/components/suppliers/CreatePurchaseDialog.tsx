@@ -156,7 +156,7 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
             </div>
             {items.map((item, idx) => (
               <div key={idx} className="grid grid-cols-12 gap-2 mb-2 items-end">
-                <div className="col-span-12 md:col-span-6">
+                <div className="col-span-10 md:col-span-6">
                   {idx === 0 && <label className="text-xs text-muted-foreground">প্রোডাক্ট</label>}
                   <Select value={item.product_id} onValueChange={(v) => selectProduct(idx, v)}>
                     <SelectTrigger className="h-9"><SelectValue placeholder="প্রোডাক্ট" /></SelectTrigger>
@@ -167,7 +167,7 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
                     </SelectContent>
                   </Select>
                 </div>
-                <Button type="button" variant="outline" size="icon" className="h-9" onClick={() => setScannerIndex(idx)} title="বারকোড/IMEI স্ক্যান">
+                <Button type="button" variant="outline" size="icon" className="h-9 col-span-2 md:col-span-1" onClick={() => setScannerIndex(idx)} title="বারকোড/IMEI স্ক্যান">
                   <ScanLine className="h-4 w-4" />
                 </Button>
                 <div className="col-span-5 md:col-span-2">
@@ -179,7 +179,7 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
                   <Input type="number" min={0} value={item.unit_cost || ""} onChange={(e) => updateItem(idx, "unit_cost", Number(e.target.value))} className="h-9" />
                 </div>
                 {items.length > 1 && (
-                  <Button type="button" variant="ghost" size="sm" onClick={() => removeItem(idx)} className="h-9 px-2 text-destructive">✕</Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => removeItem(idx)} className="h-9 px-2 text-destructive col-span-2 md:col-span-1">✕</Button>
                 )}
               </div>
             ))}
