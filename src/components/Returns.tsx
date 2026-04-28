@@ -158,21 +158,25 @@ export function Returns() {
     if (!data.sale_items?.length) { toast.error("এই বিক্রয়ের কোনো আইটেম পাওয়া যায়নি"); return; }
     const { data: existingReturns } = await supabase
       .from("returns")
-      .select("sale_item_id, quantity, status")
+      .select("id, return_number, sale_item_id, quantity, status, refund_amount, refund_method, reason_code, created_at, approved_at")
       .eq("sale_id", data.id)
       .in("status", ["pending", "completed"]);
     const returnedByItem = new Map<string, number>();
+    const historyByItem = new Map<string, any[]>();
     (existingReturns || []).forEach((r: any) => returnedByItem.set(r.sale_item_id, (returnedByItem.get(r.sale_item_id) || 0) + Number(r.quantity || 0)));
+    (existingReturns || []).forEach((r: any) => historyByItem.set(r.sale_item_id, [...(historyByItem.get(r.sale_item_id) || []), r]));
     const saleWithAvailability = {
       ...data,
       sale_items: (data.sale_items || []).map((it: any) => ({
         ...it,
         already_returned_quantity: returnedByItem.get(it.id) || 0,
         returnable_quantity: Math.max(0, Number(it.quantity || 0) - (returnedByItem.get(it.id) || 0)),
+        return_history: historyByItem.get(it.id) || [],
       })),
     };
     setSelectedSale(saleWithAvailability);
     setSelectedItem(null);
+    setExpandedHistoryItemId(null);
     toast.success(`বিক্রয় পাওয়া গেছে: #${data.id.slice(0, 8)}`);
   };
 
