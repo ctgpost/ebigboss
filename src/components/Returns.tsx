@@ -388,8 +388,9 @@ export function Returns() {
 
   const handleSubmit = () => {
     if (!selectedItem) { toast.error("আইটেম নির্বাচন করুন"); return; }
-    if (returnQuantity < 1 || returnQuantity > selectedItem.quantity) {
-      toast.error(`পরিমাণ ১ থেকে ${selectedItem.quantity}`); return;
+    const maxQty = Number(selectedItem.returnable_quantity ?? selectedItem.quantity);
+    if (returnQuantity < 1 || returnQuantity > maxQty) {
+      toast.error(`পরিমাণ ১ থেকে ${maxQty}`); return;
     }
     if (refundMethod === "exchange") {
       if (!exchangeProductId) { toast.error("বিনিময়ের জন্য পণ্য নির্বাচন করুন"); return; }
@@ -481,8 +482,8 @@ export function Returns() {
                         <SelectTrigger><SelectValue placeholder="আইটেম..." /></SelectTrigger>
                         <SelectContent>
                           {selectedSale.sale_items?.map((it: any) => (
-                            <SelectItem key={it.id} value={it.id}>
-                              {it.products?.name} — পরিমাণ: {it.quantity} — ৳{it.unit_price?.toLocaleString("bn-BD")}
+                            <SelectItem key={it.id} value={it.id} disabled={it.returnable_quantity <= 0}>
+                              {it.products?.name} — রিটার্নযোগ্য: {it.returnable_quantity}/{it.quantity} — ৳{it.unit_price?.toLocaleString("bn-BD")}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -493,8 +494,8 @@ export function Returns() {
                       <>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <Label className="mb-2 block">পরিমাণ (সর্বোচ্চ {selectedItem.quantity})</Label>
-                            <Input type="number" min={1} max={selectedItem.quantity}
+                            <Label className="mb-2 block">পরিমাণ (সর্বোচ্চ {selectedItem.returnable_quantity ?? selectedItem.quantity})</Label>
+                            <Input type="number" min={1} max={selectedItem.returnable_quantity ?? selectedItem.quantity}
                               value={returnQuantity}
                               onChange={(e) => setReturnQuantity(parseInt(e.target.value) || 1)} />
                           </div>
