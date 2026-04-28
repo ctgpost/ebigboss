@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
+import { filterCacheKey, getPurchaseFilterResult, savePurchaseFilterResult } from "@/utils/offlineAssets";
+import { queueIfOffline } from "@/utils/offlineQueue";
 import { Filter, ScanLine, Search } from "lucide-react";
 
 interface CreatePurchaseDialogProps {
@@ -47,7 +49,10 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products, 
   const filteredProducts = useMemo(() => {
     const q = productSearch.trim().toLowerCase();
     const selectedPoProducts = poFilter === "all" ? null : poProductIds.get(poFilter);
-    return (products || []).filter((p) => {
+    const key = filterCacheKey([q, brandFilter, conditionFilter, poFilter, stockFilter]);
+    const cachedIds = !navigator.onLine ? getPurchaseFilterResult(key) : null;
+    const result = (products || []).filter((p) => {
+      if (cachedIds && !cachedIds.includes(p.id)) return false;
       const matchesText = !q || `${p.name || ""} ${p.imei || ""} ${p.barcode || ""} ${p.sku || ""} ${p.model || ""}`.toLowerCase().includes(q);
       const matchesBrand = brandFilter === "all" || p.brand === brandFilter;
       const matchesCondition = conditionFilter === "all" || p.condition === conditionFilter;
@@ -56,6 +61,8 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products, 
       const matchesStock = stockFilter === "all" || (stockFilter === "available" ? stock > 0 : stock <= 0);
       return matchesText && matchesBrand && matchesCondition && matchesPo && matchesStock;
     }).slice(0, 80);
+    if (!cachedIds) savePurchaseFilterResult(key, result.map((p: any) => p.id));
+    return result;
   }, [products, productSearch, brandFilter, conditionFilter, poFilter, poProductIds, stockFilter]);
 
   const createPurchaseMutation = useMutation({
@@ -67,31 +74,38 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products, 
       if (validItems.length === 0) throw new Error("কমপক্ষে একটি আইটেম যুক্ত করুন");
       if (!supplierId) throw new Error("সাপ্লায়ার নির্বাচন করুন");
 
-      const { data: purchase, error: purchaseError } = await supabase
-        .from("purchases")
-        .insert({
-          user_id: user.id,
-          supplier_id: supplierId,
-          purchase_number: purchaseNumber,
-          total_amount: totalAmount,
-          due_amount: totalAmount,
-          status: "pending",
-          notes,
-        })
-        .select()
-        .single();
-
-      if (purchaseError) throw purchaseError;
-
+      const purchasePayload = {
+        user_id: user.id,
+        supplier_id: supplierId,
+        purchase_number: purchaseNumber,
+        total_amount: totalAmount,
+        due_amount: totalAmount,
+        status: "pending",
+        notes,
+      };
       const purchaseItems = validItems.map(item => ({
-        purchase_id: purchase.id,
         product_id: item.product_id,
         quantity: item.quantity,
         unit_cost: item.unit_cost,
         total_cost: item.quantity * item.unit_cost,
       }));
 
-      const { error: itemsError } = await supabase.from("purchase_items").insert(purchaseItems);
+      let purchase: any;
+      try {
+        const { data, error: purchaseError } = await supabase
+        .from("purchases")
+        .insert(purchasePayload)
+        .select()
+        .single();
+
+        if (purchaseError) throw purchaseError;
+        purchase = data;
+      } catch (error) {
+        queueIfOffline("purchase_create", { purchase: purchasePayload, items: purchaseItems }, error);
+        return;
+      }
+
+      const { error: itemsError } = await supabase.from("purchase_items").insert(purchaseItems.map((item) => ({ ...item, purchase_id: purchase.id })));
       if (itemsError) throw itemsError;
     },
     onSuccess: () => {
