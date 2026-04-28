@@ -207,12 +207,10 @@ export function SupplierReturns() {
       const { error: itemError } = await db.from("supplier_return_items").insert(returnItem);
       if (itemError) throw itemError;
 
-      if (autoApprove) {
-        await processSupplierReturn(ret, "approve");
-      }
+      const finalReturn = autoApprove ? await processSupplierReturn(ret, "approve") : ret;
 
-      await ActivityLogger.supplierReturnCreated?.(ret.return_number, selectedPurchase.suppliers?.name || "সাপ্লায়ার", refundAmount, ret.status);
-      return ret;
+      await ActivityLogger.supplierReturnCreated?.(ret.return_number, selectedPurchase.suppliers?.name || "সাপ্লায়ার", refundAmount, finalReturn?.status || ret.status);
+      return finalReturn || ret;
     },
     onSuccess: () => {
       invalidateSupplierReturnData();
