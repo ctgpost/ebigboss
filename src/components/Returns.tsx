@@ -244,7 +244,7 @@ export function Returns() {
       const refundAmount = Number(selectedItem.unit_price) * returnQuantity;
       const exchangeValue = refundMethod === "exchange" ? exchangeUnitPrice * exchangeQty : 0;
 
-      const autoApprove = isAdmin || isAuditOnly;
+      const autoApprove = isAdmin && !isAuditOnly;
 
       // 1. Insert return record
       const { data: returnRow, error: retErr } = await supabase
@@ -259,10 +259,10 @@ export function Returns() {
           reason_notes: reasonNotes || null,
           is_audit_only: isAuditOnly,
           customer_id: selectedSale.customer_id,
-          status: "pending",
+          status: isAuditOnly ? "completed" : "pending",
           processed_by: userId,
-          approved_by: null,
-          approved_at: null,
+          approved_by: isAuditOnly ? userId : null,
+          approved_at: isAuditOnly ? new Date().toISOString() : null,
           refund_method: refundMethod,
           defect_photo_url: defectPhotoUrl,
           exchange_product_id: refundMethod === "exchange" ? exchangeProductId || null : null,
@@ -282,12 +282,13 @@ export function Returns() {
         return returnRow;
       }
 
-      await db.rpc("process_sales_return", {
+      const { data: processedReturn, error: processError } = await db.rpc("process_sales_return", {
         _return_id: returnRow.id,
         _action: "approve",
         _actor_id: userId,
         _reject_reason: null,
       });
+      if (processError) throw processError;
 
       await ActivityLogger.returnCreated(
         selectedItem.products?.name || "পণ্য",
@@ -301,7 +302,7 @@ export function Returns() {
         `প্রিয় গ্রাহক, আপনার রিটার্ন (${returnRow.return_number}) সম্পন্ন হয়েছে। ` +
         `${METHOD_LABELS[refundMethod]}: ৳${refundAmount.toLocaleString("bn-BD")}। ধন্যবাদ — ${"" }`);
 
-      return returnRow;
+      return processedReturn || returnRow;
     },
     onSuccess: (row: any) => {
       queryClient.invalidateQueries({ queryKey: ["returns"] });
