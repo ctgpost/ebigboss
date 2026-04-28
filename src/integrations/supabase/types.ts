@@ -692,6 +692,7 @@ export type Database = {
           purchase_item_id: string | null
           quantity: number
           stock_deducted: boolean
+          stock_deducted_at: string | null
           supplier_return_id: string
           total_cost: number
           unit_cost: number
@@ -703,6 +704,7 @@ export type Database = {
           purchase_item_id?: string | null
           quantity?: number
           stock_deducted?: boolean
+          stock_deducted_at?: string | null
           supplier_return_id: string
           total_cost?: number
           unit_cost?: number
@@ -714,6 +716,7 @@ export type Database = {
           purchase_item_id?: string | null
           quantity?: number
           stock_deducted?: boolean
+          stock_deducted_at?: string | null
           supplier_return_id?: string
           total_cost?: number
           unit_cost?: number
@@ -722,11 +725,15 @@ export type Database = {
       }
       supplier_returns: {
         Row: {
+          applied_refund_amount: number
           approved_at: string | null
           approved_by: string | null
           created_at: string
           defect_photo_url: string | null
           finance_action: string
+          finance_applied: boolean
+          finance_applied_at: string | null
+          finance_applied_by: string | null
           id: string
           processed_by: string | null
           purchase_id: string | null
@@ -740,15 +747,22 @@ export type Database = {
           return_number: string | null
           status: string
           stock_action: string
+          stock_applied: boolean
+          stock_applied_at: string | null
+          stock_applied_by: string | null
           supplier_id: string
           updated_at: string
         }
         Insert: {
+          applied_refund_amount?: number
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
           defect_photo_url?: string | null
           finance_action?: string
+          finance_applied?: boolean
+          finance_applied_at?: string | null
+          finance_applied_by?: string | null
           id?: string
           processed_by?: string | null
           purchase_id?: string | null
@@ -762,15 +776,22 @@ export type Database = {
           return_number?: string | null
           status?: string
           stock_action?: string
+          stock_applied?: boolean
+          stock_applied_at?: string | null
+          stock_applied_by?: string | null
           supplier_id: string
           updated_at?: string
         }
         Update: {
+          applied_refund_amount?: number
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
           defect_photo_url?: string | null
           finance_action?: string
+          finance_applied?: boolean
+          finance_applied_at?: string | null
+          finance_applied_by?: string | null
           id?: string
           processed_by?: string | null
           purchase_id?: string | null
@@ -784,6 +805,9 @@ export type Database = {
           return_number?: string | null
           status?: string
           stock_action?: string
+          stock_applied?: boolean
+          stock_applied_at?: string | null
+          stock_applied_by?: string | null
           supplier_id?: string
           updated_at?: string
         }
@@ -896,6 +920,49 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      process_supplier_return: {
+        Args: {
+          _action: string
+          _actor_id: string
+          _reject_reason?: string
+          _return_id: string
+        }
+        Returns: {
+          applied_refund_amount: number
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          defect_photo_url: string | null
+          finance_action: string
+          finance_applied: boolean
+          finance_applied_at: string | null
+          finance_applied_by: string | null
+          id: string
+          processed_by: string | null
+          purchase_id: string | null
+          reason_code: string
+          reason_notes: string | null
+          refund_amount: number
+          rejected_reason: string | null
+          replacement_note: string | null
+          return_date: string
+          return_method: string
+          return_number: string | null
+          status: string
+          stock_action: string
+          stock_applied: boolean
+          stock_applied_at: string | null
+          stock_applied_by: string | null
+          supplier_id: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "supplier_returns"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
       app_role: "admin" | "manager" | "staff"
