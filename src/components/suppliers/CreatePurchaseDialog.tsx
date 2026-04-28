@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { BarcodeScanner } from "@/components/BarcodeScanner";
+import { Filter, ScanLine, Search } from "lucide-react";
 
 interface CreatePurchaseDialogProps {
   open: boolean;
@@ -19,11 +21,25 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
   const queryClient = useQueryClient();
   const [supplierId, setSupplierId] = useState("");
   const [notes, setNotes] = useState("");
+  const [productSearch, setProductSearch] = useState("");
+  const [brandFilter, setBrandFilter] = useState("all");
+  const [conditionFilter, setConditionFilter] = useState("all");
+  const [scannerIndex, setScannerIndex] = useState<number | null>(null);
   const [items, setItems] = useState<{ product_id: string; quantity: number; unit_cost: number }[]>([
     { product_id: "", quantity: 1, unit_cost: 0 },
   ]);
 
   const totalAmount = items.reduce((sum, item) => sum + item.quantity * item.unit_cost, 0);
+  const brands = useMemo(() => Array.from(new Set((products || []).map(p => p.brand).filter(Boolean))).sort(), [products]);
+  const filteredProducts = useMemo(() => {
+    const q = productSearch.trim().toLowerCase();
+    return (products || []).filter((p) => {
+      const matchesText = !q || `${p.name || ""} ${p.imei || ""} ${p.barcode || ""} ${p.sku || ""} ${p.model || ""}`.toLowerCase().includes(q);
+      const matchesBrand = brandFilter === "all" || p.brand === brandFilter;
+      const matchesCondition = conditionFilter === "all" || p.condition === conditionFilter;
+      return matchesText && matchesBrand && matchesCondition;
+    }).slice(0, 80);
+  }, [products, productSearch, brandFilter, conditionFilter]);
 
   const createPurchaseMutation = useMutation({
     mutationFn: async () => {
@@ -82,6 +98,24 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
     const updated = [...items];
     (updated[idx] as any)[field] = value;
     setItems(updated);
+  };
+
+  const selectProduct = (idx: number, productId: string) => {
+    const product = products?.find(p => p.id === productId);
+    const updated = [...items];
+    updated[idx] = { ...updated[idx], product_id: productId, unit_cost: Number(product?.cost || updated[idx].unit_cost || 0) };
+    setItems(updated);
+  };
+
+  const handleBarcodeScan = (code: string) => {
+    const normalized = code.trim().toLowerCase();
+    const product = products?.find(p => [p.barcode, p.imei, p.sku].filter(Boolean).some((v: string) => v.toLowerCase() === normalized));
+    if (!product || scannerIndex === null) {
+      toast.error("এই বারকোড/IMEI দিয়ে প্রোডাক্ট পাওয়া যায়নি");
+      return;
+    }
+    selectProduct(scannerIndex, product.id);
+    toast.success(`${product.name} নির্বাচিত হয়েছে`);
   };
 
   return (
