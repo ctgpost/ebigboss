@@ -337,7 +337,7 @@ export function SupplierReturns() {
   };
 
   const statusBadge = (status: string) => {
-    const cls = status === "completed" ? "bg-green-100 text-green-700" : status === "rejected" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700";
+    const cls = status === "completed" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" : status === "rejected" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300";
     const Icon = status === "completed" ? CheckCircle : status === "rejected" ? XCircle : Clock;
     return <Badge className={`${cls} gap-1`}><Icon className="h-3 w-3" />{STATUS_LABELS[status] || status}</Badge>;
   };
@@ -345,8 +345,8 @@ export function SupplierReturns() {
   if (isLoading) return <div className="p-8 text-center text-muted-foreground">লোড হচ্ছে...</div>;
 
   return (
-    <div className="flex flex-col h-screen animate-fade-in">
-      <div className="sticky top-0 z-10 bg-white dark:bg-gray-950 border-b border-border pb-4 space-y-3">
+    <div className="flex flex-col h-screen animate-fade-in overflow-hidden">
+      <div className="sticky top-0 z-10 bg-background border-b border-border pb-3 space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2"><Truck className="h-7 w-7 text-primary" />সাপ্লায়ার রিটার্ন</h1>
