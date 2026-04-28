@@ -7,6 +7,8 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { registerOfflineQueueSync } from "@/utils/offlineQueue";
+import { toast } from "sonner";
 import type { User } from "@supabase/supabase-js";
 import Auth from "./pages/Auth";
 import Index from "./pages/Index";
@@ -38,6 +40,11 @@ const App = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const unregisterQueueSync = registerOfflineQueueSync((count) => {
+      queryClient.invalidateQueries();
+      toast.success(`${count.toLocaleString("bn-BD")}টি অফলাইন কাজ sync হয়েছে`);
+    });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setUser(session?.user ?? null);
@@ -50,7 +57,10 @@ const App = () => {
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      unregisterQueueSync();
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Apply dynamic favicon from shop settings
