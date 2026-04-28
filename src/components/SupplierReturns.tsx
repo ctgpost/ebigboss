@@ -92,7 +92,8 @@ export function SupplierReturns() {
       let query = db
         .from("purchases")
         .select("*, suppliers(name, phone), purchase_items(*, products(id, name, imei, brand, model, condition, stock_quantity, cost))")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(120);
       if (selectedSupplierId !== "all") query = query.eq("supplier_id", selectedSupplierId);
       const { data, error } = await query;
       if (error) throw error;
@@ -129,7 +130,8 @@ export function SupplierReturns() {
         approved_by_profile: r.approved_by ? profiles[r.approved_by] : null,
       }));
     },
-    staleTime: 20_000,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
   });
 
   const selectedPurchase = purchases?.find((p: any) => p.id === selectedPurchaseId);
