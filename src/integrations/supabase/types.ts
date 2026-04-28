@@ -1031,6 +1031,12 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      search_sale_ids_for_return: {
+        Args: { _limit?: number; _search: string }
+        Returns: {
+          id: string
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "manager" | "staff"
