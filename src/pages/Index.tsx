@@ -7,6 +7,7 @@ import { POS } from "@/components/POS";
 import { Customers } from "@/components/Customers";
 import { CustomerDetails } from "@/components/CustomerDetails";
 import { Suppliers } from "@/components/Suppliers";
+import { SupplierReturns } from "@/components/SupplierReturns";
 import { Reports } from "@/components/Reports";
 import { Settings } from "@/components/Settings";
 import { Categories } from "@/components/Categories";
@@ -124,6 +125,7 @@ export default function Index({ user }: IndexProps) {
     { id: "sales", label: "Sales", icon: TrendingUp, permission: 'canAccessSales' },
     { id: "returns", label: "Returns", icon: RefreshCcw, permission: 'canAccessSales' },
     { id: "suppliers", label: "Suppliers", icon: Truck, permission: 'canManageSuppliers' },
+    { id: "supplier-returns", label: "Supplier Returns", icon: RefreshCcw, permission: 'canManageSuppliers' },
     { id: "reports", label: "Reports", icon: FileText, permission: 'canAccessReports' },
     { id: "settings", label: "Settings", icon: SettingsIcon, permission: 'canAccessSettings' },
   ];
@@ -170,6 +172,8 @@ export default function Index({ user }: IndexProps) {
         return <CustomerDetails />;
       case "suppliers":
         return <Suppliers />;
+      case "supplier-returns":
+        return <SupplierReturns />;
       case "reports":
         return <Reports />;
       case "settings":
