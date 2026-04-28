@@ -92,7 +92,8 @@ export function SupplierReturns() {
       let query = db
         .from("purchases")
         .select("*, suppliers(name, phone), purchase_items(*, products(id, name, imei, brand, model, condition, stock_quantity, cost))")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(120);
       if (selectedSupplierId !== "all") query = query.eq("supplier_id", selectedSupplierId);
       const { data, error } = await query;
       if (error) throw error;
@@ -129,7 +130,8 @@ export function SupplierReturns() {
         approved_by_profile: r.approved_by ? profiles[r.approved_by] : null,
       }));
     },
-    staleTime: 20_000,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
   });
 
   const selectedPurchase = purchases?.find((p: any) => p.id === selectedPurchaseId);
@@ -280,10 +282,11 @@ export function SupplierReturns() {
   });
 
   const filteredReturns = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
     return (supplierReturns || []).filter((r: any) => {
       const matchesStatus = filterStatus === "all" || r.status === filterStatus;
-      const needle = `${r.return_number} ${r.suppliers?.name || ""} ${r.purchases?.purchase_number || ""}`.toLowerCase();
-      return matchesStatus && needle.includes(searchTerm.toLowerCase());
+      const needle = `${r.return_number} ${r.suppliers?.name || ""} ${r.suppliers?.phone || ""} ${r.purchases?.purchase_number || ""}`.toLowerCase();
+      return matchesStatus && (!q || needle.includes(q));
     });
   }, [supplierReturns, filterStatus, searchTerm]);
 
@@ -334,7 +337,7 @@ export function SupplierReturns() {
   };
 
   const statusBadge = (status: string) => {
-    const cls = status === "completed" ? "bg-green-100 text-green-700" : status === "rejected" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700";
+    const cls = status === "completed" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" : status === "rejected" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300";
     const Icon = status === "completed" ? CheckCircle : status === "rejected" ? XCircle : Clock;
     return <Badge className={`${cls} gap-1`}><Icon className="h-3 w-3" />{STATUS_LABELS[status] || status}</Badge>;
   };
@@ -342,8 +345,8 @@ export function SupplierReturns() {
   if (isLoading) return <div className="p-8 text-center text-muted-foreground">লোড হচ্ছে...</div>;
 
   return (
-    <div className="flex flex-col h-screen animate-fade-in">
-      <div className="sticky top-0 z-10 bg-white dark:bg-gray-950 border-b border-border pb-4 space-y-3">
+    <div className="flex flex-col h-screen animate-fade-in overflow-hidden">
+      <div className="sticky top-0 z-10 bg-background border-b border-border pb-3 space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2"><Truck className="h-7 w-7 text-primary" />সাপ্লায়ার রিটার্ন</h1>
@@ -379,7 +382,7 @@ export function SupplierReturns() {
           </Dialog>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
           <Card className="p-3"><p className="text-xs text-muted-foreground">মোট রিটার্ন</p><p className="text-xl font-bold">{analytics.total}</p></Card>
           <Card className="p-3"><p className="text-xs text-muted-foreground">অপেক্ষমাণ</p><p className="text-xl font-bold text-yellow-600">{analytics.pending}</p></Card>
           <Card className="p-3"><p className="text-xs text-muted-foreground">সম্পন্ন</p><p className="text-xl font-bold text-green-600">{analytics.completed}</p></Card>
@@ -391,11 +394,11 @@ export function SupplierReturns() {
       <Tabs defaultValue="returns" className="flex-1 overflow-y-auto pt-4">
         <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="returns">রিটার্ন তালিকা</TabsTrigger><TabsTrigger value="analytics">এনালিটিক্স</TabsTrigger></TabsList>
         <TabsContent value="returns" className="space-y-3 pb-6">
-          <div className="flex gap-2"><div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input className="pl-9" placeholder="রিটার্ন নম্বর, সাপ্লায়ার, PO খুঁজুন..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div><Select value={filterStatus} onValueChange={setFilterStatus}><SelectTrigger className="w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">সব</SelectItem><SelectItem value="pending">অপেক্ষমাণ</SelectItem><SelectItem value="completed">সম্পন্ন</SelectItem><SelectItem value="rejected">প্রত্যাখ্যাত</SelectItem></SelectContent></Select></div>
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_9rem] gap-2"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input className="pl-9" placeholder="রিটার্ন নম্বর, সাপ্লায়ার, মোবাইল, PO..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div><Select value={filterStatus} onValueChange={setFilterStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">সব</SelectItem><SelectItem value="pending">অপেক্ষমাণ</SelectItem><SelectItem value="completed">সম্পন্ন</SelectItem><SelectItem value="rejected">প্রত্যাখ্যাত</SelectItem></SelectContent></Select></div>
 
           {filteredReturns.map((ret: any) => (
-            <Card key={ret.id} className="p-4 space-y-3">
-              <div className="flex items-start justify-between gap-3 flex-wrap"><div className="flex items-start gap-3">{ret.suppliers?.image_url && <ZoomableImage url={ret.suppliers.image_url} alt={ret.suppliers.name} displayWidth={56} displayHeight={72} />}<div><div className="flex items-center gap-2 flex-wrap"><h3 className="font-semibold">{ret.return_number}</h3>{statusBadge(ret.status)}</div><p className="text-sm text-muted-foreground">{ret.suppliers?.name || "অজানা"} • PO #{ret.purchases?.purchase_number || "N/A"}</p><p className="text-xs text-muted-foreground">{format(new Date(ret.created_at), "dd MMM yyyy, hh:mm a", { locale: bn })}</p></div></div><div className="text-right"><p className="text-xl font-bold text-primary">৳{Number(ret.refund_amount).toLocaleString("bn-BD")}</p><p className="text-xs text-muted-foreground">{METHOD_LABELS[ret.return_method]}</p></div></div>
+            <Card key={ret.id} className="p-3 sm:p-4 space-y-3 overflow-hidden">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"><div className="flex items-start gap-3 min-w-0">{ret.suppliers?.image_url && <ZoomableImage url={ret.suppliers.image_url} alt={ret.suppliers.name} displayWidth={56} displayHeight={72} />}<div className="min-w-0"><div className="flex items-center gap-2 flex-wrap"><h3 className="font-semibold break-all">{ret.return_number}</h3>{statusBadge(ret.status)}</div><p className="text-sm text-muted-foreground break-words">{ret.suppliers?.name || "অজানা"} • PO #{ret.purchases?.purchase_number || "N/A"}</p><p className="text-xs text-muted-foreground">{format(new Date(ret.created_at), "dd MMM yyyy, hh:mm a", { locale: bn })}</p></div></div><div className="sm:text-right"><p className="text-xl font-bold text-primary">৳{Number(ret.refund_amount).toLocaleString("bn-BD")}</p><p className="text-xs text-muted-foreground">{METHOD_LABELS[ret.return_method]}</p></div></div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">{ret.supplier_return_items?.map((it: any) => <div key={it.id} className="p-2 rounded bg-muted"><b>{it.products?.name || "পণ্য"}</b><p className="text-xs text-muted-foreground">IMEI: {it.products?.imei || "N/A"}</p><p>Qty {it.quantity} × ৳{Number(it.unit_cost).toLocaleString("bn-BD")}</p></div>)}<div className="p-2 rounded bg-muted"><b>কারণ</b><p>{REASON_LABELS[ret.reason_code] || ret.reason_code}</p>{ret.reason_notes && <p className="text-xs text-muted-foreground">{ret.reason_notes}</p>}</div><div className="p-2 rounded bg-muted"><b>স্টক/ফাইন্যান্স</b><p>{ret.stock_action === "deduct_stock" ? (ret.stock_applied ? "স্টক কমানো হয়েছে" : "স্টক কমানো বাকি") : "স্টক অপরিবর্তিত"}</p><p className="text-xs text-muted-foreground">{ret.finance_action === "supplier_refund" ? "ক্যাশ রিফান্ড" : ret.finance_action === "due_adjust" ? "বাকি সমন্বয়" : "ফাইন্যান্স নেই"} {ret.finance_action !== "none" ? `• ${ret.finance_applied ? "Applied" : "Pending"}` : ""}</p></div></div>
 

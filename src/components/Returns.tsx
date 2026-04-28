@@ -137,11 +137,11 @@ export function Returns() {
     if (!searchSaleId.trim()) {
       toast.error("বিক্রয় আইডি লিখুন"); return;
     }
-    const term = searchSaleId.trim();
+    const term = searchSaleId.trim().replace(/^#/, "");
     let saleId = term;
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(term)) {
-      const { data: matches, error: searchError } = await db.rpc("search_sale_ids_for_return", { _search: term, _limit: 2 });
-      if (searchError) throw searchError;
+      const { data: matches, error: searchError } = await db.rpc("search_sale_ids_for_return", { _search: term, _limit: 5 });
+      if (searchError) { toast.error(searchError.message || "বিক্রয় খুঁজতে সমস্যা হয়েছে"); return; }
       if (!matches?.length) { toast.error("বিক্রয় পাওয়া যায়নি"); return; }
       if (matches.length > 1) toast.info("একাধিক মিল পাওয়া গেছে — সর্বশেষ বিক্রয়টি দেখানো হচ্ছে");
       saleId = matches[0].id;
@@ -154,6 +154,7 @@ export function Returns() {
       .eq("id", saleId)
       .single();
     if (error || !data) { toast.error("বিক্রয় পাওয়া যায়নি"); return; }
+    if (!data.sale_items?.length) { toast.error("এই বিক্রয়ের কোনো আইটেম পাওয়া যায়নি"); return; }
     const { data: existingReturns } = await supabase
       .from("returns")
       .select("sale_item_id, quantity, status")
@@ -170,6 +171,8 @@ export function Returns() {
       })),
     };
     setSelectedSale(saleWithAvailability);
+    setSelectedItem(null);
+    toast.success(`বিক্রয় পাওয়া গেছে: #${data.id.slice(0, 8)}`);
   };
 
   // ─── Create return ──────────────────────────────────────────

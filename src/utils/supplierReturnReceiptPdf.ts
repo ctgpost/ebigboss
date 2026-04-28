@@ -3,6 +3,7 @@ import "jspdf-autotable";
 
 const money = (value: number) => `Tk ${Number(value || 0).toLocaleString("en-BD")}`;
 const fmt = (value?: string | null) => value ? new Date(value).toLocaleString("en-BD") : "-";
+const label = (value?: string | null) => String(value || "-").replace(/_/g, " ");
 
 export function generateSupplierReturnReceiptPdf(ret: any) {
   const doc = new jsPDF();
@@ -26,9 +27,9 @@ export function generateSupplierReturnReceiptPdf(ret: any) {
   const infoRows = [
     ["Supplier", ret.suppliers?.name || "Unknown", "Phone", ret.suppliers?.phone || "-"],
     ["Purchase Order", ret.purchases?.purchase_number || "N/A", "Status", ret.status || "-"],
-    ["Return Method", ret.return_method || "-", "Stock Action", ret.stock_action || "-"],
-    ["Finance Action", ret.finance_action || "-", "Refund/Adjust", money(Number(ret.refund_amount || 0))],
-    ["Reason", ret.reason_code || "-", "Notes", ret.reason_notes || "-"],
+    ["Return Method", label(ret.return_method), "Stock Action", label(ret.stock_action)],
+    ["Finance Action", label(ret.finance_action), "Refund/Adjust", money(Number(ret.refund_amount || 0))],
+    ["Reason", label(ret.reason_code), "Notes", ret.reason_notes || "-"],
   ];
 
   (doc as any).autoTable({
@@ -51,6 +52,7 @@ export function generateSupplierReturnReceiptPdf(ret: any) {
     money(Number(it.unit_cost || 0)),
     money(Number(it.total_cost || 0)),
   ]);
+  if (itemRows.length === 0) itemRows.push(["-", "No return items", "-", "-", "-", "0", money(0), money(0)]);
 
   (doc as any).autoTable({
     startY: y,
@@ -66,6 +68,8 @@ export function generateSupplierReturnReceiptPdf(ret: any) {
 
   const timelineRows = [
     ["Created", ret.processed_by_profile?.full_name || ret.processed_by_profile?.email || "System", fmt(ret.created_at)],
+    ret.stock_applied ? ["Stock Applied", ret.stock_applied_by || ret.approved_by_profile?.email || "System", fmt(ret.stock_applied_at)] : ["Stock", ret.stock_action === "deduct_stock" ? "Pending" : "No stock change", "-"],
+    ret.finance_applied ? ["Finance Applied", ret.finance_applied_by || ret.approved_by_profile?.email || "System", fmt(ret.finance_applied_at)] : ["Finance", ret.finance_action === "none" ? "No finance change" : "Pending", "-"],
     ret.status === "pending"
       ? ["Pending", "Awaiting approval", "-"]
       : [ret.status === "rejected" ? "Rejected" : "Approved", ret.approved_by_profile?.full_name || ret.approved_by_profile?.email || "System", fmt(ret.approved_at)],
@@ -84,6 +88,10 @@ export function generateSupplierReturnReceiptPdf(ret: any) {
   y = (doc as any).lastAutoTable.finalY + 8;
 
   if (ret.defect_photo_url) {
+    if (y > doc.internal.pageSize.getHeight() - 35) {
+      doc.addPage();
+      y = 16;
+    }
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.text("Defect Photo Link", 14, y);
@@ -91,8 +99,7 @@ export function generateSupplierReturnReceiptPdf(ret: any) {
     doc.setFont("helvetica", "normal");
     doc.setTextColor(0, 80, 180);
     const lines = doc.splitTextToSize(ret.defect_photo_url, pageWidth - 28);
-    doc.textWithLink(lines[0], 14, y, { url: ret.defect_photo_url });
-    if (lines.length > 1) doc.text(lines.slice(1), 14, y + 5);
+    lines.forEach((line: string, index: number) => doc.textWithLink(line, 14, y + index * 5, { url: ret.defect_photo_url }));
     doc.setTextColor(0, 0, 0);
   }
 
