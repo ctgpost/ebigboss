@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { bn } from "date-fns/locale";
@@ -48,6 +48,25 @@ const STATUS_LABELS: Record<string, string> = {
   completed: "সম্পন্ন",
   rejected: "প্রত্যাখ্যাত",
 };
+
+const ROW_ESTIMATE = 228;
+const PAGE_SIZE = 150;
+
+const statusBadge = (status: string) => {
+  const cls = status === "completed" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" : status === "rejected" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300";
+  const Icon = status === "completed" ? CheckCircle : status === "rejected" ? XCircle : Clock;
+  return <Badge className={`${cls} gap-1`}><Icon className="h-3 w-3" />{STATUS_LABELS[status] || status}</Badge>;
+};
+
+const SupplierReturnCard = memo(({ ret, canApprove, onDetails, onEdit, onPhoto, onPdf, onPrint, onApprove, onReject }: any) => (
+  <Card className="p-3 sm:p-4 space-y-3 overflow-hidden [content-visibility:auto] [contain-intrinsic-size:228px]">
+    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"><div className="flex items-start gap-3 min-w-0">{ret.suppliers?.image_url && <ZoomableImage url={ret.suppliers.image_url} alt={ret.suppliers.name} displayWidth={56} displayHeight={72} />}<div className="min-w-0"><div className="flex items-center gap-2 flex-wrap"><h3 className="font-semibold break-all">{ret.return_number}</h3>{statusBadge(ret.status)}</div><p className="text-sm text-muted-foreground break-words">{ret.suppliers?.name || "অজানা"} • PO #{ret.purchases?.purchase_number || "N/A"}</p><p className="text-xs text-muted-foreground">{format(new Date(ret.created_at), "dd MMM yyyy, hh:mm a", { locale: bn })}</p></div></div><div className="sm:text-right"><p className="text-xl font-bold text-primary">৳{Number(ret.refund_amount).toLocaleString("bn-BD")}</p><p className="text-xs text-muted-foreground">{METHOD_LABELS[ret.return_method]}</p></div></div>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">{ret.supplier_return_items?.map((it: any) => <div key={it.id} className="p-2 rounded bg-muted"><b>{it.products?.name || "পণ্য"}</b><p className="text-xs text-muted-foreground">IMEI: {it.products?.imei || "N/A"}</p><p>Qty {it.quantity} × ৳{Number(it.unit_cost).toLocaleString("bn-BD")}</p></div>)}<div className="p-2 rounded bg-muted"><b>কারণ</b><p>{REASON_LABELS[ret.reason_code] || ret.reason_code}</p>{ret.reason_notes && <p className="text-xs text-muted-foreground line-clamp-2">{ret.reason_notes}</p>}</div><div className="p-2 rounded bg-muted"><b>স্টক/ফাইন্যান্স</b><p>{ret.stock_action === "deduct_stock" ? (ret.stock_applied ? "স্টক কমানো হয়েছে" : "স্টক কমানো বাকি") : "স্টক অপরিবর্তিত"}</p><p className="text-xs text-muted-foreground">{ret.finance_action === "supplier_refund" ? "ক্যাশ রিফান্ড" : ret.finance_action === "due_adjust" ? "বাকি সমন্বয়" : "ফাইন্যান্স নেই"} {ret.finance_action !== "none" ? `• ${ret.finance_applied ? "Applied" : "Pending"}` : ""}</p></div></div>
+    {ret.defect_photo_url && <button type="button" className="text-xs text-primary underline" onClick={() => onPhoto(ret.defect_photo_url)}>প্রমাণ ছবি দেখুন</button>}
+    <div className="border-l-2 border-primary/30 pl-3 space-y-2 text-xs"><div><b>তৈরি:</b> {ret.processed_by_profile?.full_name || ret.processed_by_profile?.email || "সিস্টেম"} • {format(new Date(ret.created_at), "dd MMM yyyy, hh:mm a", { locale: bn })}</div><div><b>{ret.status === "rejected" ? "প্রত্যাখ্যান" : ret.status === "completed" ? "অনুমোদন" : "স্ট্যাটাস"}:</b> {ret.status === "pending" ? "অনুমোদনের অপেক্ষায়" : `${ret.approved_by_profile?.full_name || ret.approved_by_profile?.email || "সিস্টেম"} • ${ret.approved_at ? format(new Date(ret.approved_at), "dd MMM yyyy, hh:mm a", { locale: bn }) : ""}`}</div>{ret.rejected_reason && <div className="text-destructive"><b>কারণ:</b> {ret.rejected_reason}</div>}</div>
+    <div className="flex gap-2 justify-end flex-wrap"><Button size="sm" variant="outline" onClick={() => onDetails(ret)}><Eye className="h-4 w-4 mr-1" />বিস্তারিত</Button>{ret.status === "pending" && <Button size="sm" variant="outline" onClick={() => onEdit(ret)}><Edit className="h-4 w-4 mr-1" />এডিট</Button>}<Button size="sm" variant="outline" onClick={() => onPdf(ret)}><Download className="h-4 w-4 mr-1" />PDF</Button>{ret.status === "completed" && <Button size="sm" variant="outline" onClick={() => onPrint(ret)}><Printer className="h-4 w-4 mr-1" />রসিদ</Button>}{ret.status === "pending" && canApprove && <><Button size="sm" onClick={() => onApprove(ret)}><CheckCircle className="h-4 w-4 mr-1" />অনুমোদন</Button><Button size="sm" variant="destructive" onClick={() => onReject(ret.id)}><XCircle className="h-4 w-4 mr-1" />প্রত্যাখ্যান</Button></>}</div>
+  </Card>
+));
 
 export function SupplierReturns() {
   const { isAdmin, isManager, userId } = useUserRole();
@@ -117,7 +136,7 @@ export function SupplierReturns() {
           supplier_return_items(*, products(name, imei, brand, model, condition))
         `)
         .order("created_at", { ascending: false })
-        .limit(2000);
+        .limit(PAGE_SIZE);
       if (filterStatus !== "all") query = query.eq("status", filterStatus);
       const { data, error } = await query;
       if (error) throw error;
@@ -134,8 +153,8 @@ export function SupplierReturns() {
         approved_by_profile: r.approved_by ? profiles[r.approved_by] : null,
       }));
     },
-    staleTime: 60_000,
-    gcTime: 5 * 60_000,
+    staleTime: 5 * 60_000,
+    gcTime: 24 * 60 * 60_000,
   });
 
   const selectedPurchase = purchases?.find((p: any) => p.id === selectedPurchaseId);
@@ -320,16 +339,15 @@ export function SupplierReturns() {
     listScrollRef.current?.scrollTo({ top: 0 });
   }, [filterStatus, searchTerm]);
 
-  const rowEstimate = 260;
   const viewportHeight = listScrollRef.current?.clientHeight || 720;
-  const virtualStart = Math.max(0, Math.floor(listScrollTop / rowEstimate) - 6);
+  const virtualStart = Math.max(0, Math.floor(listScrollTop / ROW_ESTIMATE) - 6);
   const virtualEnd = Math.min(
     filteredReturns.length,
-    Math.max(renderLimit, Math.ceil((listScrollTop + viewportHeight) / rowEstimate) + 8),
+    Math.max(renderLimit, Math.ceil((listScrollTop + viewportHeight) / ROW_ESTIMATE) + 8),
   );
   const virtualReturns = filteredReturns.slice(virtualStart, virtualEnd);
-  const topSpacer = virtualStart * rowEstimate;
-  const bottomSpacer = Math.max(0, (filteredReturns.length - virtualEnd) * rowEstimate);
+  const topSpacer = virtualStart * ROW_ESTIMATE;
+  const bottomSpacer = Math.max(0, (filteredReturns.length - virtualEnd) * ROW_ESTIMATE);
 
   const printReceipt = (ret: any) => {
     const items = ret.supplier_return_items || [];
@@ -355,12 +373,6 @@ export function SupplierReturns() {
       win.document.write(html);
       win.document.close();
     }
-  };
-
-  const statusBadge = (status: string) => {
-    const cls = status === "completed" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" : status === "rejected" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300";
-    const Icon = status === "completed" ? CheckCircle : status === "rejected" ? XCircle : Clock;
-    return <Badge className={`${cls} gap-1`}><Icon className="h-3 w-3" />{STATUS_LABELS[status] || status}</Badge>;
   };
 
   if (isLoading) return <div className="p-8 text-center text-muted-foreground">লোড হচ্ছে...</div>;
@@ -418,19 +430,7 @@ export function SupplierReturns() {
           <div className="grid grid-cols-1 sm:grid-cols-[1fr_9rem] gap-2"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input className="pl-9" placeholder="রিটার্ন নম্বর, সাপ্লায়ার, মোবাইল, PO..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div><Select value={filterStatus} onValueChange={setFilterStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">সব</SelectItem><SelectItem value="pending">অপেক্ষমাণ</SelectItem><SelectItem value="completed">সম্পন্ন</SelectItem><SelectItem value="rejected">প্রত্যাখ্যাত</SelectItem></SelectContent></Select></div>
 
           {topSpacer > 0 && <div style={{ height: topSpacer }} aria-hidden="true" />}
-          {virtualReturns.map((ret: any) => (
-            <Card key={ret.id} className="p-3 sm:p-4 space-y-3 overflow-hidden">
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"><div className="flex items-start gap-3 min-w-0">{ret.suppliers?.image_url && <ZoomableImage url={ret.suppliers.image_url} alt={ret.suppliers.name} displayWidth={56} displayHeight={72} />}<div className="min-w-0"><div className="flex items-center gap-2 flex-wrap"><h3 className="font-semibold break-all">{ret.return_number}</h3>{statusBadge(ret.status)}</div><p className="text-sm text-muted-foreground break-words">{ret.suppliers?.name || "অজানা"} • PO #{ret.purchases?.purchase_number || "N/A"}</p><p className="text-xs text-muted-foreground">{format(new Date(ret.created_at), "dd MMM yyyy, hh:mm a", { locale: bn })}</p></div></div><div className="sm:text-right"><p className="text-xl font-bold text-primary">৳{Number(ret.refund_amount).toLocaleString("bn-BD")}</p><p className="text-xs text-muted-foreground">{METHOD_LABELS[ret.return_method]}</p></div></div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">{ret.supplier_return_items?.map((it: any) => <div key={it.id} className="p-2 rounded bg-muted"><b>{it.products?.name || "পণ্য"}</b><p className="text-xs text-muted-foreground">IMEI: {it.products?.imei || "N/A"}</p><p>Qty {it.quantity} × ৳{Number(it.unit_cost).toLocaleString("bn-BD")}</p></div>)}<div className="p-2 rounded bg-muted"><b>কারণ</b><p>{REASON_LABELS[ret.reason_code] || ret.reason_code}</p>{ret.reason_notes && <p className="text-xs text-muted-foreground">{ret.reason_notes}</p>}</div><div className="p-2 rounded bg-muted"><b>স্টক/ফাইন্যান্স</b><p>{ret.stock_action === "deduct_stock" ? (ret.stock_applied ? "স্টক কমানো হয়েছে" : "স্টক কমানো বাকি") : "স্টক অপরিবর্তিত"}</p><p className="text-xs text-muted-foreground">{ret.finance_action === "supplier_refund" ? "ক্যাশ রিফান্ড" : ret.finance_action === "due_adjust" ? "বাকি সমন্বয়" : "ফাইন্যান্স নেই"} {ret.finance_action !== "none" ? `• ${ret.finance_applied ? "Applied" : "Pending"}` : ""}</p></div></div>
-
-              {ret.defect_photo_url && <div><p className="text-xs text-muted-foreground mb-1">প্রমাণ ছবি</p><ZoomableImage url={ret.defect_photo_url} alt="সাপ্লায়ার রিটার্ন প্রমাণ" displayWidth={96} displayHeight={96} /></div>}
-
-              <div className="border-l-2 border-primary/30 pl-3 space-y-2 text-xs"><div><b>তৈরি:</b> {ret.processed_by_profile?.full_name || ret.processed_by_profile?.email || "সিস্টেম"} • {format(new Date(ret.created_at), "dd MMM yyyy, hh:mm a", { locale: bn })}</div><div><b>{ret.status === "rejected" ? "প্রত্যাখ্যান" : ret.status === "completed" ? "অনুমোদন" : "স্ট্যাটাস"}:</b> {ret.status === "pending" ? "অনুমোদনের অপেক্ষায়" : `${ret.approved_by_profile?.full_name || ret.approved_by_profile?.email || "সিস্টেম"} • ${ret.approved_at ? format(new Date(ret.approved_at), "dd MMM yyyy, hh:mm a", { locale: bn }) : ""}`}</div>{ret.rejected_reason && <div className="text-destructive"><b>কারণ:</b> {ret.rejected_reason}</div>}</div>
-
-              <div className="flex gap-2 justify-end flex-wrap"><Button size="sm" variant="outline" onClick={() => setDetailsReturn(ret)}><Eye className="h-4 w-4 mr-1" />বিস্তারিত</Button>{ret.status === "pending" && <Button size="sm" variant="outline" onClick={() => openEditDialog(ret)}><Edit className="h-4 w-4 mr-1" />এডিট</Button>}{ret.defect_photo_url && <Button size="sm" variant="outline" onClick={() => setPhotoPreviewUrl(ret.defect_photo_url)}><ImageIcon className="h-4 w-4 mr-1" />ছবি</Button>}<Button size="sm" variant="outline" onClick={() => generateSupplierReturnReceiptPdf(ret)}><Download className="h-4 w-4 mr-1" />PDF</Button>{ret.status === "completed" && <Button size="sm" variant="outline" onClick={() => printReceipt(ret)}><Printer className="h-4 w-4 mr-1" />রসিদ পুনঃপ্রিন্ট</Button>}{ret.status === "pending" && canApprove && <><Button size="sm" onClick={() => approveMutation.mutate(ret)} disabled={approveMutation.isPending}><CheckCircle className="h-4 w-4 mr-1" />অনুমোদন</Button><Button size="sm" variant="destructive" onClick={() => setRejectingId(ret.id)}><XCircle className="h-4 w-4 mr-1" />প্রত্যাখ্যান</Button></>}</div>
-            </Card>
-          ))}
+          {virtualReturns.map((ret: any) => <SupplierReturnCard key={ret.id} ret={ret} canApprove={canApprove} onDetails={setDetailsReturn} onEdit={openEditDialog} onPhoto={setPhotoPreviewUrl} onPdf={generateSupplierReturnReceiptPdf} onPrint={printReceipt} onApprove={(r: any) => approveMutation.mutate(r)} onReject={setRejectingId} />)}
           {bottomSpacer > 0 && <div style={{ height: bottomSpacer }} aria-hidden="true" />}
           {filteredReturns.length > renderLimit && <div className="flex justify-center"><Button variant="outline" size="sm" onClick={() => setRenderLimit((n) => Math.min(filteredReturns.length, n + 80))}>আরও দেখুন ({Math.max(0, filteredReturns.length - renderLimit)})</Button></div>}
           {filteredReturns.length === 0 && <Card className="p-12 text-center"><Package className="h-12 w-12 mx-auto text-muted-foreground mb-3" /><h3 className="font-semibold">কোনো সাপ্লায়ার রিটার্ন নেই</h3><p className="text-sm text-muted-foreground">নতুন রিটার্ন তৈরি করুন</p></Card>}

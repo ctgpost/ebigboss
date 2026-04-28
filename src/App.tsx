@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
@@ -11,7 +13,25 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import defaultLogo from "@/assets/334aa3a3-8497-400f-b941-84bfec2d732e.png";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      networkMode: "offlineFirst",
+      staleTime: 5 * 60 * 1000,
+      gcTime: 24 * 60 * 60 * 1000,
+      retry: 1,
+    },
+    mutations: {
+      networkMode: "online",
+    },
+  },
+});
+
+const queryPersister = createSyncStoragePersister({
+  storage: typeof window !== "undefined" ? window.localStorage : undefined,
+  key: "big-boss-offline-query-cache-v1",
+  throttleTime: 1000,
+});
 
 const App = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -63,7 +83,10 @@ const App = () => {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{ persister: queryPersister, maxAge: 24 * 60 * 60 * 1000 }}
+    >
       <TooltipProvider>
         <Toaster />
         <Sonner />
@@ -75,7 +98,7 @@ const App = () => {
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   );
 };
 
