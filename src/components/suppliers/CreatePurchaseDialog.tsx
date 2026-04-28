@@ -156,7 +156,7 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
             </div>
             {items.map((item, idx) => (
               <div key={idx} className="grid grid-cols-12 gap-2 mb-2 items-end">
-                <div className="flex-1">
+                <div className="col-span-12 md:col-span-6">
                   {idx === 0 && <label className="text-xs text-muted-foreground">প্রোডাক্ট</label>}
                   <Select value={item.product_id} onValueChange={(v) => selectProduct(idx, v)}>
                     <SelectTrigger className="h-9"><SelectValue placeholder="প্রোডাক্ট" /></SelectTrigger>
@@ -170,11 +170,11 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
                 <Button type="button" variant="outline" size="icon" className="h-9" onClick={() => setScannerIndex(idx)} title="বারকোড/IMEI স্ক্যান">
                   <ScanLine className="h-4 w-4" />
                 </Button>
-                <div className="w-20">
+                <div className="col-span-5 md:col-span-2">
                   {idx === 0 && <label className="text-xs text-muted-foreground">পরিমাণ</label>}
                   <Input type="number" min={1} value={item.quantity} onChange={(e) => updateItem(idx, "quantity", Number(e.target.value))} className="h-9" />
                 </div>
-                <div className="w-28">
+                <div className="col-span-5 md:col-span-3">
                   {idx === 0 && <label className="text-xs text-muted-foreground">দাম (৳)</label>}
                   <Input type="number" min={0} value={item.unit_cost || ""} onChange={(e) => updateItem(idx, "unit_cost", Number(e.target.value))} className="h-9" />
                 </div>
