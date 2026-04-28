@@ -207,7 +207,7 @@ export function SupplierReturns() {
       if (quantity < 1 || quantity > Number(selectedItem.received_quantity || selectedItem.quantity)) throw new Error("রিটার্ন পরিমাণ সঠিক নয়");
 
       const autoApprove = isAdmin;
-      const { data: ret, error } = await db.from("supplier_returns").insert({
+      const returnPayload = {
         supplier_id: selectedPurchase.supplier_id,
         purchase_id: selectedPurchase.id,
         reason_code: reasonCode,
@@ -222,11 +222,9 @@ export function SupplierReturns() {
         processed_by: userId,
         approved_by: null,
         approved_at: null,
-      }).select("*").single();
-      if (error) throw error;
+      };
 
       const returnItem = {
-        supplier_return_id: ret.id,
         purchase_item_id: selectedItem.id,
         product_id: selectedItem.product_id,
         quantity,
@@ -234,8 +232,18 @@ export function SupplierReturns() {
         total_cost: refundAmount,
         stock_deducted: false,
       };
-      const { error: itemError } = await db.from("supplier_return_items").insert(returnItem);
-      if (itemError) throw itemError;
+
+      let ret: any;
+      try {
+        const { data, error } = await db.from("supplier_returns").insert(returnPayload).select("*").single();
+        if (error) throw error;
+        ret = data;
+        const { error: itemError } = await db.from("supplier_return_items").insert({ ...returnItem, supplier_return_id: ret.id });
+        if (itemError) throw itemError;
+      } catch (error) {
+        queueIfOffline("supplier_return_create", { ...returnPayload, returnItem, autoApprove, actorId: userId }, error);
+        return { ...returnPayload, id: `offline-${Date.now()}`, supplier_return_items: [returnItem], status: "pending", suppliers: selectedPurchase.suppliers, purchases: selectedPurchase };
+      }
 
       const finalReturn = autoApprove ? await processSupplierReturn(ret, "approve") : ret;
 
@@ -253,7 +261,11 @@ export function SupplierReturns() {
   const approveMutation = useMutation({
     mutationFn: async (ret: any) => {
       if (!canApprove) throw new Error("অনুমোদনের অনুমতি নেই");
-      await processSupplierReturn(ret, "approve");
+      try {
+        await processSupplierReturn(ret, "approve");
+      } catch (error) {
+        queueIfOffline("supplier_return_process", { returnId: ret.id, action: "approve", actorId: userId }, error);
+      }
       await ActivityLogger.supplierReturnProcessed?.(ret.return_number, "completed", ret.suppliers?.name || "সাপ্লায়ার", Number(ret.refund_amount));
     },
     onSuccess: () => {
@@ -265,7 +277,11 @@ export function SupplierReturns() {
 
   const rejectMutation = useMutation({
     mutationFn: async ({ ret, reason }: { ret: any; reason: string }) => {
-      await processSupplierReturn(ret, "reject", reason);
+      try {
+        await processSupplierReturn(ret, "reject", reason);
+      } catch (error) {
+        queueIfOffline("supplier_return_process", { returnId: ret.id, action: "reject", actorId: userId, reason }, error);
+      }
       await ActivityLogger.supplierReturnProcessed?.(ret.return_number, "rejected", ret.suppliers?.name || "সাপ্লায়ার", Number(ret.refund_amount));
     },
     onSuccess: () => {
