@@ -116,7 +116,7 @@ export function SupplierReturns() {
           supplier_return_items(*, products(name, imei, brand, model, condition))
         `)
         .order("created_at", { ascending: false })
-        .limit(300);
+        .limit(2000);
       if (filterStatus !== "all") query = query.eq("status", filterStatus);
       const { data, error } = await query;
       if (error) throw error;
