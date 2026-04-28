@@ -24,6 +24,7 @@ import { ReturnAnalytics } from "./ReturnAnalytics";
 import { ReturnReceipt } from "./returns/ReturnReceipt";
 import { ReturnPhotoUpload } from "./returns/ReturnPhotoUpload";
 import { ZoomableImage } from "@/components/ui/zoomable-image";
+import { queueIfOffline } from "@/utils/offlineQueue";
 
 const db = supabase as any;
 
@@ -189,32 +190,40 @@ export function Returns() {
 
       const autoApprove = isAdmin && !isAuditOnly;
 
-      // 1. Insert return record
-      const { data: returnRow, error: retErr } = await supabase
+      const returnPayload = {
+        sale_id: selectedSale.id,
+        sale_item_id: selectedItem.id,
+        product_id: selectedItem.product_id,
+        quantity: returnQuantity,
+        refund_amount: refundAmount,
+        reason_code: reasonCode,
+        reason_notes: reasonNotes || null,
+        is_audit_only: isAuditOnly,
+        customer_id: selectedSale.customer_id,
+        status: isAuditOnly ? "completed" : "pending",
+        processed_by: userId,
+        approved_by: isAuditOnly ? userId : null,
+        approved_at: isAuditOnly ? new Date().toISOString() : null,
+        refund_method: refundMethod,
+        defect_photo_url: defectPhotoUrl,
+        exchange_product_id: refundMethod === "exchange" ? exchangeProductId || null : null,
+        exchange_quantity: refundMethod === "exchange" ? exchangeQty : 0,
+        exchange_unit_price: refundMethod === "exchange" ? exchangeUnitPrice : 0,
+      };
+
+      let returnRow: any;
+      try {
+        const { data, error: retErr } = await supabase
         .from("returns")
-        .insert([{
-          sale_id: selectedSale.id,
-          sale_item_id: selectedItem.id,
-          product_id: selectedItem.product_id,
-          quantity: returnQuantity,
-          refund_amount: refundAmount,
-          reason_code: reasonCode,
-          reason_notes: reasonNotes || null,
-          is_audit_only: isAuditOnly,
-          customer_id: selectedSale.customer_id,
-          status: isAuditOnly ? "completed" : "pending",
-          processed_by: userId,
-          approved_by: isAuditOnly ? userId : null,
-          approved_at: isAuditOnly ? new Date().toISOString() : null,
-          refund_method: refundMethod,
-          defect_photo_url: defectPhotoUrl,
-          exchange_product_id: refundMethod === "exchange" ? exchangeProductId || null : null,
-          exchange_quantity: refundMethod === "exchange" ? exchangeQty : 0,
-          exchange_unit_price: refundMethod === "exchange" ? exchangeUnitPrice : 0,
-        }])
+        .insert([returnPayload])
         .select("*, products(name)")
         .single();
-      if (retErr) throw retErr;
+        if (retErr) throw retErr;
+        returnRow = data;
+      } catch (error) {
+        queueIfOffline("sales_return_create", { ...returnPayload, autoApprove, actorId: userId }, error);
+        return { ...returnPayload, id: `offline-${Date.now()}`, status: "pending" };
+      }
 
       if (!autoApprove || isAuditOnly) {
         await ActivityLogger.returnCreated(
@@ -273,13 +282,12 @@ export function Returns() {
         .from("returns").select("*, products(name), sales(customer_id, customers(phone), instant_customer_phone)").eq("id", returnId).single();
       if (!ret) throw new Error("রিটার্ন পাওয়া যায়নি");
 
-      const { error } = await db.rpc("process_sales_return", {
-        _return_id: returnId,
-        _action: "approve",
-        _actor_id: userId,
-        _reject_reason: null,
-      });
-      if (error) throw error;
+      try {
+        const { error } = await db.rpc("process_sales_return", { _return_id: returnId, _action: "approve", _actor_id: userId, _reject_reason: null });
+        if (error) throw error;
+      } catch (error) {
+        queueIfOffline("sales_return_process", { returnId, action: "approve", actorId: userId }, error);
+      }
       await ActivityLogger.returnProcessed(returnId, "completed", ret.products?.name || "পণ্য", Number(ret.refund_amount));
       const phone = ret.sales?.customers?.phone || ret.sales?.instant_customer_phone;
       await sendCustomerSms(phone,
@@ -301,13 +309,12 @@ export function Returns() {
     mutationFn: async ({ returnId, reason }: { returnId: string; reason: string }) => {
       const { data: ret } = await supabase
         .from("returns").select("*, products(name), sales(customers(phone), instant_customer_phone)").eq("id", returnId).single();
-      const { error } = await db.rpc("process_sales_return", {
-        _return_id: returnId,
-        _action: "reject",
-        _actor_id: userId,
-        _reject_reason: reason,
-      });
-      if (error) throw error;
+      try {
+        const { error } = await db.rpc("process_sales_return", { _return_id: returnId, _action: "reject", _actor_id: userId, _reject_reason: reason });
+        if (error) throw error;
+      } catch (error) {
+        queueIfOffline("sales_return_process", { returnId, action: "reject", actorId: userId, reason }, error);
+      }
       await ActivityLogger.returnProcessed(returnId, "rejected", ret?.products?.name || "পণ্য", Number(ret?.refund_amount || 0));
       const phone = ret?.sales?.customers?.phone || ret?.sales?.instant_customer_phone;
       await sendCustomerSms(phone,
