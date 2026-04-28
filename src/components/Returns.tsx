@@ -25,6 +25,8 @@ import { ReturnReceipt } from "./returns/ReturnReceipt";
 import { ReturnPhotoUpload } from "./returns/ReturnPhotoUpload";
 import { ZoomableImage } from "@/components/ui/zoomable-image";
 
+const db = supabase as any;
+
 const REASON_LABELS: Record<string, string> = {
   defective: "ত্রুটিপূর্ণ পণ্য",
   wrong_item: "ভুল পণ্য",
@@ -200,14 +202,39 @@ export function Returns() {
     if (!searchSaleId.trim()) {
       toast.error("বিক্রয় আইডি লিখুন"); return;
     }
+    const term = searchSaleId.trim();
+    let saleId = term;
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(term)) {
+      const { data: matches, error: searchError } = await db.rpc("search_sale_ids_for_return", { _search: term, _limit: 2 });
+      if (searchError) throw searchError;
+      if (!matches?.length) { toast.error("বিক্রয় পাওয়া যায়নি"); return; }
+      if (matches.length > 1) toast.info("একাধিক মিল পাওয়া গেছে — সর্বশেষ বিক্রয়টি দেখানো হচ্ছে");
+      saleId = matches[0].id;
+    }
+
     const { data, error } = await supabase
       .from("sales")
       .select(`*, customers (name, phone),
         sale_items (*, products (name, imei, brand, condition))`)
-      .ilike("id", `%${searchSaleId.trim()}%`)
-      .maybeSingle();
+      .eq("id", saleId)
+      .single();
     if (error || !data) { toast.error("বিক্রয় পাওয়া যায়নি"); return; }
-    setSelectedSale(data);
+    const { data: existingReturns } = await supabase
+      .from("returns")
+      .select("sale_item_id, quantity, status")
+      .eq("sale_id", data.id)
+      .in("status", ["pending", "completed"]);
+    const returnedByItem = new Map<string, number>();
+    (existingReturns || []).forEach((r: any) => returnedByItem.set(r.sale_item_id, (returnedByItem.get(r.sale_item_id) || 0) + Number(r.quantity || 0)));
+    const saleWithAvailability = {
+      ...data,
+      sale_items: (data.sale_items || []).map((it: any) => ({
+        ...it,
+        already_returned_quantity: returnedByItem.get(it.id) || 0,
+        returnable_quantity: Math.max(0, Number(it.quantity || 0) - (returnedByItem.get(it.id) || 0)),
+      })),
+    };
+    setSelectedSale(saleWithAvailability);
   };
 
   // ─── Create return ──────────────────────────────────────────
