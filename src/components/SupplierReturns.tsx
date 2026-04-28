@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { bn } from "date-fns/locale";
@@ -76,6 +76,9 @@ export function SupplierReturns() {
   const [editStockAction, setEditStockAction] = useState<StockAction>("deduct_stock");
   const [editReturnMethod, setEditReturnMethod] = useState<ReturnMethod>("due_adjust");
   const [editReplacementNote, setEditReplacementNote] = useState("");
+  const listScrollRef = useRef<HTMLDivElement | null>(null);
+  const [listScrollTop, setListScrollTop] = useState(0);
+  const [renderLimit, setRenderLimit] = useState(40);
 
   const { data: suppliers } = useQuery({
     queryKey: ["supplier-return-suppliers"],
@@ -309,6 +312,23 @@ export function SupplierReturns() {
       bySupplier: Array.from(bySupplier.values()).sort((a, b) => b.amount - a.amount).slice(0, 5),
     };
   }, [supplierReturns]);
+
+  useEffect(() => {
+    setRenderLimit(40);
+    setListScrollTop(0);
+    listScrollRef.current?.scrollTo({ top: 0 });
+  }, [filterStatus, searchTerm]);
+
+  const rowEstimate = 260;
+  const viewportHeight = listScrollRef.current?.clientHeight || 720;
+  const virtualStart = Math.max(0, Math.floor(listScrollTop / rowEstimate) - 6);
+  const virtualEnd = Math.min(
+    filteredReturns.length,
+    Math.max(renderLimit, Math.ceil((listScrollTop + viewportHeight) / rowEstimate) + 8),
+  );
+  const virtualReturns = filteredReturns.slice(virtualStart, virtualEnd);
+  const topSpacer = virtualStart * rowEstimate;
+  const bottomSpacer = Math.max(0, (filteredReturns.length - virtualEnd) * rowEstimate);
 
   const printReceipt = (ret: any) => {
     const items = ret.supplier_return_items || [];
