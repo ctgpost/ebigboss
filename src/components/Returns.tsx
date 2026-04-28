@@ -244,9 +244,7 @@ export function Returns() {
       const refundAmount = Number(selectedItem.unit_price) * returnQuantity;
       const exchangeValue = refundMethod === "exchange" ? exchangeUnitPrice * exchangeQty : 0;
 
-      // Role-based auto-approval: admin = auto-approve, others = pending (unless audit-only).
       const autoApprove = isAdmin || isAuditOnly;
-      const finalStatus = autoApprove ? "completed" : "pending";
 
       // 1. Insert return record
       const { data: returnRow, error: retErr } = await supabase
@@ -261,10 +259,10 @@ export function Returns() {
           reason_notes: reasonNotes || null,
           is_audit_only: isAuditOnly,
           customer_id: selectedSale.customer_id,
-          status: finalStatus,
+          status: "pending",
           processed_by: userId,
-          approved_by: autoApprove ? userId : null,
-          approved_at: autoApprove ? new Date().toISOString() : null,
+          approved_by: null,
+          approved_at: null,
           refund_method: refundMethod,
           defect_photo_url: defectPhotoUrl,
           exchange_product_id: refundMethod === "exchange" ? exchangeProductId || null : null,
@@ -275,7 +273,6 @@ export function Returns() {
         .single();
       if (retErr) throw retErr;
 
-      // Stop here if pending or audit-only (no stock/finance side-effects)
       if (!autoApprove || isAuditOnly) {
         await ActivityLogger.returnCreated(
           selectedItem.products?.name || "পণ্য",
@@ -285,15 +282,12 @@ export function Returns() {
         return returnRow;
       }
 
-      // 2. Side-effects: stock + finance + ledger
-      await restoreStock(selectedItem.product_id, returnQuantity);
-      if (refundMethod === "exchange" && exchangeProductId && exchangeQty > 0) {
-        await reduceExchangeStock(exchangeProductId, exchangeQty);
-      }
-      await applyFinanceImpact(
-        selectedSale.id, selectedSale.customer_id, refundAmount, refundMethod,
-        selectedItem.products?.name || "পণ্য", returnRow.id, exchangeValue,
-      );
+      await db.rpc("process_sales_return", {
+        _return_id: returnRow.id,
+        _action: "approve",
+        _actor_id: userId,
+        _reject_reason: null,
+      });
 
       await ActivityLogger.returnCreated(
         selectedItem.products?.name || "পণ্য",
@@ -321,7 +315,7 @@ export function Returns() {
       );
       // Auto-show receipt for completed (non-audit) returns
       if (row?.status === "completed" && !row.is_audit_only) {
-        setReceiptRecord({ ...row, sales: selectedSale, products: { name: selectedItem.products?.name, imei: selectedItem.products?.imei, brand: selectedItem.products?.brand } });
+        setReceiptRecord({ ...row, status: "completed", sales: selectedSale, products: { name: selectedItem.products?.name, imei: selectedItem.products?.imei, brand: selectedItem.products?.brand } });
       }
       resetForm();
     },
