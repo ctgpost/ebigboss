@@ -8,7 +8,7 @@ import { ActivityLogger } from "@/hooks/useActivityLog";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -18,8 +18,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { ReturnPhotoUpload } from "@/components/returns/ReturnPhotoUpload";
 import { ZoomableImage } from "@/components/ui/zoomable-image";
+import { generateSupplierReturnReceiptPdf } from "@/utils/supplierReturnReceiptPdf";
 import { toast } from "sonner";
-import { BarChart3, CheckCircle, Clock, Edit, Eye, FileText, Package, Printer, RefreshCcw, Search, Truck, XCircle } from "lucide-react";
+import { BarChart3, CheckCircle, Clock, Download, Edit, Eye, FileText, Package, Printer, RefreshCcw, Search, Truck, XCircle } from "lucide-react";
 
 type ReturnMethod = "cash_refund" | "due_adjust" | "replacement";
 type FinanceAction = "none" | "supplier_refund" | "due_adjust";
@@ -100,9 +101,9 @@ export function SupplierReturns() {
   });
 
   const { data: supplierReturns, isLoading } = useQuery({
-    queryKey: ["supplier-returns"],
+    queryKey: ["supplier-returns", filterStatus],
     queryFn: async () => {
-      const { data, error } = await db
+      let query = db
         .from("supplier_returns")
         .select(`
           *,
@@ -110,7 +111,10 @@ export function SupplierReturns() {
           purchases(purchase_number, total_amount, paid_amount, due_amount),
           supplier_return_items(*, products(name, imei, brand, model, condition))
         `)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(300);
+      if (filterStatus !== "all") query = query.eq("status", filterStatus);
+      const { data, error } = await query;
       if (error) throw error;
 
       const ids = Array.from(new Set((data || []).flatMap((r: any) => [r.processed_by, r.approved_by]).filter(Boolean)));
@@ -125,6 +129,7 @@ export function SupplierReturns() {
         approved_by_profile: r.approved_by ? profiles[r.approved_by] : null,
       }));
     },
+    staleTime: 20_000,
   });
 
   const selectedPurchase = purchases?.find((p: any) => p.id === selectedPurchaseId);
