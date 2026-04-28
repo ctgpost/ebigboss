@@ -69,15 +69,24 @@ export default function Index({ user }: IndexProps) {
     const handleNavigateToCustomerDetails = () => {
       setActiveTab("customer-details");
     };
+    const handleNavigateToSupplierReturns = () => {
+      if (!permissions.canManageSuppliers) {
+        toast.error('আপনার "Supplier Returns" পেজে অ্যাক্সেস নেই');
+        return;
+      }
+      setActiveTab("supplier-returns");
+    };
     
     window.addEventListener('navigate-to-customers', handleNavigateToCustomers);
     window.addEventListener('navigate-to-categories', handleNavigateToCategories);
     window.addEventListener('navigate-to-customer-details', handleNavigateToCustomerDetails);
+    window.addEventListener('navigate-to-supplier-returns', handleNavigateToSupplierReturns);
     
     return () => {
       window.removeEventListener('navigate-to-customers', handleNavigateToCustomers);
       window.removeEventListener('navigate-to-categories', handleNavigateToCategories);
       window.removeEventListener('navigate-to-customer-details', handleNavigateToCustomerDetails);
+      window.removeEventListener('navigate-to-supplier-returns', handleNavigateToSupplierReturns);
     };
   }, [permissions]);
 
