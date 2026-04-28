@@ -163,8 +163,8 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products, 
 
           <div>
             <label className="block text-sm font-medium mb-2">আইটেমসমূহ</label>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3 rounded-lg border bg-muted/30 p-3">
-              <div className="relative md:col-span-1">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-2 mb-3 rounded-lg border bg-muted/30 p-3">
+              <div className="relative md:col-span-2">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="নাম, IMEI, SKU, বারকোড..." className="pl-9" />
               </div>
@@ -175,6 +175,14 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products, 
               <Select value={conditionFilter} onValueChange={setConditionFilter}>
                 <SelectTrigger><SelectValue placeholder="কন্ডিশন" /></SelectTrigger>
                 <SelectContent><SelectItem value="all">সব কন্ডিশন</SelectItem><SelectItem value="new">নতুন</SelectItem><SelectItem value="used">ব্যবহৃত</SelectItem></SelectContent>
+              </Select>
+              <Select value={poFilter} onValueChange={setPoFilter}>
+                <SelectTrigger><SelectValue placeholder="PO" /></SelectTrigger>
+                <SelectContent><SelectItem value="all">সব PO</SelectItem>{purchases.map((po: any) => <SelectItem key={po.id} value={po.id}>{po.purchase_number}</SelectItem>)}</SelectContent>
+              </Select>
+              <Select value={stockFilter} onValueChange={setStockFilter}>
+                <SelectTrigger><SelectValue placeholder="স্টক" /></SelectTrigger>
+                <SelectContent><SelectItem value="all">সব স্টক</SelectItem><SelectItem value="available">স্টকে আছে</SelectItem><SelectItem value="out">স্টক নেই</SelectItem></SelectContent>
               </Select>
             </div>
             {items.map((item, idx) => (
