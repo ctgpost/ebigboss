@@ -19,7 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { ReturnPhotoUpload } from "@/components/returns/ReturnPhotoUpload";
 import { ZoomableImage } from "@/components/ui/zoomable-image";
 import { toast } from "sonner";
-import { BarChart3, CheckCircle, Clock, FileText, Package, Printer, RefreshCcw, Search, Truck, XCircle } from "lucide-react";
+import { BarChart3, CheckCircle, Clock, Edit, Eye, FileText, Package, Printer, RefreshCcw, Search, Truck, XCircle } from "lucide-react";
 
 type ReturnMethod = "cash_refund" | "due_adjust" | "replacement";
 type FinanceAction = "none" | "supplier_refund" | "due_adjust";
@@ -68,6 +68,13 @@ export function SupplierReturns() {
   const [rejectReason, setRejectReason] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [detailsReturn, setDetailsReturn] = useState<any | null>(null);
+  const [editingReturn, setEditingReturn] = useState<any | null>(null);
+  const [editReasonCode, setEditReasonCode] = useState("defective");
+  const [editReasonNotes, setEditReasonNotes] = useState("");
+  const [editStockAction, setEditStockAction] = useState<StockAction>("deduct_stock");
+  const [editReturnMethod, setEditReturnMethod] = useState<ReturnMethod>("due_adjust");
+  const [editReplacementNote, setEditReplacementNote] = useState("");
 
   const { data: suppliers } = useQuery({
     queryKey: ["supplier-return-suppliers"],
@@ -138,42 +145,24 @@ export function SupplierReturns() {
     setIsDialogOpen(false);
   };
 
-  const deductStock = async (productId: string, qty: number) => {
-    const { data: product } = await db.from("products").select("stock_quantity").eq("id", productId).single();
-    if (!product) return;
-    await db.from("products").update({ stock_quantity: Math.max(0, Number(product.stock_quantity || 0) - qty) }).eq("id", productId);
+  const invalidateSupplierReturnData = () => {
+    queryClient.invalidateQueries({ queryKey: ["supplier-returns"] });
+    queryClient.invalidateQueries({ queryKey: ["purchases"] });
+    queryClient.invalidateQueries({ queryKey: ["supplier-return-purchases"] });
+    queryClient.invalidateQueries({ queryKey: ["products"] });
+    queryClient.invalidateQueries({ queryKey: ["supplier-payments-all"] });
   };
 
-  const applyFinance = async (ret: any, items: any[]) => {
-    if (!ret.purchase_id || ret.finance_action === "none") return;
-    const { data: purchase } = await db.from("purchases").select("total_amount, paid_amount, due_amount, status").eq("id", ret.purchase_id).single();
-    if (!purchase) return;
-
-    const newTotal = Math.max(0, Number(purchase.total_amount) - Number(ret.refund_amount));
-    let newPaid = Number(purchase.paid_amount || 0);
-
-    if ((ret.finance_action === "supplier_refund" || ret.finance_action === "due_adjust") && Number(ret.refund_amount) > 0) {
-      const ledgerAdjustment = Math.min(newPaid, Number(ret.refund_amount));
-      newPaid = Math.max(0, newPaid - ledgerAdjustment);
-      if (ledgerAdjustment > 0) {
-        await db.from("supplier_payments").insert({
-          supplier_id: ret.supplier_id,
-          purchase_id: ret.purchase_id,
-          supplier_return_id: ret.id,
-          amount: -ledgerAdjustment,
-          payment_method: ret.finance_action === "supplier_refund" ? "supplier_refund" : "supplier_due_adjust",
-          notes: `সাপ্লায়ার রিটার্ন ${ret.finance_action === "supplier_refund" ? "রিফান্ড" : "বাকি সমন্বয়"}: ${ret.return_number}`,
-          paid_by: userId,
-        });
-      }
-    }
-    const newDue = Math.max(0, newTotal - newPaid);
-    await db.from("purchases").update({
-      total_amount: newTotal,
-      paid_amount: newPaid,
-      due_amount: newDue,
-      status: newTotal === 0 ? "returned" : newDue <= 0 ? "paid" : purchase.status,
-    }).eq("id", ret.purchase_id);
+  const processSupplierReturn = async (ret: any, action: "approve" | "reject", reason?: string) => {
+    if (!userId) throw new Error("ব্যবহারকারী পাওয়া যায়নি");
+    const { data, error } = await db.rpc("process_supplier_return", {
+      _return_id: ret.id,
+      _action: action,
+      _actor_id: userId,
+      _reject_reason: reason || null,
+    });
+    if (error) throw error;
+    return data;
   };
 
   const createReturnMutation = useMutation({
