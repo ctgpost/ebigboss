@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -445,6 +445,7 @@ export function Returns() {
               <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>রিটার্ন তৈরি করুন</DialogTitle>
+                  <DialogDescription>বিক্রয় আইডি দিয়ে আইটেম খুঁজে রিটার্ন, রিফান্ড, এক্সচেঞ্জ বা অডিট নোট তৈরি করুন।</DialogDescription>
                 </DialogHeader>
                 {!selectedSale ? (
                   <div className="space-y-4 py-4">
@@ -803,6 +804,7 @@ export function Returns() {
             <DialogTitle className="flex items-center gap-2">
               <MessageSquare className="h-5 w-5 text-red-600" />প্রত্যাখ্যানের কারণ
             </DialogTitle>
+            <DialogDescription>অডিট টাইমলাইনে সংরক্ষণের জন্য প্রত্যাখ্যানের কারণ লিখুন।</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <Textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)}
