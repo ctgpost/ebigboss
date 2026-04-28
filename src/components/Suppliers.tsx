@@ -417,6 +417,7 @@ export function Suppliers() {
         onOpenChange={setIsPurchaseDialogOpen}
         suppliers={suppliers || []}
         products={products || []}
+        purchases={purchases || []}
       />
 
       <SupplierPaymentDialog
