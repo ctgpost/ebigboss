@@ -244,6 +244,38 @@ export function SupplierReturns() {
     onError: (e: any) => toast.error(e.message || "প্রত্যাখ্যান ব্যর্থ"),
   });
 
+  const openEditDialog = (ret: any) => {
+    if (ret.status !== "pending") return toast.error("শুধু অপেক্ষমাণ রিটার্ন এডিট করা যাবে");
+    setEditingReturn(ret);
+    setEditReasonCode(ret.reason_code || "defective");
+    setEditReasonNotes(ret.reason_notes || "");
+    setEditStockAction(ret.stock_action || "deduct_stock");
+    setEditReturnMethod(ret.return_method || "due_adjust");
+    setEditReplacementNote(ret.replacement_note || "");
+  };
+
+  const editMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingReturn || editingReturn.status !== "pending") throw new Error("শুধু অপেক্ষমাণ রিটার্ন এডিট করা যাবে");
+      const nextFinanceAction: FinanceAction = editReturnMethod === "cash_refund" ? "supplier_refund" : editReturnMethod === "due_adjust" ? "due_adjust" : "none";
+      const { error } = await db.from("supplier_returns").update({
+        reason_code: editReasonCode,
+        reason_notes: editReasonNotes || null,
+        stock_action: editStockAction,
+        return_method: editReturnMethod,
+        finance_action: nextFinanceAction,
+        replacement_note: editReplacementNote || null,
+      }).eq("id", editingReturn.id).eq("status", "pending");
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidateSupplierReturnData();
+      toast.success("সাপ্লায়ার রিটার্ন আপডেট হয়েছে");
+      setEditingReturn(null);
+    },
+    onError: (e: any) => toast.error(e.message || "আপডেট ব্যর্থ"),
+  });
+
   const filteredReturns = useMemo(() => {
     return (supplierReturns || []).filter((r: any) => {
       const matchesStatus = filterStatus === "all" || r.status === filterStatus;
