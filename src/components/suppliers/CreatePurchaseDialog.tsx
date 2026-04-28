@@ -29,7 +29,11 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
     { product_id: "", quantity: 1, unit_cost: 0 },
   ]);
 
-  const totalAmount = items.reduce((sum, item) => sum + item.quantity * item.unit_cost, 0);
+  const validItems = useMemo(
+    () => items.filter((item) => item.product_id && Number(item.quantity) > 0),
+    [items],
+  );
+  const totalAmount = validItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_cost || 0), 0);
   const brands = useMemo(() => Array.from(new Set((products || []).map(p => p.brand).filter(Boolean))).sort(), [products]);
   const filteredProducts = useMemo(() => {
     const q = productSearch.trim().toLowerCase();
@@ -47,14 +51,14 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
       if (!user) throw new Error("Not authenticated");
 
       const purchaseNumber = `PO-${Date.now()}`;
-      const validItems = items.filter(i => i.product_id && i.quantity > 0);
       if (validItems.length === 0) throw new Error("কমপক্ষে একটি আইটেম যুক্ত করুন");
+      if (!supplierId) throw new Error("সাপ্লায়ার নির্বাচন করুন");
 
       const { data: purchase, error: purchaseError } = await supabase
         .from("purchases")
         .insert({
           user_id: user.id,
-          supplier_id: supplierId || null,
+          supplier_id: supplierId,
           purchase_number: purchaseNumber,
           total_amount: totalAmount,
           due_amount: totalAmount,
