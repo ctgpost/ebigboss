@@ -307,15 +307,20 @@ export function SupplierReturns() {
     mutationFn: async () => {
       if (!editingReturn || editingReturn.status !== "pending") throw new Error("শুধু অপেক্ষমাণ রিটার্ন এডিট করা যাবে");
       const nextFinanceAction: FinanceAction = editReturnMethod === "cash_refund" ? "supplier_refund" : editReturnMethod === "due_adjust" ? "due_adjust" : "none";
-      const { error } = await db.from("supplier_returns").update({
+      const updates = {
         reason_code: editReasonCode,
         reason_notes: editReasonNotes || null,
         stock_action: editStockAction,
         return_method: editReturnMethod,
         finance_action: nextFinanceAction,
         replacement_note: editReplacementNote || null,
-      }).eq("id", editingReturn.id).eq("status", "pending");
-      if (error) throw error;
+      };
+      try {
+        const { error } = await db.from("supplier_returns").update(updates).eq("id", editingReturn.id).eq("status", "pending");
+        if (error) throw error;
+      } catch (error) {
+        queueIfOffline("supplier_return_edit", { id: editingReturn.id, updates }, error);
+      }
     },
     onSuccess: () => {
       invalidateSupplierReturnData();
@@ -359,6 +364,21 @@ export function SupplierReturns() {
     setListScrollTop(0);
     listScrollRef.current?.scrollTo({ top: 0 });
   }, [filterStatus, searchTerm]);
+
+  useEffect(() => {
+    let alive = true;
+    if (!photoPreviewUrl) {
+      setResolvedPhotoPreviewUrl(null);
+      return;
+    }
+    getCachedObjectUrl(photoPreviewUrl).then((url) => alive && setResolvedPhotoPreviewUrl(url));
+    return () => { alive = false; };
+  }, [photoPreviewUrl]);
+
+  const openPdf = (ret: any, format: "a4" | "letter" = "a4") => {
+    cacheSupplierReturnReceipt(ret);
+    generateSupplierReturnReceiptPdf(ret, format);
+  };
 
   const viewportHeight = listScrollRef.current?.clientHeight || 720;
   const virtualStart = Math.max(0, Math.floor(listScrollTop / ROW_ESTIMATE) - 6);
