@@ -19,6 +19,8 @@ import { Switch } from "@/components/ui/switch";
 import { ReturnPhotoUpload } from "@/components/returns/ReturnPhotoUpload";
 import { ZoomableImage } from "@/components/ui/zoomable-image";
 import { generateSupplierReturnReceiptPdf } from "@/utils/supplierReturnReceiptPdf";
+import { cacheSupplierReturnReceipt, getCachedObjectUrl } from "@/utils/offlineAssets";
+import { queueIfOffline } from "@/utils/offlineQueue";
 import { toast } from "sonner";
 import { BarChart3, CheckCircle, Clock, Download, Edit, Eye, FileText, Image as ImageIcon, Package, Printer, RefreshCcw, Search, Truck, XCircle } from "lucide-react";
 
@@ -96,6 +98,7 @@ export function SupplierReturns() {
   const [editReturnMethod, setEditReturnMethod] = useState<ReturnMethod>("due_adjust");
   const [editReplacementNote, setEditReplacementNote] = useState("");
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+  const [resolvedPhotoPreviewUrl, setResolvedPhotoPreviewUrl] = useState<string | null>(null);
   const listScrollRef = useRef<HTMLDivElement | null>(null);
   const [listScrollTop, setListScrollTop] = useState(0);
   const [renderLimit, setRenderLimit] = useState(40);
@@ -147,11 +150,13 @@ export function SupplierReturns() {
         const { data: profs } = await db.from("profiles").select("id, full_name, email").in("id", ids);
         profiles = Object.fromEntries((profs || []).map((p: any) => [p.id, p]));
       }
-      return (data || []).map((r: any) => ({
+      const rows = (data || []).map((r: any) => ({
         ...r,
         processed_by_profile: r.processed_by ? profiles[r.processed_by] : null,
         approved_by_profile: r.approved_by ? profiles[r.approved_by] : null,
       }));
+      rows.forEach(cacheSupplierReturnReceipt);
+      return rows;
     },
     staleTime: 5 * 60_000,
     gcTime: 24 * 60 * 60_000,
