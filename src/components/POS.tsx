@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { InvoiceModal } from "./InvoiceModal";
 import { BarcodeScanner } from "./BarcodeScanner";
 import { ActivityLogger } from "@/hooks/useActivityLog";
+import { queueIfOffline } from "@/utils/offlineQueue";
 
 // Sub-components
 import { CartItem, Product, Customer } from "./pos/types";
@@ -63,24 +64,33 @@ export function POS() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const { data: sale, error: saleError } = await supabase
+      const salePayload = {
+        user_id: user.id,
+        customer_id: saleData.customer_id,
+        total_amount: saleData.total_amount,
+        paid_amount: saleData.paid_amount,
+        due_amount: saleData.due_amount,
+        payment_method: saleData.payment_method,
+        status: "completed",
+        instant_customer_name: saleData.instant_customer_name,
+        instant_customer_phone: saleData.instant_customer_phone,
+        sale_image_url: saleData.sale_image_url,
+      };
+
+      let sale: any;
+      try {
+        const { data, error: saleError } = await supabase
         .from("sales")
-        .insert([{
-          user_id: user.id,
-          customer_id: saleData.customer_id,
-          total_amount: saleData.total_amount,
-          paid_amount: saleData.paid_amount,
-          due_amount: saleData.due_amount,
-          payment_method: saleData.payment_method,
-          status: "completed",
-          instant_customer_name: saleData.instant_customer_name,
-          instant_customer_phone: saleData.instant_customer_phone,
-          sale_image_url: saleData.sale_image_url,
-        }])
+        .insert([salePayload])
         .select("*, customers(*)")
         .single();
 
-      if (saleError) throw saleError;
+        if (saleError) throw saleError;
+        sale = data;
+      } catch (error) {
+        queueIfOffline("sales_complete", { sale: salePayload, items: saleData.items }, error);
+        return { ...salePayload, id: `offline-${Date.now()}`, created_at: new Date().toISOString(), sale_items: saleData.items.map((item: any) => ({ ...item, products: cart.find((c) => c.product.id === item.product_id)?.product })) };
+      }
 
       for (const item of saleData.items) {
         const { error: itemError } = await supabase

@@ -19,6 +19,8 @@ import { Switch } from "@/components/ui/switch";
 import { ReturnPhotoUpload } from "@/components/returns/ReturnPhotoUpload";
 import { ZoomableImage } from "@/components/ui/zoomable-image";
 import { generateSupplierReturnReceiptPdf } from "@/utils/supplierReturnReceiptPdf";
+import { cacheSupplierReturnReceipt, getCachedObjectUrl } from "@/utils/offlineAssets";
+import { queueIfOffline } from "@/utils/offlineQueue";
 import { toast } from "sonner";
 import { BarChart3, CheckCircle, Clock, Download, Edit, Eye, FileText, Image as ImageIcon, Package, Printer, RefreshCcw, Search, Truck, XCircle } from "lucide-react";
 
@@ -96,6 +98,7 @@ export function SupplierReturns() {
   const [editReturnMethod, setEditReturnMethod] = useState<ReturnMethod>("due_adjust");
   const [editReplacementNote, setEditReplacementNote] = useState("");
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+  const [resolvedPhotoPreviewUrl, setResolvedPhotoPreviewUrl] = useState<string | null>(null);
   const listScrollRef = useRef<HTMLDivElement | null>(null);
   const [listScrollTop, setListScrollTop] = useState(0);
   const [renderLimit, setRenderLimit] = useState(40);
@@ -147,11 +150,13 @@ export function SupplierReturns() {
         const { data: profs } = await db.from("profiles").select("id, full_name, email").in("id", ids);
         profiles = Object.fromEntries((profs || []).map((p: any) => [p.id, p]));
       }
-      return (data || []).map((r: any) => ({
+      const rows = (data || []).map((r: any) => ({
         ...r,
         processed_by_profile: r.processed_by ? profiles[r.processed_by] : null,
         approved_by_profile: r.approved_by ? profiles[r.approved_by] : null,
       }));
+      rows.forEach(cacheSupplierReturnReceipt);
+      return rows;
     },
     staleTime: 5 * 60_000,
     gcTime: 24 * 60 * 60_000,
@@ -202,7 +207,7 @@ export function SupplierReturns() {
       if (quantity < 1 || quantity > Number(selectedItem.received_quantity || selectedItem.quantity)) throw new Error("রিটার্ন পরিমাণ সঠিক নয়");
 
       const autoApprove = isAdmin;
-      const { data: ret, error } = await db.from("supplier_returns").insert({
+      const returnPayload = {
         supplier_id: selectedPurchase.supplier_id,
         purchase_id: selectedPurchase.id,
         reason_code: reasonCode,
@@ -217,11 +222,9 @@ export function SupplierReturns() {
         processed_by: userId,
         approved_by: null,
         approved_at: null,
-      }).select("*").single();
-      if (error) throw error;
+      };
 
       const returnItem = {
-        supplier_return_id: ret.id,
         purchase_item_id: selectedItem.id,
         product_id: selectedItem.product_id,
         quantity,
@@ -229,8 +232,18 @@ export function SupplierReturns() {
         total_cost: refundAmount,
         stock_deducted: false,
       };
-      const { error: itemError } = await db.from("supplier_return_items").insert(returnItem);
-      if (itemError) throw itemError;
+
+      let ret: any;
+      try {
+        const { data, error } = await db.from("supplier_returns").insert(returnPayload).select("*").single();
+        if (error) throw error;
+        ret = data;
+        const { error: itemError } = await db.from("supplier_return_items").insert({ ...returnItem, supplier_return_id: ret.id });
+        if (itemError) throw itemError;
+      } catch (error) {
+        queueIfOffline("supplier_return_create", { ...returnPayload, returnItem, autoApprove, actorId: userId }, error);
+        return { ...returnPayload, id: `offline-${Date.now()}`, supplier_return_items: [returnItem], status: "pending", suppliers: selectedPurchase.suppliers, purchases: selectedPurchase };
+      }
 
       const finalReturn = autoApprove ? await processSupplierReturn(ret, "approve") : ret;
 
@@ -248,7 +261,11 @@ export function SupplierReturns() {
   const approveMutation = useMutation({
     mutationFn: async (ret: any) => {
       if (!canApprove) throw new Error("অনুমোদনের অনুমতি নেই");
-      await processSupplierReturn(ret, "approve");
+      try {
+        await processSupplierReturn(ret, "approve");
+      } catch (error) {
+        queueIfOffline("supplier_return_process", { returnId: ret.id, action: "approve", actorId: userId }, error);
+      }
       await ActivityLogger.supplierReturnProcessed?.(ret.return_number, "completed", ret.suppliers?.name || "সাপ্লায়ার", Number(ret.refund_amount));
     },
     onSuccess: () => {
@@ -260,7 +277,11 @@ export function SupplierReturns() {
 
   const rejectMutation = useMutation({
     mutationFn: async ({ ret, reason }: { ret: any; reason: string }) => {
-      await processSupplierReturn(ret, "reject", reason);
+      try {
+        await processSupplierReturn(ret, "reject", reason);
+      } catch (error) {
+        queueIfOffline("supplier_return_process", { returnId: ret.id, action: "reject", actorId: userId, reason }, error);
+      }
       await ActivityLogger.supplierReturnProcessed?.(ret.return_number, "rejected", ret.suppliers?.name || "সাপ্লায়ার", Number(ret.refund_amount));
     },
     onSuccess: () => {
@@ -286,15 +307,20 @@ export function SupplierReturns() {
     mutationFn: async () => {
       if (!editingReturn || editingReturn.status !== "pending") throw new Error("শুধু অপেক্ষমাণ রিটার্ন এডিট করা যাবে");
       const nextFinanceAction: FinanceAction = editReturnMethod === "cash_refund" ? "supplier_refund" : editReturnMethod === "due_adjust" ? "due_adjust" : "none";
-      const { error } = await db.from("supplier_returns").update({
+      const updates = {
         reason_code: editReasonCode,
         reason_notes: editReasonNotes || null,
         stock_action: editStockAction,
         return_method: editReturnMethod,
         finance_action: nextFinanceAction,
         replacement_note: editReplacementNote || null,
-      }).eq("id", editingReturn.id).eq("status", "pending");
-      if (error) throw error;
+      };
+      try {
+        const { error } = await db.from("supplier_returns").update(updates).eq("id", editingReturn.id).eq("status", "pending");
+        if (error) throw error;
+      } catch (error) {
+        queueIfOffline("supplier_return_edit", { id: editingReturn.id, updates }, error);
+      }
     },
     onSuccess: () => {
       invalidateSupplierReturnData();
@@ -338,6 +364,21 @@ export function SupplierReturns() {
     setListScrollTop(0);
     listScrollRef.current?.scrollTo({ top: 0 });
   }, [filterStatus, searchTerm]);
+
+  useEffect(() => {
+    let alive = true;
+    if (!photoPreviewUrl) {
+      setResolvedPhotoPreviewUrl(null);
+      return;
+    }
+    getCachedObjectUrl(photoPreviewUrl).then((url) => alive && setResolvedPhotoPreviewUrl(url));
+    return () => { alive = false; };
+  }, [photoPreviewUrl]);
+
+  const openPdf = (ret: any, format: "a4" | "letter" = "a4") => {
+    cacheSupplierReturnReceipt(ret);
+    generateSupplierReturnReceiptPdf(ret, format);
+  };
 
   const viewportHeight = listScrollRef.current?.clientHeight || 720;
   const virtualStart = Math.max(0, Math.floor(listScrollTop / ROW_ESTIMATE) - 6);
@@ -430,7 +471,7 @@ export function SupplierReturns() {
           <div className="grid grid-cols-1 sm:grid-cols-[1fr_9rem] gap-2"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input className="pl-9" placeholder="রিটার্ন নম্বর, সাপ্লায়ার, মোবাইল, PO..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div><Select value={filterStatus} onValueChange={setFilterStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">সব</SelectItem><SelectItem value="pending">অপেক্ষমাণ</SelectItem><SelectItem value="completed">সম্পন্ন</SelectItem><SelectItem value="rejected">প্রত্যাখ্যাত</SelectItem></SelectContent></Select></div>
 
           {topSpacer > 0 && <div style={{ height: topSpacer }} aria-hidden="true" />}
-          {virtualReturns.map((ret: any) => <SupplierReturnCard key={ret.id} ret={ret} canApprove={canApprove} onDetails={setDetailsReturn} onEdit={openEditDialog} onPhoto={setPhotoPreviewUrl} onPdf={generateSupplierReturnReceiptPdf} onPrint={printReceipt} onApprove={(r: any) => approveMutation.mutate(r)} onReject={setRejectingId} />)}
+          {virtualReturns.map((ret: any) => <SupplierReturnCard key={ret.id} ret={ret} canApprove={canApprove} onDetails={setDetailsReturn} onEdit={openEditDialog} onPhoto={setPhotoPreviewUrl} onPdf={openPdf} onPrint={printReceipt} onApprove={(r: any) => approveMutation.mutate(r)} onReject={setRejectingId} />)}
           {bottomSpacer > 0 && <div style={{ height: bottomSpacer }} aria-hidden="true" />}
           {filteredReturns.length > renderLimit && <div className="flex justify-center"><Button variant="outline" size="sm" onClick={() => setRenderLimit((n) => Math.min(filteredReturns.length, n + 80))}>আরও দেখুন ({Math.max(0, filteredReturns.length - renderLimit)})</Button></div>}
           {filteredReturns.length === 0 && <Card className="p-12 text-center"><Package className="h-12 w-12 mx-auto text-muted-foreground mb-3" /><h3 className="font-semibold">কোনো সাপ্লায়ার রিটার্ন নেই</h3><p className="text-sm text-muted-foreground">নতুন রিটার্ন তৈরি করুন</p></Card>}
@@ -442,9 +483,9 @@ export function SupplierReturns() {
 
       <Dialog open={!!editingReturn} onOpenChange={(open) => { if (!open) setEditingReturn(null); }}><DialogContent><DialogHeader><DialogTitle>সাপ্লায়ার রিটার্ন এডিট</DialogTitle><DialogDescription>শুধু pending রিটার্নের কারণ, পদ্ধতি ও স্টক অ্যাকশন পরিবর্তন করা যাবে।</DialogDescription></DialogHeader><div className="space-y-3"><div className="grid grid-cols-1 md:grid-cols-2 gap-3"><div><Label className="mb-2 block">কারণ</Label><Select value={editReasonCode} onValueChange={setEditReasonCode}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(REASON_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent></Select></div><div><Label className="mb-2 block">রিটার্ন পদ্ধতি</Label><Select value={editReturnMethod} onValueChange={(v) => setEditReturnMethod(v as ReturnMethod)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="due_adjust">📒 বাকি সমন্বয়</SelectItem><SelectItem value="cash_refund">💵 সাপ্লায়ার নগদ ফেরত</SelectItem><SelectItem value="replacement">🔄 রিপ্লেসমেন্ট</SelectItem></SelectContent></Select></div></div><Card className="p-4 bg-muted/30"><div className="flex items-center justify-between gap-3"><div><Label className="font-semibold">অনুমোদনের সময় স্টক কমবে</Label><p className="text-xs text-muted-foreground">Completed হলে আর পরিবর্তন করা যাবে না</p></div><Switch checked={editStockAction === "deduct_stock"} onCheckedChange={(v) => setEditStockAction(v ? "deduct_stock" : "no_stock_change")} /></div></Card>{editReturnMethod === "replacement" && <div><Label className="mb-2 block">রিপ্লেসমেন্ট নোট</Label><Textarea value={editReplacementNote} onChange={(e) => setEditReplacementNote(e.target.value)} /></div>}<div><Label className="mb-2 block">বিস্তারিত মন্তব্য</Label><Textarea value={editReasonNotes} onChange={(e) => setEditReasonNotes(e.target.value)} /></div><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEditingReturn(null)}>বাতিল</Button><Button onClick={() => editMutation.mutate()} disabled={editMutation.isPending}>আপডেট করুন</Button></div></div></DialogContent></Dialog>
 
-      <Dialog open={!!detailsReturn} onOpenChange={(open) => { if (!open) setDetailsReturn(null); }}><DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>রিটার্ন বিস্তারিত — {detailsReturn?.return_number}</DialogTitle><DialogDescription>আইটেম, স্টক/ফাইন্যান্স প্রসেসিং, প্রমাণ ছবি ও approval timeline দেখুন।</DialogDescription></DialogHeader>{detailsReturn && <div className="space-y-4"><div className="flex justify-end gap-2 flex-wrap">{detailsReturn.defect_photo_url && <Button size="sm" variant="outline" onClick={() => setPhotoPreviewUrl(detailsReturn.defect_photo_url)}><ImageIcon className="h-4 w-4 mr-1" />ছবি প্রিভিউ</Button>}<Button size="sm" variant="outline" onClick={() => generateSupplierReturnReceiptPdf(detailsReturn)}><Download className="h-4 w-4 mr-1" />A4 PDF</Button><Button size="sm" variant="outline" onClick={() => generateSupplierReturnReceiptPdf(detailsReturn, "letter")}><Download className="h-4 w-4 mr-1" />Letter PDF</Button></div><div className="grid grid-cols-2 gap-3 text-sm"><Card className="p-3"><p className="text-muted-foreground">সাপ্লায়ার</p><b>{detailsReturn.suppliers?.name || "অজানা"}</b></Card><Card className="p-3"><p className="text-muted-foreground">PO</p><b>{detailsReturn.purchases?.purchase_number || "N/A"}</b></Card><Card className="p-3"><p className="text-muted-foreground">স্টক প্রসেসিং</p><b>{detailsReturn.stock_action === "deduct_stock" ? (detailsReturn.stock_applied ? "Applied" : "Pending") : "No change"}</b></Card><Card className="p-3"><p className="text-muted-foreground">ফাইন্যান্স প্রসেসিং</p><b>{detailsReturn.finance_action === "none" ? "No change" : detailsReturn.finance_applied ? `Applied ৳${Number(detailsReturn.applied_refund_amount || detailsReturn.refund_amount).toLocaleString("bn-BD")}` : "Pending"}</b></Card></div><div className="space-y-2">{detailsReturn.supplier_return_items?.map((it: any) => <Card key={it.id} className="p-3 text-sm"><b>{it.products?.name || "পণ্য"}</b><p className="text-muted-foreground">IMEI: {it.products?.imei || "N/A"} • Brand: {it.products?.brand || "N/A"} • Model: {it.products?.model || "N/A"}</p><p>Qty {it.quantity} × ৳{Number(it.unit_cost).toLocaleString("bn-BD")} = ৳{Number(it.total_cost).toLocaleString("bn-BD")}</p></Card>)}</div><Card className="p-3 text-sm"><b>অডিট টাইমলাইন</b><div className="mt-2 border-l-2 border-primary/30 pl-3 space-y-2"><div>তৈরি: {detailsReturn.processed_by_profile?.full_name || detailsReturn.processed_by_profile?.email || "সিস্টেম"} • {format(new Date(detailsReturn.created_at), "dd MMM yyyy, hh:mm a", { locale: bn })}</div>{detailsReturn.status !== "pending" ? <div>{detailsReturn.status === "completed" ? "অনুমোদন" : "প্রত্যাখ্যান"}: {detailsReturn.approved_by_profile?.full_name || detailsReturn.approved_by_profile?.email || "সিস্টেম"} • {detailsReturn.approved_at ? format(new Date(detailsReturn.approved_at), "dd MMM yyyy, hh:mm a", { locale: bn }) : ""}</div> : <div>স্ট্যাটাস: অনুমোদনের অপেক্ষায়</div>}{detailsReturn.rejected_reason && <div className="text-destructive">কারণ: {detailsReturn.rejected_reason}</div>}</div></Card>{detailsReturn.defect_photo_url && <div className="space-y-2"><ZoomableImage url={detailsReturn.defect_photo_url} alt="সাপ্লায়ার রিটার্ন প্রমাণ" displayWidth={120} displayHeight={120} /><button type="button" className="text-xs text-primary underline break-all text-left" onClick={() => setPhotoPreviewUrl(detailsReturn.defect_photo_url)}>প্রমাণ ছবির লিংক প্রিভিউ করুন</button></div>}</div>}</DialogContent></Dialog>
+      <Dialog open={!!detailsReturn} onOpenChange={(open) => { if (!open) setDetailsReturn(null); }}><DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>রিটার্ন বিস্তারিত — {detailsReturn?.return_number}</DialogTitle><DialogDescription>আইটেম, স্টক/ফাইন্যান্স প্রসেসিং, প্রমাণ ছবি ও approval timeline দেখুন।</DialogDescription></DialogHeader>{detailsReturn && <div className="space-y-4"><div className="flex justify-end gap-2 flex-wrap">{detailsReturn.defect_photo_url && <Button size="sm" variant="outline" onClick={() => setPhotoPreviewUrl(detailsReturn.defect_photo_url)}><ImageIcon className="h-4 w-4 mr-1" />ছবি প্রিভিউ</Button>}<Button size="sm" variant="outline" onClick={() => openPdf(detailsReturn)}><Download className="h-4 w-4 mr-1" />A4 PDF</Button><Button size="sm" variant="outline" onClick={() => openPdf(detailsReturn, "letter")}><Download className="h-4 w-4 mr-1" />Letter PDF</Button></div><div className="grid grid-cols-2 gap-3 text-sm"><Card className="p-3"><p className="text-muted-foreground">সাপ্লায়ার</p><b>{detailsReturn.suppliers?.name || "অজানা"}</b></Card><Card className="p-3"><p className="text-muted-foreground">PO</p><b>{detailsReturn.purchases?.purchase_number || "N/A"}</b></Card><Card className="p-3"><p className="text-muted-foreground">স্টক প্রসেসিং</p><b>{detailsReturn.stock_action === "deduct_stock" ? (detailsReturn.stock_applied ? "Applied" : "Pending") : "No change"}</b></Card><Card className="p-3"><p className="text-muted-foreground">ফাইন্যান্স প্রসেসিং</p><b>{detailsReturn.finance_action === "none" ? "No change" : detailsReturn.finance_applied ? `Applied ৳${Number(detailsReturn.applied_refund_amount || detailsReturn.refund_amount).toLocaleString("bn-BD")}` : "Pending"}</b></Card></div><div className="space-y-2">{detailsReturn.supplier_return_items?.map((it: any) => <Card key={it.id} className="p-3 text-sm"><b>{it.products?.name || "পণ্য"}</b><p className="text-muted-foreground">IMEI: {it.products?.imei || "N/A"} • Brand: {it.products?.brand || "N/A"} • Model: {it.products?.model || "N/A"}</p><p>Qty {it.quantity} × ৳{Number(it.unit_cost).toLocaleString("bn-BD")} = ৳{Number(it.total_cost).toLocaleString("bn-BD")}</p></Card>)}</div><Card className="p-3 text-sm"><b>অডিট টাইমলাইন</b><div className="mt-2 border-l-2 border-primary/30 pl-3 space-y-2"><div>তৈরি: {detailsReturn.processed_by_profile?.full_name || detailsReturn.processed_by_profile?.email || "সিস্টেম"} • {format(new Date(detailsReturn.created_at), "dd MMM yyyy, hh:mm a", { locale: bn })}</div>{detailsReturn.status !== "pending" ? <div>{detailsReturn.status === "completed" ? "অনুমোদন" : "প্রত্যাখ্যান"}: {detailsReturn.approved_by_profile?.full_name || detailsReturn.approved_by_profile?.email || "সিস্টেম"} • {detailsReturn.approved_at ? format(new Date(detailsReturn.approved_at), "dd MMM yyyy, hh:mm a", { locale: bn }) : ""}</div> : <div>স্ট্যাটাস: অনুমোদনের অপেক্ষায়</div>}{detailsReturn.rejected_reason && <div className="text-destructive">কারণ: {detailsReturn.rejected_reason}</div>}</div></Card>{detailsReturn.defect_photo_url && <div className="space-y-2"><ZoomableImage url={detailsReturn.defect_photo_url} alt="সাপ্লায়ার রিটার্ন প্রমাণ" displayWidth={120} displayHeight={120} /><button type="button" className="text-xs text-primary underline break-all text-left" onClick={() => setPhotoPreviewUrl(detailsReturn.defect_photo_url)}>প্রমাণ ছবির লিংক প্রিভিউ করুন</button></div>}</div>}</DialogContent></Dialog>
 
-      <Dialog open={!!photoPreviewUrl} onOpenChange={(open) => { if (!open) setPhotoPreviewUrl(null); }}><DialogContent className="max-w-3xl"><DialogHeader><DialogTitle>ত্রুটির ছবি প্রিভিউ</DialogTitle><DialogDescription>PDF-এর defect photo link যাচাই করার জন্য ছবি দেখুন।</DialogDescription></DialogHeader>{photoPreviewUrl && <div className="space-y-3"><img src={photoPreviewUrl} alt="সাপ্লায়ার রিটার্ন ত্রুটির ছবি" className="max-h-[70vh] w-full object-contain rounded-md border" /><a href={photoPreviewUrl} target="_blank" rel="noreferrer" className="text-xs text-primary underline break-all">{photoPreviewUrl}</a></div>}</DialogContent></Dialog>
+      <Dialog open={!!photoPreviewUrl} onOpenChange={(open) => { if (!open) setPhotoPreviewUrl(null); }}><DialogContent className="max-w-3xl"><DialogHeader><DialogTitle>ত্রুটির ছবি প্রিভিউ</DialogTitle><DialogDescription>PDF-এর defect photo link যাচাই করার জন্য ছবি দেখুন।</DialogDescription></DialogHeader>{photoPreviewUrl && <div className="space-y-3"><img src={resolvedPhotoPreviewUrl || photoPreviewUrl} alt="সাপ্লায়ার রিটার্ন ত্রুটির ছবি" className="max-h-[70vh] w-full object-contain rounded-md border" /><a href={photoPreviewUrl} target="_blank" rel="noreferrer" className="text-xs text-primary underline break-all">{photoPreviewUrl}</a></div>}</DialogContent></Dialog>
     </div>
   );
 }

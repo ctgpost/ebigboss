@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { queueIfOffline } from "@/utils/offlineQueue";
 import { format } from "date-fns";
 import { generateCustomerReport } from "@/utils/customerPdfReport";
 import { useShopSettings } from "@/hooks/useShopSettings";
@@ -108,8 +109,12 @@ export function Customers() {
 
   const addMutation = useMutation({
     mutationFn: async (data: any) => {
-      const { error } = await supabase.from("customers").insert([data]);
-      if (error) throw error;
+      try {
+        const { error } = await supabase.from("customers").insert([data]);
+        if (error) throw error;
+      } catch (error) {
+        queueIfOffline("customer_insert", { data }, error);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
@@ -124,8 +129,12 @@ export function Customers() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const { error } = await supabase.from("customers").update(data).eq("id", id);
-      if (error) throw error;
+      try {
+        const { error } = await supabase.from("customers").update(data).eq("id", id);
+        if (error) throw error;
+      } catch (error) {
+        queueIfOffline("customer_update", { id, data }, error);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });

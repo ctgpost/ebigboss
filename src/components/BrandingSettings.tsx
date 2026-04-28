@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { useShopSettings } from "@/hooks/useShopSettings";
 import { FieldError } from "@/components/ui/field-error";
 import { shopSettingsSchema, validateInline } from "@/utils/validation";
+import { queueIfOffline } from "@/utils/offlineQueue";
 
 export function BrandingSettings() {
   const { settings, logoSrc, refetch } = useShopSettings();
@@ -51,21 +52,24 @@ export function BrandingSettings() {
 
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from("shop_settings")
-        .update({
-          shop_name: shopName,
-          shop_subtitle: shopSubtitle,
-          shop_address: shopAddress,
-          shop_phone: shopPhone,
-        })
-        .eq("id", settings.id);
+      const updates = {
+        shop_name: shopName,
+        shop_subtitle: shopSubtitle,
+        shop_address: shopAddress,
+        shop_phone: shopPhone,
+      };
+      const { error } = await supabase.from("shop_settings").update(updates).eq("id", settings.id);
 
       if (error) throw error;
       toast.success("ব্র্যান্ডিং সেটিংস সংরক্ষিত হয়েছে!");
       refetch();
     } catch (error: any) {
-      toast.error("সংরক্ষণ ব্যর্থ: " + error.message);
+      try {
+        queueIfOffline("shop_settings_update", { id: settings.id, updates: { shop_name: shopName, shop_subtitle: shopSubtitle, shop_address: shopAddress, shop_phone: shopPhone } }, error);
+        toast.success("ইন্টারনেট এলে সেটিংস sync হবে");
+      } catch (e: any) {
+        toast.error("সংরক্ষণ ব্যর্থ: " + e.message);
+      }
     } finally {
       setSaving(false);
     }
