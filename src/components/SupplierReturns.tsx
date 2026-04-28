@@ -136,7 +136,7 @@ export function SupplierReturns() {
           supplier_return_items(*, products(name, imei, brand, model, condition))
         `)
         .order("created_at", { ascending: false })
-        .limit(2000);
+        .limit(PAGE_SIZE);
       if (filterStatus !== "all") query = query.eq("status", filterStatus);
       const { data, error } = await query;
       if (error) throw error;
@@ -153,8 +153,8 @@ export function SupplierReturns() {
         approved_by_profile: r.approved_by ? profiles[r.approved_by] : null,
       }));
     },
-    staleTime: 60_000,
-    gcTime: 5 * 60_000,
+    staleTime: 5 * 60_000,
+    gcTime: 24 * 60 * 60_000,
   });
 
   const selectedPurchase = purchases?.find((p: any) => p.id === selectedPurchaseId);
@@ -339,16 +339,15 @@ export function SupplierReturns() {
     listScrollRef.current?.scrollTo({ top: 0 });
   }, [filterStatus, searchTerm]);
 
-  const rowEstimate = 260;
   const viewportHeight = listScrollRef.current?.clientHeight || 720;
-  const virtualStart = Math.max(0, Math.floor(listScrollTop / rowEstimate) - 6);
+  const virtualStart = Math.max(0, Math.floor(listScrollTop / ROW_ESTIMATE) - 6);
   const virtualEnd = Math.min(
     filteredReturns.length,
-    Math.max(renderLimit, Math.ceil((listScrollTop + viewportHeight) / rowEstimate) + 8),
+    Math.max(renderLimit, Math.ceil((listScrollTop + viewportHeight) / ROW_ESTIMATE) + 8),
   );
   const virtualReturns = filteredReturns.slice(virtualStart, virtualEnd);
-  const topSpacer = virtualStart * rowEstimate;
-  const bottomSpacer = Math.max(0, (filteredReturns.length - virtualEnd) * rowEstimate);
+  const topSpacer = virtualStart * ROW_ESTIMATE;
+  const bottomSpacer = Math.max(0, (filteredReturns.length - virtualEnd) * ROW_ESTIMATE);
 
   const printReceipt = (ret: any) => {
     const items = ret.supplier_return_items || [];
