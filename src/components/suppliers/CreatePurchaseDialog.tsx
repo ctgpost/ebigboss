@@ -123,6 +123,7 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>নতুন ক্রয় অর্ডার</DialogTitle>
+          <DialogDescription>প্রোডাক্ট সার্চ, ফিল্টার বা বারকোড/IMEI স্ক্যান করে দ্রুত আইটেম যোগ করুন।</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div>
@@ -139,19 +140,36 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
 
           <div>
             <label className="block text-sm font-medium mb-2">আইটেমসমূহ</label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3 rounded-lg border bg-muted/30 p-3">
+              <div className="relative md:col-span-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="নাম, IMEI, SKU, বারকোড..." className="pl-9" />
+              </div>
+              <Select value={brandFilter} onValueChange={setBrandFilter}>
+                <SelectTrigger><Filter className="h-4 w-4 mr-2" /><SelectValue placeholder="ব্র্যান্ড" /></SelectTrigger>
+                <SelectContent><SelectItem value="all">সব ব্র্যান্ড</SelectItem>{brands.map((b: string) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
+              </Select>
+              <Select value={conditionFilter} onValueChange={setConditionFilter}>
+                <SelectTrigger><SelectValue placeholder="কন্ডিশন" /></SelectTrigger>
+                <SelectContent><SelectItem value="all">সব কন্ডিশন</SelectItem><SelectItem value="new">নতুন</SelectItem><SelectItem value="used">ব্যবহৃত</SelectItem></SelectContent>
+              </Select>
+            </div>
             {items.map((item, idx) => (
-              <div key={idx} className="flex gap-2 mb-2 items-end">
+              <div key={idx} className="grid grid-cols-12 gap-2 mb-2 items-end">
                 <div className="flex-1">
                   {idx === 0 && <label className="text-xs text-muted-foreground">প্রোডাক্ট</label>}
-                  <Select value={item.product_id} onValueChange={(v) => updateItem(idx, "product_id", v)}>
+                  <Select value={item.product_id} onValueChange={(v) => selectProduct(idx, v)}>
                     <SelectTrigger className="h-9"><SelectValue placeholder="প্রোডাক্ট" /></SelectTrigger>
                     <SelectContent>
-                      {products?.map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.name} {p.imei ? `(${p.imei})` : ""}</SelectItem>
+                      {filteredProducts?.map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.name} {p.imei ? `(${p.imei})` : ""} {p.brand ? `• ${p.brand}` : ""}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
+                <Button type="button" variant="outline" size="icon" className="h-9" onClick={() => setScannerIndex(idx)} title="বারকোড/IMEI স্ক্যান">
+                  <ScanLine className="h-4 w-4" />
+                </Button>
                 <div className="w-20">
                   {idx === 0 && <label className="text-xs text-muted-foreground">পরিমাণ</label>}
                   <Input type="number" min={1} value={item.quantity} onChange={(e) => updateItem(idx, "quantity", Number(e.target.value))} className="h-9" />
@@ -186,6 +204,7 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products }
           </div>
         </div>
       </DialogContent>
+      <BarcodeScanner isOpen={scannerIndex !== null} onClose={() => setScannerIndex(null)} onScan={handleBarcodeScan} title="ক্রয় অর্ডারের প্রোডাক্ট স্ক্যান" />
     </Dialog>
   );
 }
