@@ -20,7 +20,7 @@ import { ReturnPhotoUpload } from "@/components/returns/ReturnPhotoUpload";
 import { ZoomableImage } from "@/components/ui/zoomable-image";
 import { generateSupplierReturnReceiptPdf } from "@/utils/supplierReturnReceiptPdf";
 import { toast } from "sonner";
-import { BarChart3, CheckCircle, Clock, Download, Edit, Eye, FileText, Package, Printer, RefreshCcw, Search, Truck, XCircle } from "lucide-react";
+import { BarChart3, CheckCircle, Clock, Download, Edit, Eye, FileText, Image as ImageIcon, Package, Printer, RefreshCcw, Search, Truck, XCircle } from "lucide-react";
 
 type ReturnMethod = "cash_refund" | "due_adjust" | "replacement";
 type FinanceAction = "none" | "supplier_refund" | "due_adjust";
@@ -76,6 +76,7 @@ export function SupplierReturns() {
   const [editStockAction, setEditStockAction] = useState<StockAction>("deduct_stock");
   const [editReturnMethod, setEditReturnMethod] = useState<ReturnMethod>("due_adjust");
   const [editReplacementNote, setEditReplacementNote] = useState("");
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
   const listScrollRef = useRef<HTMLDivElement | null>(null);
   const [listScrollTop, setListScrollTop] = useState(0);
   const [renderLimit, setRenderLimit] = useState(40);
