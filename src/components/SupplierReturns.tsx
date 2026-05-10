@@ -339,13 +339,14 @@ export function SupplierReturns() {
   });
 
   const filteredReturns = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase();
+    const q = deferredSearchTerm.toLowerCase();
     return (supplierReturns || []).filter((r: any) => {
       const matchesStatus = filterStatus === "all" || r.status === filterStatus;
-      const needle = `${r.return_number} ${r.suppliers?.name || ""} ${r.suppliers?.phone || ""} ${r.purchases?.purchase_number || ""}`.toLowerCase();
+      const itemText = r.supplier_return_items?.map((it: any) => `${it.products?.name || ""} ${it.products?.imei || ""} ${it.products?.brand || ""} ${it.products?.model || ""}`).join(" ") || "";
+      const needle = `${r.return_number} ${r.id} ${r.suppliers?.name || ""} ${r.suppliers?.phone || ""} ${r.purchases?.purchase_number || ""} ${r.reason_code || ""} ${r.reason_notes || ""} ${r.defect_photo_url || ""} ${itemText}`.toLowerCase();
       return matchesStatus && (!q || needle.includes(q));
     });
-  }, [supplierReturns, filterStatus, searchTerm]);
+  }, [supplierReturns, filterStatus, deferredSearchTerm]);
 
   const analytics = useMemo(() => {
     const completed = (supplierReturns || []).filter((r: any) => r.status === "completed");
@@ -371,7 +372,7 @@ export function SupplierReturns() {
     setRenderLimit(40);
     setListScrollTop(0);
     listScrollRef.current?.scrollTo({ top: 0 });
-  }, [filterStatus, searchTerm]);
+  }, [filterStatus, deferredSearchTerm]);
 
   useEffect(() => {
     let alive = true;
