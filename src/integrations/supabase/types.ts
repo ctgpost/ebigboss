@@ -1037,6 +1037,17 @@ export type Database = {
           id: string
         }[]
       }
+      search_supplier_return_ids: {
+        Args: {
+          _limit?: number
+          _offset?: number
+          _search: string
+          _status?: string
+        }
+        Returns: {
+          id: string
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "manager" | "staff"
