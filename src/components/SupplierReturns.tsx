@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { bn } from "date-fns/locale";
@@ -102,6 +102,7 @@ export function SupplierReturns() {
   const listScrollRef = useRef<HTMLDivElement | null>(null);
   const [listScrollTop, setListScrollTop] = useState(0);
   const [renderLimit, setRenderLimit] = useState(40);
+  const deferredSearchTerm = useDeferredValue(searchTerm.trim());
 
   const { data: suppliers } = useQuery({
     queryKey: ["supplier-return-suppliers"],
@@ -128,29 +129,35 @@ export function SupplierReturns() {
   });
 
   const { data: supplierReturns, isLoading } = useQuery({
-    queryKey: ["supplier-returns", filterStatus],
+    queryKey: ["supplier-returns", filterStatus, deferredSearchTerm],
     queryFn: async () => {
-      let query = db
-        .from("supplier_returns")
-        .select(`
+      const baseSelect = `
           *,
           suppliers(name, phone, image_url),
           purchases(purchase_number, total_amount, paid_amount, due_amount),
           supplier_return_items(*, products(name, imei, brand, model, condition))
-        `)
-        .order("created_at", { ascending: false })
-        .limit(PAGE_SIZE);
-      if (filterStatus !== "all") query = query.eq("status", filterStatus);
+        `;
+      let query = db.from("supplier_returns").select(baseSelect).order("created_at", { ascending: false }).limit(PAGE_SIZE);
+      if (deferredSearchTerm) {
+        const { data: ids, error: searchError } = await db.rpc("search_supplier_return_ids", { _search: deferredSearchTerm, _status: filterStatus, _limit: PAGE_SIZE, _offset: 0 });
+        if (searchError) throw searchError;
+        const orderedIds = (ids || []).map((x: any) => x.id);
+        if (!orderedIds.length) return [];
+        query = db.from("supplier_returns").select(baseSelect).in("id", orderedIds);
+      } else if (filterStatus !== "all") query = query.eq("status", filterStatus);
       const { data, error } = await query;
       if (error) throw error;
+      const orderedData = deferredSearchTerm
+        ? (idsOrder(data || [], deferredSearchTerm) as any[])
+        : (data || []);
 
-      const ids = Array.from(new Set((data || []).flatMap((r: any) => [r.processed_by, r.approved_by]).filter(Boolean)));
+      const ids = Array.from(new Set(orderedData.flatMap((r: any) => [r.processed_by, r.approved_by]).filter(Boolean)));
       let profiles: Record<string, any> = {};
       if (ids.length) {
         const { data: profs } = await db.from("profiles").select("id, full_name, email").in("id", ids);
         profiles = Object.fromEntries((profs || []).map((p: any) => [p.id, p]));
       }
-      const rows = (data || []).map((r: any) => ({
+      const rows = orderedData.map((r: any) => ({
         ...r,
         processed_by_profile: r.processed_by ? profiles[r.processed_by] : null,
         approved_by_profile: r.approved_by ? profiles[r.approved_by] : null,
