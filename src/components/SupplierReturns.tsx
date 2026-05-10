@@ -138,17 +138,18 @@ export function SupplierReturns() {
           supplier_return_items(*, products(name, imei, brand, model, condition))
         `;
       let query = db.from("supplier_returns").select(baseSelect).order("created_at", { ascending: false }).limit(PAGE_SIZE);
+      let orderedIds: string[] = [];
       if (deferredSearchTerm) {
         const { data: ids, error: searchError } = await db.rpc("search_supplier_return_ids", { _search: deferredSearchTerm, _status: filterStatus, _limit: PAGE_SIZE, _offset: 0 });
         if (searchError) throw searchError;
-        const orderedIds = (ids || []).map((x: any) => x.id);
+        orderedIds = (ids || []).map((x: any) => x.id);
         if (!orderedIds.length) return [];
         query = db.from("supplier_returns").select(baseSelect).in("id", orderedIds);
       } else if (filterStatus !== "all") query = query.eq("status", filterStatus);
       const { data, error } = await query;
       if (error) throw error;
       const orderedData = deferredSearchTerm
-        ? (idsOrder(data || [], deferredSearchTerm) as any[])
+        ? orderedIds.map((id) => (data || []).find((r: any) => r.id === id)).filter(Boolean)
         : (data || []);
 
       const ids = Array.from(new Set(orderedData.flatMap((r: any) => [r.processed_by, r.approved_by]).filter(Boolean)));
