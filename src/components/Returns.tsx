@@ -359,6 +359,7 @@ export function Returns() {
   // ─── UI helpers ─────────────────────────────────────────────
   const resetForm = () => {
     setSearchSaleId(""); setSelectedSale(null); setSelectedItem(null);
+    setSaleSearchResults([]);
     setReturnQuantity(1); setReasonCode("defective"); setReasonNotes("");
     setIsAuditOnly(false); setRefundMethod("cash"); setDefectPhotoUrl(null);
     setExchangeProductId(""); setExchangeQty(1); setExchangeUnitPrice(0);
@@ -696,7 +697,7 @@ export function Returns() {
                         <Package className="h-5 w-5 text-primary" />
                       </div>
                       <div className="min-w-0">
-                        <h3 className="font-semibold truncate">{ret.products?.name}</h3>
+                        <h3 className="font-semibold break-words">{ret.products?.name}</h3>
                         <p className="text-xs text-muted-foreground font-mono">{ret.return_number || `#${ret.id.slice(0, 8)}`}</p>
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                           {ret.products?.imei && <Badge variant="outline" className="text-[10px]">IMEI: {ret.products.imei}</Badge>}
@@ -723,7 +724,7 @@ export function Returns() {
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm p-3 bg-muted/30 rounded mb-3">
-                    <div><p className="text-xs text-muted-foreground">বিক্রয়</p><p className="font-mono">{ret.sale_id.slice(0, 8)}</p></div>
+                    <div><p className="text-xs text-muted-foreground">ইনভয়েস</p><p className="font-mono">#{ret.sale_id.slice(0, 8)}</p></div>
                     <div><p className="text-xs text-muted-foreground">পরিমাণ</p><p>{ret.quantity}টি</p></div>
                     <div><p className="text-xs text-muted-foreground">{ret.is_audit_only ? "নোট মূল্য" : "রিফান্ড"}</p><p className="text-primary font-semibold">৳{Number(ret.refund_amount).toLocaleString("bn-BD")}</p></div>
                     <div><p className="text-xs text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" />তারিখ</p><p>{format(new Date(ret.created_at), "dd MMM yy", { locale: bn })}</p></div>
