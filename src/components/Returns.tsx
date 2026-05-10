@@ -428,16 +428,33 @@ export function Returns() {
                 </DialogHeader>
                 {!selectedSale ? (
                   <div className="space-y-4 py-4">
-                    <Label className="block">বিক্রয় আইডি দিয়ে খুঁজুন</Label>
+                    <Label className="block">বিক্রয়/ইনভয়েস/IMEI/বারকোড/ক্রেতা দিয়ে খুঁজুন</Label>
                     <div className="flex gap-2">
                       <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input value={searchSaleId} onChange={(e) => setSearchSaleId(e.target.value)}
-                          placeholder="বিক্রয় আইডি..." className="pl-9"
+                          placeholder="Invoice #, Sale ID, IMEI, barcode, mobile..." className="pl-9"
                           onKeyDown={(e) => e.key === "Enter" && searchSale()} />
                       </div>
                       <Button onClick={searchSale}><Search className="h-4 w-4 mr-1" />খুঁজুন</Button>
                     </div>
+                    {saleSearchResults.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">মিল পাওয়া বিক্রয়</p>
+                        {saleSearchResults.map((sale: any) => (
+                          <Card key={sale.id} className="p-3 bg-muted/30">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                              <div className="min-w-0 text-sm">
+                                <p className="font-semibold">Invoice #{sale.id.slice(0, 8)} • {format(new Date(sale.created_at), "dd MMM yyyy", { locale: bn })}</p>
+                                <p className="text-muted-foreground break-words">{sale.customers?.name || sale.instant_customer_name || "সাধারণ ক্রেতা"} {sale.customers?.phone || sale.instant_customer_phone ? `• ${sale.customers?.phone || sale.instant_customer_phone}` : ""}</p>
+                                <p className="text-xs text-muted-foreground break-all">{sale.sale_items?.map((it: any) => `${it.products?.name || "পণ্য"}${it.products?.imei ? ` (${it.products.imei})` : ""}`).join(" • ")}</p>
+                              </div>
+                              <Button size="sm" onClick={() => selectSaleForReturn(sale.id)}>নির্বাচন</Button>
+                            </div>
+                          </Card>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-4 py-4">
@@ -446,7 +463,7 @@ export function Returns() {
                         <Package className="h-4 w-4 text-primary" />বিক্রয় তথ্য
                       </h3>
                       <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div><p className="text-muted-foreground">আইডি</p><p className="font-mono">{selectedSale.id.slice(0, 8)}</p></div>
+                        <div><p className="text-muted-foreground">ইনভয়েস</p><p className="font-mono">#{selectedSale.id.slice(0, 8)}</p></div>
                         <div><p className="text-muted-foreground">তারিখ</p><p>{format(new Date(selectedSale.created_at), "dd MMM yyyy", { locale: bn })}</p></div>
                         <div><p className="text-muted-foreground">ক্রেতা</p><p>{selectedSale.customers?.name || selectedSale.instant_customer_name || "সাধারণ"}</p></div>
                         <div><p className="text-muted-foreground">মোট</p><p className="text-primary font-semibold">৳{selectedSale.total_amount?.toLocaleString("bn-BD")}</p></div>
