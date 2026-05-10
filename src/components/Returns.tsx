@@ -53,6 +53,7 @@ export function Returns() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [searchSaleId, setSearchSaleId] = useState("");
   const [selectedSale, setSelectedSale] = useState<any>(null);
+  const [saleSearchResults, setSaleSearchResults] = useState<any[]>([]);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [returnQuantity, setReturnQuantity] = useState(1);
   const [reasonCode, setReasonCode] = useState("defective");
@@ -135,28 +136,16 @@ export function Returns() {
   };
 
   // ─── Search ──────────────────────────────────────────────────
-  const searchSale = async () => {
-    if (!searchSaleId.trim()) {
-      toast.error("বিক্রয় আইডি লিখুন"); return;
-    }
-    const term = searchSaleId.trim().replace(/^#/, "");
-    let saleId = term;
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(term)) {
-      const { data: matches, error: searchError } = await db.rpc("search_sale_ids_for_return", { _search: term, _limit: 5 });
-      if (searchError) { toast.error(searchError.message || "বিক্রয় খুঁজতে সমস্যা হয়েছে"); return; }
-      if (!matches?.length) { toast.error("বিক্রয় পাওয়া যায়নি"); return; }
-      if (matches.length > 1) toast.info("একাধিক মিল পাওয়া গেছে — সর্বশেষ বিক্রয়টি দেখানো হচ্ছে");
-      saleId = matches[0].id;
-    }
-
+  const hydrateSaleForReturn = async (saleId: string) => {
     const { data, error } = await supabase
       .from("sales")
       .select(`*, customers (name, phone),
-        sale_items (*, products (name, imei, brand, condition))`)
+        sale_items (*, products (name, imei, sku, barcode, brand, model, condition))`)
       .eq("id", saleId)
       .single();
-    if (error || !data) { toast.error("বিক্রয় পাওয়া যায়নি"); return; }
-    if (!data.sale_items?.length) { toast.error("এই বিক্রয়ের কোনো আইটেম পাওয়া যায়নি"); return; }
+    if (error || !data) throw new Error("বিক্রয় পাওয়া যায়নি");
+    if (!data.sale_items?.length) throw new Error("এই বিক্রয়ের কোনো আইটেম পাওয়া যায়নি");
+
     const { data: existingReturns } = await supabase
       .from("returns")
       .select("id, return_number, sale_item_id, quantity, status, refund_amount, refund_method, reason_code, created_at, approved_at")
@@ -166,7 +155,8 @@ export function Returns() {
     const historyByItem = new Map<string, any[]>();
     (existingReturns || []).forEach((r: any) => returnedByItem.set(r.sale_item_id, (returnedByItem.get(r.sale_item_id) || 0) + Number(r.quantity || 0)));
     (existingReturns || []).forEach((r: any) => historyByItem.set(r.sale_item_id, [...(historyByItem.get(r.sale_item_id) || []), r]));
-    const saleWithAvailability = {
+
+    return {
       ...data,
       sale_items: (data.sale_items || []).map((it: any) => ({
         ...it,
@@ -175,10 +165,48 @@ export function Returns() {
         return_history: historyByItem.get(it.id) || [],
       })),
     };
-    setSelectedSale(saleWithAvailability);
-    setSelectedItem(null);
-    setExpandedHistoryItemId(null);
-    toast.success(`বিক্রয় পাওয়া গেছে: #${data.id.slice(0, 8)}`);
+  };
+
+  const selectSaleForReturn = async (saleId: string) => {
+    try {
+      const saleWithAvailability = await hydrateSaleForReturn(saleId);
+      setSelectedSale(saleWithAvailability);
+      setSaleSearchResults([]);
+      setSelectedItem(null);
+      setExpandedHistoryItemId(null);
+      toast.success(`বিক্রয় পাওয়া গেছে: #${saleWithAvailability.id.slice(0, 8)}`);
+    } catch (error: any) {
+      toast.error(error.message || "বিক্রয় লোড করতে সমস্যা হয়েছে");
+    }
+  };
+
+  const searchSale = async () => {
+    if (!searchSaleId.trim()) {
+      toast.error("বিক্রয় আইডি, ইনভয়েস নম্বর, IMEI, বারকোড বা ক্রেতার মোবাইল লিখুন"); return;
+    }
+    const term = searchSaleId.trim().replace(/^#/, "");
+    let saleIds: string[] = [];
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(term)) {
+      const { data: matches, error: searchError } = await db.rpc("search_sale_ids_for_return", { _search: term, _limit: 12 });
+      if (searchError) { toast.error(searchError.message || "বিক্রয় খুঁজতে সমস্যা হয়েছে"); return; }
+      if (!matches?.length) { toast.error("বিক্রয় পাওয়া যায়নি"); return; }
+      saleIds = matches.map((m: any) => m.id);
+    } else {
+      saleIds = [term];
+    }
+
+    const { data: resultRows, error: resultError } = await supabase
+      .from("sales")
+      .select(`*, customers (name, phone), sale_items (*, products (name, imei, sku, barcode, brand, model, condition))`)
+      .in("id", saleIds);
+    if (resultError || !resultRows?.length) { toast.error("বিক্রয় পাওয়া যায়নি"); return; }
+    const orderedRows = saleIds.map((id) => resultRows.find((s: any) => s.id === id)).filter(Boolean);
+    if (orderedRows.length === 1) {
+      await selectSaleForReturn(orderedRows[0].id);
+      return;
+    }
+    setSaleSearchResults(orderedRows);
+    toast.info("একাধিক মিল পাওয়া গেছে — সঠিক বিক্রয়টি নির্বাচন করুন");
   };
 
   // ─── Create return ──────────────────────────────────────────
