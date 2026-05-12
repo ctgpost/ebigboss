@@ -85,6 +85,20 @@ export function SupplierReturns() {
   const canApprove = isAdmin || isManager;
   const queryClient = useQueryClient();
 
+  // Realtime — auto refresh on supplier_returns or audit log changes
+  useEffect(() => {
+    const ch = supabase.channel("supplier-returns-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "supplier_returns" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["supplier-returns"] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "return_audit_logs" }, (payload: any) => {
+        const rid = (payload.new as any)?.return_id || (payload.old as any)?.return_id;
+        if (rid) queryClient.invalidateQueries({ queryKey: ["return-audit-logs", "supplier", rid] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [queryClient]);
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedSupplierId, setSelectedSupplierId] = useState("all");
   const [selectedPurchaseId, setSelectedPurchaseId] = useState("all");
