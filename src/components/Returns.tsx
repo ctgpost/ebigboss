@@ -651,9 +651,19 @@ export function Returns() {
                             </div>
                           )}
                           <div className="border-t pt-1 mt-1 flex justify-between">
-                            <span className="font-semibold">{isAuditOnly ? "নোট পরিমাণ" : refundMethod === "exchange" ? "নিট সমন্বয়" : "নিট রিফান্ড"}</span>
-                            <span className="text-2xl font-bold text-primary">৳{(isAuditOnly ? refundTotal : netRefund).toLocaleString("bn-BD")}</span>
+                            <span className="font-semibold">{isAuditOnly ? "নোট পরিমাণ" : refundMethod === "exchange" ? (extraDue > 0 ? "ক্রেতা থেকে নেবেন" : "নিট সমন্বয়") : "নিট রিফান্ড"}</span>
+                            <span className={`text-2xl font-bold ${extraDue > 0 ? "text-red-600" : "text-primary"}`}>৳{(isAuditOnly ? refundTotal : (extraDue > 0 ? extraDue : netRefund)).toLocaleString("bn-BD")}</span>
                           </div>
+                          {refundMethod === "exchange" && extraDue > 0 && (
+                            <p className="text-xs text-red-700 dark:text-red-400 pt-1">
+                              💡 নতুন পণ্যটি দামি — ক্রেতার বাকি ৳{extraDue.toLocaleString("bn-BD")} সেলস ইনভয়েসে যোগ হবে
+                            </p>
+                          )}
+                          {refundMethod === "exchange" && extraDue === 0 && netRefund > 0 && (
+                            <p className="text-xs text-emerald-700 dark:text-emerald-400 pt-1">
+                              💡 ক্রেতাকে ৳{netRefund.toLocaleString("bn-BD")} ফেরত / সমন্বয় হবে
+                            </p>
+                          )}
                           {!isAdmin && !isAuditOnly && (
                             <p className="text-xs text-amber-700 dark:text-amber-400 pt-1">
                               ⚠️ এই রিটার্নটি Admin/Manager-এর অনুমোদন ছাড়া কার্যকর হবে না
