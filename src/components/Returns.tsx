@@ -422,6 +422,7 @@ export function Returns() {
   const refundTotal = selectedItem ? selectedItem.unit_price * returnQuantity : 0;
   const exchangeValue = refundMethod === "exchange" ? exchangeUnitPrice * exchangeQty : 0;
   const netRefund = Math.max(0, refundTotal - exchangeValue);
+  const extraDue = refundMethod === "exchange" ? Math.max(0, exchangeValue - refundTotal) : 0;
 
   return (
     <div className="flex flex-col h-screen animate-fade-in">
