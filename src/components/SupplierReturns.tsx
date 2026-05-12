@@ -17,12 +17,13 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { ReturnPhotoUpload } from "@/components/returns/ReturnPhotoUpload";
+import { ReturnAuditTrail } from "@/components/returns/ReturnAuditTrail";
 import { ZoomableImage } from "@/components/ui/zoomable-image";
 import { generateSupplierReturnReceiptPdf } from "@/utils/supplierReturnReceiptPdf";
 import { cacheSupplierReturnReceipt, getCachedObjectUrl } from "@/utils/offlineAssets";
 import { queueIfOffline } from "@/utils/offlineQueue";
 import { toast } from "sonner";
-import { BarChart3, CheckCircle, Clock, Download, Edit, Eye, FileText, Image as ImageIcon, Package, Printer, RefreshCcw, Search, Truck, XCircle } from "lucide-react";
+import { BarChart3, CheckCircle, Clock, Download, Edit, Eye, FileText, History, Image as ImageIcon, Package, Printer, RefreshCcw, Search, Truck, XCircle } from "lucide-react";
 
 type ReturnMethod = "cash_refund" | "due_adjust" | "replacement";
 type FinanceAction = "none" | "supplier_refund" | "due_adjust";
