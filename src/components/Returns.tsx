@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import { ReturnReceipt } from "./returns/ReturnReceipt";
 import { ReturnPhotoUpload } from "./returns/ReturnPhotoUpload";
 import { ZoomableImage } from "@/components/ui/zoomable-image";
 import { queueIfOffline } from "@/utils/offlineQueue";
+import { ReturnAuditTrail } from "./returns/ReturnAuditTrail";
 
 const db = supabase as any;
 
@@ -76,7 +77,24 @@ export function Returns() {
   const [receiptRecord, setReceiptRecord] = useState<any>(null);
   const [expandedHistoryItemId, setExpandedHistoryItemId] = useState<string | null>(null);
 
+  const [expandedAuditId, setExpandedAuditId] = useState<string | null>(null);
+
   const queryClient = useQueryClient();
+
+  // Realtime subscription — updates returns list & audit trail in real time
+  useEffect(() => {
+    const ch = supabase
+      .channel("returns-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "returns" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["returns"] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "return_audit_logs" }, (payload: any) => {
+        const rid = (payload.new as any)?.return_id || (payload.old as any)?.return_id;
+        if (rid) queryClient.invalidateQueries({ queryKey: ["return-audit-logs", "sales", rid] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [queryClient]);
 
   // ─── Queries ─────────────────────────────────────────────────
   const { data: returns, isLoading } = useQuery({
@@ -404,6 +422,7 @@ export function Returns() {
   const refundTotal = selectedItem ? selectedItem.unit_price * returnQuantity : 0;
   const exchangeValue = refundMethod === "exchange" ? exchangeUnitPrice * exchangeQty : 0;
   const netRefund = Math.max(0, refundTotal - exchangeValue);
+  const extraDue = refundMethod === "exchange" ? Math.max(0, exchangeValue - refundTotal) : 0;
 
   return (
     <div className="flex flex-col h-screen animate-fade-in">
@@ -632,9 +651,19 @@ export function Returns() {
                             </div>
                           )}
                           <div className="border-t pt-1 mt-1 flex justify-between">
-                            <span className="font-semibold">{isAuditOnly ? "নোট পরিমাণ" : refundMethod === "exchange" ? "নিট সমন্বয়" : "নিট রিফান্ড"}</span>
-                            <span className="text-2xl font-bold text-primary">৳{(isAuditOnly ? refundTotal : netRefund).toLocaleString("bn-BD")}</span>
+                            <span className="font-semibold">{isAuditOnly ? "নোট পরিমাণ" : refundMethod === "exchange" ? (extraDue > 0 ? "ক্রেতা থেকে নেবেন" : "নিট সমন্বয়") : "নিট রিফান্ড"}</span>
+                            <span className={`text-2xl font-bold ${extraDue > 0 ? "text-red-600" : "text-primary"}`}>৳{(isAuditOnly ? refundTotal : (extraDue > 0 ? extraDue : netRefund)).toLocaleString("bn-BD")}</span>
                           </div>
+                          {refundMethod === "exchange" && extraDue > 0 && (
+                            <p className="text-xs text-red-700 dark:text-red-400 pt-1">
+                              💡 নতুন পণ্যটি দামি — ক্রেতার বাকি ৳{extraDue.toLocaleString("bn-BD")} সেলস ইনভয়েসে যোগ হবে
+                            </p>
+                          )}
+                          {refundMethod === "exchange" && extraDue === 0 && netRefund > 0 && (
+                            <p className="text-xs text-emerald-700 dark:text-emerald-400 pt-1">
+                              💡 ক্রেতাকে ৳{netRefund.toLocaleString("bn-BD")} ফেরত / সমন্বয় হবে
+                            </p>
+                          )}
                           {!isAdmin && !isAuditOnly && (
                             <p className="text-xs text-amber-700 dark:text-amber-400 pt-1">
                               ⚠️ এই রিটার্নটি Admin/Manager-এর অনুমোদন ছাড়া কার্যকর হবে না
@@ -787,6 +816,16 @@ export function Returns() {
                             <span className="font-medium text-yellow-700 dark:text-yellow-400">অনুমোদনের অপেক্ষায়</span>
                           </div>
                         </div>
+                      )}
+                    </div>
+                    <div className="mt-2">
+                      <Button size="sm" variant="ghost" className="h-6 text-xs px-2"
+                        onClick={() => setExpandedAuditId(expandedAuditId === ret.id ? null : ret.id)}>
+                        <History className="h-3 w-3 mr-1" />
+                        {expandedAuditId === ret.id ? "অডিট ট্রেইল লুকান" : "অডিট ট্রেইল দেখুন"}
+                      </Button>
+                      {expandedAuditId === ret.id && (
+                        <ReturnAuditTrail returnType="sales" returnId={ret.id} />
                       )}
                     </div>
                   </div>

@@ -387,6 +387,54 @@ export type Database = {
           },
         ]
       }
+      return_audit_logs: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_id: string | null
+          after_state: Json | null
+          before_state: Json | null
+          created_at: string
+          id: string
+          ledger_impact: Json | null
+          notes: string | null
+          return_id: string
+          return_number: string | null
+          return_type: string
+          stock_impact: Json | null
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_id?: string | null
+          after_state?: Json | null
+          before_state?: Json | null
+          created_at?: string
+          id?: string
+          ledger_impact?: Json | null
+          notes?: string | null
+          return_id: string
+          return_number?: string | null
+          return_type: string
+          stock_impact?: Json | null
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_id?: string | null
+          after_state?: Json | null
+          before_state?: Json | null
+          created_at?: string
+          id?: string
+          ledger_impact?: Json | null
+          notes?: string | null
+          return_id?: string
+          return_number?: string | null
+          return_type?: string
+          stock_impact?: Json | null
+        }
+        Relationships: []
+      }
       returns: {
         Row: {
           applied_refund_amount: number
