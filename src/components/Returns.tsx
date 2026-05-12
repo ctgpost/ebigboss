@@ -77,7 +77,24 @@ export function Returns() {
   const [receiptRecord, setReceiptRecord] = useState<any>(null);
   const [expandedHistoryItemId, setExpandedHistoryItemId] = useState<string | null>(null);
 
+  const [expandedAuditId, setExpandedAuditId] = useState<string | null>(null);
+
   const queryClient = useQueryClient();
+
+  // Realtime subscription — updates returns list & audit trail in real time
+  useEffect(() => {
+    const ch = supabase
+      .channel("returns-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "returns" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["returns"] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "return_audit_logs" }, (payload: any) => {
+        const rid = (payload.new as any)?.return_id || (payload.old as any)?.return_id;
+        if (rid) queryClient.invalidateQueries({ queryKey: ["return-audit-logs", "sales", rid] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [queryClient]);
 
   // ─── Queries ─────────────────────────────────────────────────
   const { data: returns, isLoading } = useQuery({
