@@ -25,6 +25,7 @@ import { ReturnReceipt } from "./returns/ReturnReceipt";
 import { ReturnPhotoUpload } from "./returns/ReturnPhotoUpload";
 import { ZoomableImage } from "@/components/ui/zoomable-image";
 import { queueIfOffline } from "@/utils/offlineQueue";
+import { ReturnAuditTrail } from "./returns/ReturnAuditTrail";
 
 const db = supabase as any;
 
