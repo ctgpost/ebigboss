@@ -818,6 +818,16 @@ export function Returns() {
                         </div>
                       )}
                     </div>
+                    <div className="mt-2">
+                      <Button size="sm" variant="ghost" className="h-6 text-xs px-2"
+                        onClick={() => setExpandedAuditId(expandedAuditId === ret.id ? null : ret.id)}>
+                        <History className="h-3 w-3 mr-1" />
+                        {expandedAuditId === ret.id ? "অডিট ট্রেইল লুকান" : "অডিট ট্রেইল দেখুন"}
+                      </Button>
+                      {expandedAuditId === ret.id && (
+                        <ReturnAuditTrail returnType="sales" returnId={ret.id} />
+                      )}
+                    </div>
                   </div>
 
                   {ret.status === "pending" && !ret.is_audit_only && canApprove && (
