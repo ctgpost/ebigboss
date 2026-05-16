@@ -38,6 +38,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { downloadFullZipBackup } from "@/utils/backupZip";
+import { dryRunBackup, validateAfterRestore, type DryRunReport, type ValidationReport } from "@/utils/restoreValidator";
+import { runManualScheduledBackup } from "@/hooks/useScheduledBackup";
 
 export function Settings() {
   const navigate = useNavigate();
@@ -84,6 +87,11 @@ export function Settings() {
     | null
   >(null);
   const [showReportDialog, setShowReportDialog] = useState(false);
+  const [isZipBackingUp, setIsZipBackingUp] = useState(false);
+  const [dryRunResult, setDryRunResult] = useState<DryRunReport | null>(null);
+  const [showDryRunDialog, setShowDryRunDialog] = useState(false);
+  const [validationReport, setValidationReport] = useState<ValidationReport | null>(null);
+  const [showValidationDialog, setShowValidationDialog] = useState(false);
 
   const [resetStats, setResetStats] = useState<{
     sales: number;
@@ -343,11 +351,28 @@ export function Settings() {
     return result;
   };
 
-  // Step 1: file selected → parse and show preview dialog
+  // ZIP backup (full, with reports)
+  const handleZipBackup = async () => {
+    if (!isAdmin) { toast.error("শুধুমাত্র অ্যাডমিন এই কাজ করতে পারবেন"); return; }
+    setIsZipBackingUp(true);
+    try {
+      const { counts, filename } = await downloadFullZipBackup();
+      const total = Object.values(counts).reduce((a, b) => a + b, 0);
+      toast.success(`✅ ZIP ব্যাকআপ ডাউনলোড: ${filename} (${total.toLocaleString("bn-BD")} রেকর্ড)`);
+      await ActivityLogger.dataBackup();
+    } catch (e: any) {
+      toast.error("ZIP ব্যাকআপ ব্যর্থ: " + e.message);
+    } finally {
+      setIsZipBackingUp(false);
+    }
+  };
+
+  // Step 1: file selected → parse + run dry-run first
   const handleRestoreFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    if (!isAdmin) { toast.error("শুধুমাত্র অ্যাডমিন রিস্টোর করতে পারবেন"); return; }
     try {
       const text = await file.text();
       const backup = JSON.parse(text);
@@ -355,10 +380,22 @@ export function Settings() {
         throw new Error("ব্যাকআপ ফাইলের ফরম্যাট সঠিক নয়");
       }
       setPreviewBackup(backup);
-      setShowPreviewDialog(true);
+      // Run dry-run validation BEFORE preview
+      const dr = dryRunBackup(backup);
+      setDryRunResult(dr);
+      setShowDryRunDialog(true);
     } catch (error: any) {
       toast.error("ফাইল পড়তে ব্যর্থ: " + error.message);
     }
+  };
+
+  const proceedFromDryRun = () => {
+    if (!dryRunResult?.ok) {
+      toast.error("ত্রুটি আছে — আগে ঠিক করুন");
+      return;
+    }
+    setShowDryRunDialog(false);
+    setShowPreviewDialog(true);
   };
 
   // Step 2: user confirms → actually run the restore
@@ -404,6 +441,19 @@ export function Settings() {
 
       setRestoreReport({ results });
       setShowReportDialog(true);
+
+      // Post-restore validation: compare backup counts vs DB counts
+      try {
+        const vr = await validateAfterRestore(backup);
+        setValidationReport(vr);
+        if (vr.allMatch) {
+          toast.success(`✅ ভ্যালিডেশন: সব টেবিলের রেকর্ড কাউন্ট মিলে গেছে`);
+        } else {
+          toast.warning(`⚠️ ভ্যালিডেশন: কিছু টেবিলে কাউন্ট মিলছে না — রিপোর্ট দেখুন`);
+        }
+      } catch (e) {
+        console.error("Validation failed", e);
+      }
 
       if (totalFailed === 0) {
         toast.success(`সফলভাবে রিস্টোর হয়েছে! মোট ${totalInserted} সারি যুক্ত হয়েছে`);
@@ -742,22 +792,39 @@ export function Settings() {
         {/* Activity Log */}
         <ActivityLog />
 
-      {/* Backup & Restore */}
+      {/* Backup & Restore — ADMIN ONLY */}
       <Card className="p-6">
         <h2 className="text-xl font-semibold mb-4 text-foreground">💾 Backup & Restore</h2>
-        <div className="space-y-4">
+        {!isAdmin && (
+          <div className="rounded border border-orange-300 bg-orange-50 dark:bg-orange-950/20 p-3 text-sm text-orange-700 dark:text-orange-300">
+            🔒 শুধুমাত্র অ্যাডমিন রোলের ব্যবহারকারী Backup/Restore করতে পারবেন।
+          </div>
+        )}
+        <div className={`space-y-4 ${!isAdmin ? "opacity-50 pointer-events-none mt-4" : ""}`}>
           <div>
             <h3 className="font-medium mb-2">Backup Database</h3>
             <p className="text-sm text-muted-foreground mb-3">
-              Export all your data to a JSON file. This includes products, categories, customers, suppliers, sales, purchases, returns, and all transaction details.
+              JSON অথবা ZIP ফরম্যাটে ডেটাবেজ এক্সপোর্ট করুন। ZIP-এ সব টেবিলের ডেটা + সকল রিপোর্ট (দৈনিক/সাপ্তাহিক/মাসিক বিক্রয়, লাভ-ক্ষতি, স্টক, রিটার্ন) অন্তর্ভুক্ত।
             </p>
-            <Button
-              onClick={handleBackup}
-              disabled={isBackingUp}
-              className="w-full md:w-auto"
-            >
-              {isBackingUp ? "⏳ Creating Backup..." : "📥 Download Backup"}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={handleBackup} disabled={isBackingUp || !isAdmin}>
+                {isBackingUp ? "⏳ JSON ব্যাকআপ চলছে..." : "📥 JSON ব্যাকআপ"}
+              </Button>
+              <Button onClick={handleZipBackup} disabled={isZipBackingUp || !isAdmin} variant="default" className="bg-emerald-600 hover:bg-emerald-700">
+                {isZipBackingUp ? "⏳ ZIP তৈরি হচ্ছে..." : "📦 ZIP ব্যাকআপ (সকল রিপোর্ট সহ)"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={async () => { await runManualScheduledBackup(); }}
+                disabled={!isAdmin}
+                title="স্বয়ংক্রিয় রাত ১০:৩০ ব্যাকআপ টেস্ট করুন"
+              >
+                🌙 অটো-শিডিউল টেস্ট
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              ℹ️ প্রতিদিন রাত ১০:৩০ মিনিটে অটোমেটিক ZIP ব্যাকআপ ডাউনলোড হবে (অ্যাপ খোলা থাকলে)।
+            </p>
           </div>
 
           <div className="pt-4 border-t border-border">
@@ -889,10 +956,101 @@ export function Settings() {
                   </div>
                 </ScrollArea>
               )}
-              <DialogFooter>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => setShowValidationDialog(true)} disabled={!validationReport}>
+                  📊 ভ্যালিডেশন রিপোর্ট দেখুন
+                </Button>
                 <Button onClick={() => { setShowReportDialog(false); setTimeout(() => window.location.reload(), 300); }}>
                   বন্ধ করুন ও রিফ্রেশ করুন
                 </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Dry-Run Dialog */}
+          <Dialog open={showDryRunDialog} onOpenChange={setShowDryRunDialog}>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>🔍 Dry-Run যাচাই (ডেটা ইনসার্ট হয়নি)</DialogTitle>
+                <DialogDescription>
+                  ব্যাকআপ ফাইলে FK conflict, ডুপ্লিকেট ID, খালি required ফিল্ড আছে কি না যাচাই করা হলো। কোনো error থাকলে আগে ঠিক করুন।
+                </DialogDescription>
+              </DialogHeader>
+              {dryRunResult && (
+                <ScrollArea className="max-h-[60vh] pr-3">
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
+                      {dryRunResult.perTable.map((t) => (
+                        <div key={t.table} className="rounded border border-border bg-muted/40 px-3 py-2 flex justify-between">
+                          <span>{t.label}</span>
+                          <span className="font-semibold">{t.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {dryRunResult.issues.length === 0 ? (
+                      <div className="rounded border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/20 p-3 text-sm text-emerald-700 dark:text-emerald-300">
+                        ✅ কোনো সমস্যা পাওয়া যায়নি। রিস্টোর শুরু করা যেতে পারে।
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {dryRunResult.issues.slice(0, 50).map((iss, idx) => (
+                          <div
+                            key={idx}
+                            className={`rounded border p-2 text-xs ${
+                              iss.severity === "error" ? "border-destructive/50 bg-destructive/10 text-destructive"
+                              : iss.severity === "warning" ? "border-orange-300 bg-orange-50 dark:bg-orange-950/20 text-orange-700 dark:text-orange-400"
+                              : "border-border bg-muted/40"
+                            }`}
+                          >
+                            <span className="font-medium">[{iss.label}]</span> {iss.message}
+                            {iss.row_hint && <span className="ml-2 font-mono opacity-70">{iss.row_hint}</span>}
+                          </div>
+                        ))}
+                        {dryRunResult.issues.length > 50 && (
+                          <div className="text-xs text-muted-foreground">+ আরও {dryRunResult.issues.length - 50}টি সমস্যা</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
+              )}
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => { setShowDryRunDialog(false); setPreviewBackup(null); setDryRunResult(null); }}>
+                  বাতিল
+                </Button>
+                <Button onClick={proceedFromDryRun} disabled={!dryRunResult?.ok}>
+                  {dryRunResult?.ok ? "✅ Preview-এ যান" : "❌ Error আছে"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Validation Report Dialog */}
+          <Dialog open={showValidationDialog} onOpenChange={setShowValidationDialog}>
+            <DialogContent className="max-w-xl">
+              <DialogHeader>
+                <DialogTitle>📊 রিস্টোর ভ্যালিডেশন</DialogTitle>
+                <DialogDescription>
+                  ব্যাকআপ ফাইলের রেকর্ড কাউন্ট ও DB-তে বর্তমান কাউন্টের তুলনা।
+                </DialogDescription>
+              </DialogHeader>
+              {validationReport && (
+                <div className="space-y-2">
+                  {validationReport.rows.map((r) => (
+                    <div key={r.table} className={`flex items-center justify-between rounded border px-3 py-2 text-sm ${r.match ? "border-emerald-300 bg-emerald-50 dark:bg-emerald-950/20" : "border-destructive/50 bg-destructive/10"}`}>
+                      <span>{r.label}</span>
+                      <span className="font-mono">
+                        {r.backupCount} → {r.dbCount} {r.match ? "✅" : "❌"}
+                      </span>
+                    </div>
+                  ))}
+                  <div className={`mt-2 text-sm font-semibold ${validationReport.allMatch ? "text-emerald-700 dark:text-emerald-400" : "text-destructive"}`}>
+                    {validationReport.allMatch ? "✅ সব টেবিল মিলে গেছে" : "⚠️ কিছু টেবিলে কাউন্ট মিলছে না"}
+                  </div>
+                </div>
+              )}
+              <DialogFooter>
+                <Button onClick={() => setShowValidationDialog(false)}>বন্ধ</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
