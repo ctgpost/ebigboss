@@ -38,6 +38,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { downloadFullZipBackup } from "@/utils/backupZip";
+import { dryRunBackup, validateAfterRestore, type DryRunReport, type ValidationReport } from "@/utils/restoreValidator";
+import { runManualScheduledBackup } from "@/hooks/useScheduledBackup";
 
 export function Settings() {
   const navigate = useNavigate();
@@ -84,6 +87,11 @@ export function Settings() {
     | null
   >(null);
   const [showReportDialog, setShowReportDialog] = useState(false);
+  const [isZipBackingUp, setIsZipBackingUp] = useState(false);
+  const [dryRunResult, setDryRunResult] = useState<DryRunReport | null>(null);
+  const [showDryRunDialog, setShowDryRunDialog] = useState(false);
+  const [validationReport, setValidationReport] = useState<ValidationReport | null>(null);
+  const [showValidationDialog, setShowValidationDialog] = useState(false);
 
   const [resetStats, setResetStats] = useState<{
     sales: number;
