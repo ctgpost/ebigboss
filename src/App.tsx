@@ -8,6 +8,7 @@ import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persist
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { registerOfflineQueueSync } from "@/utils/offlineQueue";
+import { useScheduledBackup } from "@/hooks/useScheduledBackup";
 import { toast } from "sonner";
 import type { User } from "@supabase/supabase-js";
 import Auth from "./pages/Auth";
@@ -38,6 +39,8 @@ const queryPersister = createSyncStoragePersister({
 const App = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  // 10:30 PM daily auto ZIP backup (active when a user is logged in)
+  useScheduledBackup(!!user);
 
   useEffect(() => {
     const unregisterQueueSync = registerOfflineQueueSync((count) => {
