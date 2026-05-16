@@ -442,6 +442,19 @@ export function Settings() {
       setRestoreReport({ results });
       setShowReportDialog(true);
 
+      // Post-restore validation: compare backup counts vs DB counts
+      try {
+        const vr = await validateAfterRestore(backup);
+        setValidationReport(vr);
+        if (vr.allMatch) {
+          toast.success(`✅ ভ্যালিডেশন: সব টেবিলের রেকর্ড কাউন্ট মিলে গেছে`);
+        } else {
+          toast.warning(`⚠️ ভ্যালিডেশন: কিছু টেবিলে কাউন্ট মিলছে না — রিপোর্ট দেখুন`);
+        }
+      } catch (e) {
+        console.error("Validation failed", e);
+      }
+
       if (totalFailed === 0) {
         toast.success(`সফলভাবে রিস্টোর হয়েছে! মোট ${totalInserted} সারি যুক্ত হয়েছে`);
       } else {
