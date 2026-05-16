@@ -792,22 +792,39 @@ export function Settings() {
         {/* Activity Log */}
         <ActivityLog />
 
-      {/* Backup & Restore */}
+      {/* Backup & Restore — ADMIN ONLY */}
       <Card className="p-6">
         <h2 className="text-xl font-semibold mb-4 text-foreground">💾 Backup & Restore</h2>
-        <div className="space-y-4">
+        {!isAdmin && (
+          <div className="rounded border border-orange-300 bg-orange-50 dark:bg-orange-950/20 p-3 text-sm text-orange-700 dark:text-orange-300">
+            🔒 শুধুমাত্র অ্যাডমিন রোলের ব্যবহারকারী Backup/Restore করতে পারবেন।
+          </div>
+        )}
+        <div className={`space-y-4 ${!isAdmin ? "opacity-50 pointer-events-none mt-4" : ""}`}>
           <div>
             <h3 className="font-medium mb-2">Backup Database</h3>
             <p className="text-sm text-muted-foreground mb-3">
-              Export all your data to a JSON file. This includes products, categories, customers, suppliers, sales, purchases, returns, and all transaction details.
+              JSON অথবা ZIP ফরম্যাটে ডেটাবেজ এক্সপোর্ট করুন। ZIP-এ সব টেবিলের ডেটা + সকল রিপোর্ট (দৈনিক/সাপ্তাহিক/মাসিক বিক্রয়, লাভ-ক্ষতি, স্টক, রিটার্ন) অন্তর্ভুক্ত।
             </p>
-            <Button
-              onClick={handleBackup}
-              disabled={isBackingUp}
-              className="w-full md:w-auto"
-            >
-              {isBackingUp ? "⏳ Creating Backup..." : "📥 Download Backup"}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={handleBackup} disabled={isBackingUp || !isAdmin}>
+                {isBackingUp ? "⏳ JSON ব্যাকআপ চলছে..." : "📥 JSON ব্যাকআপ"}
+              </Button>
+              <Button onClick={handleZipBackup} disabled={isZipBackingUp || !isAdmin} variant="default" className="bg-emerald-600 hover:bg-emerald-700">
+                {isZipBackingUp ? "⏳ ZIP তৈরি হচ্ছে..." : "📦 ZIP ব্যাকআপ (সকল রিপোর্ট সহ)"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={async () => { await runManualScheduledBackup(); }}
+                disabled={!isAdmin}
+                title="স্বয়ংক্রিয় রাত ১০:৩০ ব্যাকআপ টেস্ট করুন"
+              >
+                🌙 অটো-শিডিউল টেস্ট
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              ℹ️ প্রতিদিন রাত ১০:৩০ মিনিটে অটোমেটিক ZIP ব্যাকআপ ডাউনলোড হবে (অ্যাপ খোলা থাকলে)।
+            </p>
           </div>
 
           <div className="pt-4 border-t border-border">
