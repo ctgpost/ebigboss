@@ -351,11 +351,28 @@ export function Settings() {
     return result;
   };
 
-  // Step 1: file selected → parse and show preview dialog
+  // ZIP backup (full, with reports)
+  const handleZipBackup = async () => {
+    if (!isAdmin) { toast.error("শুধুমাত্র অ্যাডমিন এই কাজ করতে পারবেন"); return; }
+    setIsZipBackingUp(true);
+    try {
+      const { counts, filename } = await downloadFullZipBackup();
+      const total = Object.values(counts).reduce((a, b) => a + b, 0);
+      toast.success(`✅ ZIP ব্যাকআপ ডাউনলোড: ${filename} (${total.toLocaleString("bn-BD")} রেকর্ড)`);
+      await ActivityLogger.dataBackup();
+    } catch (e: any) {
+      toast.error("ZIP ব্যাকআপ ব্যর্থ: " + e.message);
+    } finally {
+      setIsZipBackingUp(false);
+    }
+  };
+
+  // Step 1: file selected → parse + run dry-run first
   const handleRestoreFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    if (!isAdmin) { toast.error("শুধুমাত্র অ্যাডমিন রিস্টোর করতে পারবেন"); return; }
     try {
       const text = await file.text();
       const backup = JSON.parse(text);
@@ -363,10 +380,22 @@ export function Settings() {
         throw new Error("ব্যাকআপ ফাইলের ফরম্যাট সঠিক নয়");
       }
       setPreviewBackup(backup);
-      setShowPreviewDialog(true);
+      // Run dry-run validation BEFORE preview
+      const dr = dryRunBackup(backup);
+      setDryRunResult(dr);
+      setShowDryRunDialog(true);
     } catch (error: any) {
       toast.error("ফাইল পড়তে ব্যর্থ: " + error.message);
     }
+  };
+
+  const proceedFromDryRun = () => {
+    if (!dryRunResult?.ok) {
+      toast.error("ত্রুটি আছে — আগে ঠিক করুন");
+      return;
+    }
+    setShowDryRunDialog(false);
+    setShowPreviewDialog(true);
   };
 
   // Step 2: user confirms → actually run the restore
