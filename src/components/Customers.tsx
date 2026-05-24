@@ -18,6 +18,7 @@ import { CloudinaryImageUpload } from "./CloudinaryImageUpload";
 import { getCloudinaryThumbnail } from "@/utils/cloudinary";
 import { customerSchema, validateInline } from "@/utils/validation";
 import { FieldError } from "@/components/ui/field-error";
+import { createClientRequestId } from "@/utils/requestKeys";
 
 export function Customers() {
   const { settings } = useShopSettings();
@@ -164,35 +165,15 @@ export function Customers() {
   // Collect due payment
   const collectPaymentMutation = useMutation({
     mutationFn: async ({ saleId, customerId, amount, method, notes }: any) => {
-      const { data: { user } } = await supabase.auth.getUser();
-
-      // Insert payment record
-      const { error: paymentError } = await supabase.from("payments").insert([{
-        sale_id: saleId,
-        customer_id: customerId,
-        amount,
-        payment_method: method,
-        notes,
-        collected_by: user?.id,
-      }]);
-      if (paymentError) throw paymentError;
-
-      // Update sale paid_amount and due_amount
-      const { data: sale, error: fetchError } = await supabase
-        .from("sales")
-        .select("paid_amount, due_amount, total_amount")
-        .eq("id", saleId)
-        .single();
-      if (fetchError) throw fetchError;
-
-      const newPaid = Number(sale.paid_amount) + amount;
-      const newDue = Math.max(0, Number(sale.total_amount) - newPaid);
-
-      const { error: updateError } = await supabase
-        .from("sales")
-        .update({ paid_amount: newPaid, due_amount: newDue })
-        .eq("id", saleId);
-      if (updateError) throw updateError;
+      const { error } = await (supabase as any).rpc("collect_customer_payment_idempotent", {
+        _request_id: createClientRequestId("customer-payment"),
+        _sale_id: saleId,
+        _customer_id: customerId,
+        _amount: amount,
+        _payment_method: method,
+        _notes: notes || null,
+      });
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sales-with-dues"] });
@@ -216,20 +197,15 @@ export function Customers() {
         const sale = salesWithDues?.find(s => s.id === saleId);
         if (!sale) continue;
         const amount = Number(sale.due_amount);
-
-        await supabase.from("payments").insert([{
-          sale_id: saleId,
-          customer_id: sale.customer_id,
-          amount,
-          payment_method: method,
-          notes,
-          collected_by: user?.id,
+        const { error } = await (supabase as any).rpc("collect_customer_payment_idempotent", {
+          _request_id: createClientRequestId(`customer-bulk-payment-${saleId}`),
+          _sale_id: saleId,
+          _customer_id: sale.customer_id,
+          _amount: amount,
+          _payment_method: method,
+          _notes: notes || null,
         }]);
-
-        await supabase.from("sales").update({
-          paid_amount: Number(sale.total_amount),
-          due_amount: 0,
-        }).eq("id", saleId);
+        if (error) throw error;
       }
     },
     onSuccess: () => {
