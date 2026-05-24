@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ export function SupplierPaymentDialog({ open, onOpenChange, supplier }: Supplier
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [notes, setNotes] = useState("");
   const [selectedPurchaseId, setSelectedPurchaseId] = useState("");
+  const paymentRequestIdRef = useRef<string | null>(null);
 
   const { data: supplierPurchases } = useQuery({
     queryKey: ["supplier-purchases", supplier?.id],
@@ -104,8 +105,9 @@ export function SupplierPaymentDialog({ open, onOpenChange, supplier }: Supplier
     mutationFn: async () => {
       if (amount <= 0) throw new Error("পরিমাণ সঠিক নয়");
 
+      paymentRequestIdRef.current ||= createClientRequestId("supplier-payment");
       const { error } = await (supabase as any).rpc("collect_supplier_payment_idempotent", {
-        _request_id: createClientRequestId("supplier-payment"),
+        _request_id: paymentRequestIdRef.current,
         _supplier_id: supplier.id,
         _purchase_id: selectedPurchaseId || null,
         _amount: amount,
@@ -123,8 +125,12 @@ export function SupplierPaymentDialog({ open, onOpenChange, supplier }: Supplier
       setAmount(0);
       setNotes("");
       setSelectedPurchaseId("");
+      paymentRequestIdRef.current = null;
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: any) => {
+      paymentRequestIdRef.current = null;
+      toast.error(err.message);
+    },
   });
 
   const handleQuickPay = (val: number) => setAmount(val);
