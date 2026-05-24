@@ -16,6 +16,7 @@ import { createClientRequestId } from "@/utils/requestKeys";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Pencil, Trash2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { computeSupplierTotals } from "@/utils/supplierBalance";
 
 interface SupplierPaymentDialogProps {
   open: boolean;
@@ -83,12 +84,16 @@ export function SupplierPaymentDialog({ open, onOpenChange, supplier }: Supplier
     enabled: !!supplier?.id,
   });
 
-  const totalPurchaseAmount = supplierPurchases?.reduce((sum, p) => sum + Number(p.total_amount), 0) || 0;
-  // Also include product costs directly linked by supplier_name (not via purchase orders)
-  const directProductCost = supplierProducts?.reduce((sum, p) => sum + Number(p.cost), 0) || 0;
-  const totalOwed = Math.max(totalPurchaseAmount, directProductCost); // Use the higher value to avoid double-counting
-  const totalPaid = supplierPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-  const totalDue = totalOwed - totalPaid;
+  // Use shared util — matches Suppliers list cards and SupplierLedgerReport exactly.
+  const totals = supplier ? computeSupplierTotals(
+    supplier,
+    supplierPurchases as any,
+    supplierPayments as any,
+    supplierProducts as any,
+  ) : { totalPur: 0, totalPaid: 0, totalDue: 0 };
+  const totalPurchaseAmount = totals.totalPur;
+  const totalPaid = totals.totalPaid;
+  const totalDue = totals.totalDue;
   const purchasesWithDue = supplierPurchases?.filter(p => Number(p.due_amount) > 0) || [];
 
   // Monthly summary calculation
