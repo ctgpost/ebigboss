@@ -85,9 +85,7 @@ export function SupplierPaymentDialog({ open, onOpenChange, supplier }: Supplier
   });
 
   // Use shared util — matches Suppliers list cards and SupplierLedgerReport exactly.
-  // computeSupplierTotals handles direct products vs. formal POs, standalone vs. linked
-  // payments, and avoids double-counting linked supplier_payments against purchases.paid_amount.
-  const totals = supplier ? require("@/utils/supplierBalance").computeSupplierTotals(
+  const totals = supplier ? computeSupplierTotals(
     supplier,
     supplierPurchases as any,
     supplierPayments as any,
