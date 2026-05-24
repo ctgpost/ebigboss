@@ -98,8 +98,10 @@ export function CustomerDetails() {
       setSelectedSale(null);
       setPaymentAmount("");
       setPaymentNotes("");
+      paymentRequestIdRef.current = null;
     },
     onError: (error: any) => {
+      paymentRequestIdRef.current = null;
       toast.error(error.message || "বাকি আদায় করতে ব্যর্থ");
     },
   });
