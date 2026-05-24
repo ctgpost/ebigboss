@@ -248,6 +248,7 @@ export function Suppliers() {
                   isEditing={!!editingSupplier}
                   errors={formErrors}
                   onClearError={clearFormError}
+                  isSubmitting={addSupplierMutation.isPending || updateSupplierMutation.isPending}
                 />
               </DialogContent>
             </Dialog>
