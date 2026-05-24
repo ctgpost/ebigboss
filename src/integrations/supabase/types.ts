@@ -1214,6 +1214,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      recalculate_supplier_balances: {
+        Args: { _supplier_id?: string }
+        Returns: Json
+      }
       search_sale_ids_for_return: {
         Args: { _limit?: number; _search: string }
         Returns: {
