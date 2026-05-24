@@ -95,7 +95,6 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products, 
         total_cost: item.quantity * item.unit_cost,
       }));
 
-      let purchase: any;
       try {
         const { data, error: purchaseError } = await (supabase as any)
           .rpc("create_purchase_idempotent", {
@@ -105,7 +104,6 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products, 
           });
 
         if (purchaseError) throw purchaseError;
-        purchase = data;
       } catch (error) {
         queueIfOffline("purchase_create", { purchase: purchasePayload, items: purchaseItems, client_request_id: requestId }, error);
         return;
