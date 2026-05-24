@@ -246,7 +246,8 @@ export function Customers() {
     if (editingCustomer) {
       updateMutation.mutate({ id: editingCustomer.id, data: formData });
     } else {
-      addMutation.mutate(formData);
+      customerRequestIdRef.current ||= createClientRequestId("customer");
+      addMutation.mutate({ ...formData, client_request_id: customerRequestIdRef.current });
     }
   };
 
@@ -436,8 +437,8 @@ export function Customers() {
                   <Button type="button" variant="outline" onClick={() => { setIsAddDialogOpen(false); setEditingCustomer(null); resetForm(); }}>
                     বাতিল
                   </Button>
-                  <Button type="submit" className="bg-gradient-to-r from-primary to-accent">
-                    {editingCustomer ? "আপডেট" : "যুক্ত"} করুন
+                  <Button type="submit" disabled={addMutation.isPending || updateMutation.isPending} className="bg-gradient-to-r from-primary to-accent">
+                    {addMutation.isPending || updateMutation.isPending ? "প্রক্রিয়াকরণ..." : `${editingCustomer ? "আপডেট" : "যুক্ত"} করুন`}
                   </Button>
                 </div>
               </form>
