@@ -58,6 +58,19 @@ export function SupplierLedgerReport() {
     },
   });
 
+  const { data: directProducts } = useQuery({
+    queryKey: ["sup-ledger-direct-products"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id,name,cost,supplier_name,created_at")
+        .not("supplier_name", "is", null);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["sup-ledger-purchases"] });
     queryClient.invalidateQueries({ queryKey: ["sup-ledger-payments"] });
