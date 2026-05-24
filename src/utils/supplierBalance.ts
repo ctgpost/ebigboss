@@ -7,9 +7,9 @@
 //
 // Server-side recalculation:
 //  - `supplier_payments_recalc_purchase` trigger keeps purchases.paid_amount /
-//    due_amount / status in sync whenever a supplier_payment row is added,
-//    edited, or deleted (see apply_purchase_payment_delta SQL function).
-//  - Direct products have no aggregate row to maintain; their cost is summed live.
+//    due_amount / status in sync on UPDATE/DELETE of supplier_payments.
+//  - `collect_supplier_payment_idempotent` RPC updates purchases on INSERT.
+//  - Direct products have no aggregate row; their cost is summed live.
 
 export interface SupplierLike { id: string; name: string }
 export interface PurchaseLike {
@@ -29,10 +29,11 @@ export interface SupplierTotals {
   totalPur: number;
   totalPaid: number;
   totalDue: number;
-  initialPaid: number;
-  paymentsNet: number;
-  directCost: number;
   purchasesTotal: number;
+  directCost: number;
+  initialPaid: number;
+  standalonePay: number;
+  paymentsNet: number;
 }
 
 const num = (v: any) => Number(v || 0);
@@ -45,24 +46,29 @@ export function computeSupplierTotals(
 ): SupplierTotals {
   const sPur = (purchases || []).filter(p => p.supplier_id === supplier.id);
   const sPay = (payments || []).filter(p => p.supplier_id === supplier.id);
-  const sProd = (products || []).filter(p =>
-    (p.supplier_name || "").trim().toLowerCase() === (supplier.name || "").trim().toLowerCase()
+  const supName = (supplier.name || "").trim().toLowerCase();
+  const sProd = (products || []).filter(
+    p => (p.supplier_name || "").trim().toLowerCase() === supName,
   );
 
   const purchasesTotal = sPur.reduce((a, x) => a + num(x.total_amount), 0);
   const directCost = sProd.reduce((a, x) => a + num(x.cost), 0);
-  // Direct products are only counted when there is no formal PO covering them.
-  // We take the max to avoid double counting when the user records both.
+  // Use whichever is larger to avoid double-counting (PO + same item entered directly).
   const totalPur = Math.max(purchasesTotal, directCost);
 
+  // purchases.paid_amount is kept in sync with linked supplier_payments by trigger.
+  // Standalone payments (purchase_id IS NULL) are NOT reflected there.
   const initialPaid = sPur.reduce((a, x) => a + num(x.paid_amount), 0);
+  const standalonePay = sPay
+    .filter(p => !p.purchase_id)
+    .reduce((a, x) => a + num(x.amount), 0);
   const paymentsNet = sPay.reduce((a, x) => a + num(x.amount), 0);
-  // When formal POs exist, purchases.paid_amount already reflects supplier_payments
-  // (via the recalc trigger), so we must avoid double counting.
-  const totalPaid = purchasesTotal > 0
-    ? Math.max(0, initialPaid)         // already includes supplier_payments
-    : Math.max(0, paymentsNet);        // standalone payments only
+
+  const totalPaid = Math.max(0, initialPaid + standalonePay);
   const totalDue = Math.max(0, totalPur - totalPaid);
 
-  return { totalPur, totalPaid, totalDue, initialPaid, paymentsNet, directCost, purchasesTotal };
+  return {
+    totalPur, totalPaid, totalDue,
+    purchasesTotal, directCost, initialPaid, standalonePay, paymentsNet,
+  };
 }
