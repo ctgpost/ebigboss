@@ -488,6 +488,68 @@ export function SupplierPaymentDialog({ open, onOpenChange, supplier }: Supplier
           </TabsContent>
         </Tabs>
       </DialogContent>
+
+      {/* Edit Supplier Payment */}
+      <Dialog open={!!editingPay} onOpenChange={(o) => !o && setEditingPay(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>✏️ পেমেন্ট সম্পাদনা</DialogTitle></DialogHeader>
+          {editingPay && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">পরিমাণ *</label>
+                <Input type="number" value={editAmt} onChange={(e) => setEditAmt(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">পদ্ধতি</label>
+                <Select value={editMethod} onValueChange={setEditMethod}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">💵 নগদ</SelectItem>
+                    <SelectItem value="bank">🏦 ব্যাংক</SelectItem>
+                    <SelectItem value="cheque">📝 চেক</SelectItem>
+                    <SelectItem value="mobile">📱 মোবাইল</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">নোট</label>
+                <Input value={editNotes} onChange={(e) => setEditNotes(e.target.value)} />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setEditingPay(null)}>বাতিল</Button>
+                <Button
+                  disabled={editSupplierPaymentMutation.isPending}
+                  onClick={() => {
+                    const amt = parseFloat(editAmt);
+                    if (!amt || amt <= 0) { toast.error("সঠিক পরিমাণ লিখুন"); return; }
+                    editSupplierPaymentMutation.mutate({ id: editingPay.id, amt, method: editMethod, notes: editNotes, purchaseId: editingPay.purchase_id });
+                  }}
+                >
+                  {editSupplierPaymentMutation.isPending ? "সংরক্ষণ..." : "সংরক্ষণ"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deletingPay} onOpenChange={(o) => !o && setDeletingPay(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>পেমেন্ট মুছে ফেলবেন?</AlertDialogTitle>
+            <AlertDialogDescription>
+              মুছে গেলে সংশ্লিষ্ট ক্রয়ের বাকি স্বয়ংক্রিয়ভাবে পুনঃগণনা হবে।
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>বাতিল</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deletingPay && deleteSupplierPaymentMutation.mutate(deletingPay)}
+            >মুছে ফেলুন</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
