@@ -184,8 +184,12 @@ export default function Index({ user }: IndexProps) {
         return <Customers />;
       case "customer-details":
         return <CustomerDetails />;
+      case "customer-ledger":
+        return <CustomerLedgerReport />;
       case "suppliers":
         return <Suppliers />;
+      case "supplier-ledger":
+        return <SupplierLedgerReport />;
       case "supplier-returns":
         return <SupplierReturns />;
       case "reports":
