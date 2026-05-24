@@ -142,6 +142,45 @@ export function SupplierPaymentDialog({ open, onOpenChange, supplier }: Supplier
     },
   });
 
+  const invalidateSupplierPayments = () => {
+    queryClient.invalidateQueries({ queryKey: ["supplier-payments"] });
+    queryClient.invalidateQueries({ queryKey: ["supplier-purchases"] });
+    queryClient.invalidateQueries({ queryKey: ["purchases"] });
+    queryClient.invalidateQueries({ queryKey: ["supplier-payments-all"] });
+  };
+
+  const editSupplierPaymentMutation = useMutation({
+    mutationFn: async ({ id, amt, method, notes, purchaseId }: any) => {
+      if (purchaseId) {
+        const { data: others, error: pe } = await supabase
+          .from("supplier_payments").select("amount").eq("purchase_id", purchaseId).neq("id", id);
+        if (pe) throw pe;
+        const otherSum = (others || []).reduce((s: number, p: any) => s + Number(p.amount), 0);
+        const { data: pur, error: se } = await supabase
+          .from("purchases").select("total_amount").eq("id", purchaseId).maybeSingle();
+        if (se) throw se;
+        const cap = Math.max(0, Number(pur?.total_amount || 0) - otherSum);
+        if (amt > cap) throw new Error(`এই ক্রয়ের সর্বোচ্চ পেমেন্ট ৳${cap.toLocaleString('bn-BD')}`);
+      }
+      const { error } = await supabase
+        .from("supplier_payments")
+        .update({ amount: amt, payment_method: method, notes: notes || null })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { invalidateSupplierPayments(); toast.success("পেমেন্ট আপডেট হয়েছে"); setEditingPay(null); },
+    onError: (e: any) => toast.error(e.message || "আপডেট ব্যর্থ"),
+  });
+
+  const deleteSupplierPaymentMutation = useMutation({
+    mutationFn: async (pay: any) => {
+      const { error } = await supabase.from("supplier_payments").delete().eq("id", pay.id);
+      if (error) throw error;
+    },
+    onSuccess: () => { invalidateSupplierPayments(); toast.success("পেমেন্ট মুছে ফেলা হয়েছে"); setDeletingPay(null); },
+    onError: (e: any) => toast.error(e.message || "মুছতে ব্যর্থ"),
+  });
+
   const handleQuickPay = (val: number) => setAmount(val);
 
   const handleFullDuePay = () => {
