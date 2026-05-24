@@ -12,11 +12,13 @@ import { format } from "date-fns";
 import { bn } from "date-fns/locale";
 import { generateCustomerReport } from "@/utils/customerPdfReport";
 import { useShopSettings } from "@/hooks/useShopSettings";
-import { ChevronDown, ChevronUp, FileText, User, Wallet, CreditCard, ArrowDownLeft, BarChart3 } from "lucide-react";
+import { ChevronDown, ChevronUp, FileText, User, Wallet, CreditCard, ArrowDownLeft, BarChart3, Pencil, Trash2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ZoomableImage } from "@/components/ui/zoomable-image";
 import { createClientRequestId } from "@/utils/requestKeys";
+import { useUserRole } from "@/hooks/useUserRole";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 export function CustomerDetails() {
   const { settings } = useShopSettings();
