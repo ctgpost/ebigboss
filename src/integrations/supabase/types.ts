@@ -998,6 +998,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_purchase_payment_delta: {
+        Args: { _delta: number; _purchase_id: string }
+        Returns: undefined
+      }
+      apply_sale_payment_delta: {
+        Args: { _delta: number; _sale_id: string }
+        Returns: undefined
+      }
       collect_customer_payment_idempotent: {
         Args: {
           _amount: number
