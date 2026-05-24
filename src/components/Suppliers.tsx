@@ -377,10 +377,15 @@ export function Suppliers() {
                         <h3 className="font-semibold text-base text-foreground flex items-center gap-1">
                           {supplier.name}
                           {t.mismatch && (
-                            <AlertTriangle
-                              className="w-4 h-4 text-amber-500"
-                              aria-label="ব্যালেন্স অসামঞ্জস্য — লেজার ও ক্রয় অর্ডারের বাকি মিলছে না"
-                            />
+                            <button
+                              type="button"
+                              onClick={() => setMismatchSupplier({ ...supplier, _totals: t })}
+                              className="inline-flex"
+                              aria-label="ব্যালেন্স অসামঞ্জস্যের বিস্তারিত দেখুন"
+                              title="বিস্তারিত দেখুন"
+                            >
+                              <AlertTriangle className="w-4 h-4 text-amber-500 hover:text-amber-600" />
+                            </button>
                           )}
                         </h3>
                         {supplier.phone && <p className="text-sm text-muted-foreground">📞 {supplier.phone}</p>}
