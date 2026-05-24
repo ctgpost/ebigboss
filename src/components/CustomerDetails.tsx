@@ -12,14 +12,22 @@ import { format } from "date-fns";
 import { bn } from "date-fns/locale";
 import { generateCustomerReport } from "@/utils/customerPdfReport";
 import { useShopSettings } from "@/hooks/useShopSettings";
-import { ChevronDown, ChevronUp, FileText, User, Wallet, CreditCard, ArrowDownLeft, BarChart3 } from "lucide-react";
+import { ChevronDown, ChevronUp, FileText, User, Wallet, CreditCard, ArrowDownLeft, BarChart3, Pencil, Trash2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ZoomableImage } from "@/components/ui/zoomable-image";
 import { createClientRequestId } from "@/utils/requestKeys";
+import { useUserRole } from "@/hooks/useUserRole";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 export function CustomerDetails() {
   const { settings } = useShopSettings();
+  const { isAdmin } = useUserRole();
+  const [editingPayment, setEditingPayment] = useState<any>(null);
+  const [editAmount, setEditAmount] = useState("");
+  const [editMethod, setEditMethod] = useState("cash");
+  const [editNotes, setEditNotes] = useState("");
+  const [deletingPayment, setDeletingPayment] = useState<any>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [selectedSale, setSelectedSale] = useState<any>(null);
@@ -104,6 +112,54 @@ export function CustomerDetails() {
       paymentRequestIdRef.current = null;
       toast.error(error.message || "বাকি আদায় করতে ব্যর্থ");
     },
+  });
+
+  const invalidatePaymentQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ["customer-sales", selectedCustomerId] });
+    queryClient.invalidateQueries({ queryKey: ["customer-payments", selectedCustomerId] });
+    queryClient.invalidateQueries({ queryKey: ["sales-with-dues"] });
+    queryClient.invalidateQueries({ queryKey: ["sales"] });
+    queryClient.invalidateQueries({ queryKey: ["payments"] });
+    queryClient.invalidateQueries({ queryKey: ["customers"] });
+  };
+
+  const editPaymentMutation = useMutation({
+    mutationFn: async ({ id, amount, method, notes, saleId }: any) => {
+      // Cap edit to (sale.total - other payments)
+      const { data: others, error: pe } = await supabase
+        .from("payments").select("amount").eq("sale_id", saleId).neq("id", id);
+      if (pe) throw pe;
+      const otherSum = (others || []).reduce((s, p) => s + Number(p.amount), 0);
+      const { data: sale, error: se } = await supabase
+        .from("sales").select("total_amount").eq("id", saleId).maybeSingle();
+      if (se) throw se;
+      const cap = Math.max(0, Number(sale?.total_amount || 0) - otherSum);
+      if (amount > cap) throw new Error(`এই বিক্রয়ের সর্বোচ্চ আদায় ৳${cap.toLocaleString('bn-BD')}`);
+      const { error } = await supabase
+        .from("payments")
+        .update({ amount, payment_method: method, notes: notes || null })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidatePaymentQueries();
+      toast.success("পেমেন্ট আপডেট হয়েছে");
+      setEditingPayment(null);
+    },
+    onError: (e: any) => toast.error(e.message || "আপডেট ব্যর্থ"),
+  });
+
+  const deletePaymentMutation = useMutation({
+    mutationFn: async (payment: any) => {
+      const { error } = await supabase.from("payments").delete().eq("id", payment.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidatePaymentQueries();
+      toast.success("পেমেন্ট মুছে ফেলা হয়েছে");
+      setDeletingPayment(null);
+    },
+    onError: (e: any) => toast.error(e.message || "মুছতে ব্যর্থ"),
   });
 
   const handleCollectPayment = () => {
@@ -481,7 +537,24 @@ export function CustomerDetails() {
                             </p>
                             {payment.notes && <p className="text-xs text-muted-foreground">📝 {payment.notes}</p>}
                           </div>
-                          <Badge variant="outline" className="text-[10px]">#{payment.sale_id.slice(0, 8)}</Badge>
+                          <div className="flex items-center gap-1">
+                            <Badge variant="outline" className="text-[10px]">#{payment.sale_id.slice(0, 8)}</Badge>
+                            {isAdmin && !isRefund && !payment.return_id && (
+                              <>
+                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => {
+                                  setEditingPayment(payment);
+                                  setEditAmount(String(payment.amount));
+                                  setEditMethod(payment.payment_method || "cash");
+                                  setEditNotes(payment.notes || "");
+                                }}>
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => setDeletingPayment(payment)}>
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -556,6 +629,68 @@ export function CustomerDetails() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Edit Payment Dialog */}
+      <Dialog open={!!editingPayment} onOpenChange={(o) => !o && setEditingPayment(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>✏️ পেমেন্ট সম্পাদনা</DialogTitle></DialogHeader>
+          {editingPayment && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">পরিমাণ *</label>
+                <Input type="number" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">পদ্ধতি</label>
+                <Select value={editMethod} onValueChange={setEditMethod}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">💵 নগদ</SelectItem>
+                    <SelectItem value="card">💳 কার্ড</SelectItem>
+                    <SelectItem value="mobile">📱 মোবাইল</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">নোট</label>
+                <Input value={editNotes} onChange={(e) => setEditNotes(e.target.value)} />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setEditingPayment(null)}>বাতিল</Button>
+                <Button
+                  disabled={editPaymentMutation.isPending}
+                  onClick={() => {
+                    const amt = parseFloat(editAmount);
+                    if (!amt || amt <= 0) { toast.error("সঠিক পরিমাণ লিখুন"); return; }
+                    editPaymentMutation.mutate({ id: editingPayment.id, amount: amt, method: editMethod, notes: editNotes, saleId: editingPayment.sale_id });
+                  }}
+                >
+                  {editPaymentMutation.isPending ? "সংরক্ষণ..." : "সংরক্ষণ"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirm */}
+      <AlertDialog open={!!deletingPayment} onOpenChange={(o) => !o && setDeletingPayment(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>পেমেন্ট মুছে ফেলবেন?</AlertDialogTitle>
+            <AlertDialogDescription>
+              এই পেমেন্ট রেকর্ড মুছে গেলে সংশ্লিষ্ট বিক্রয়ের বাকি স্বয়ংক্রিয়ভাবে পুনঃগণনা হবে।
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>বাতিল</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deletingPayment && deletePaymentMutation.mutate(deletingPayment)}
+            >মুছে ফেলুন</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

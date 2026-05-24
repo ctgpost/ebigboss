@@ -13,6 +13,9 @@ import { generateSupplierReport } from "@/utils/supplierPdfReport";
 import { useShopSettings } from "@/hooks/useShopSettings";
 import { ZoomableImage } from "@/components/ui/zoomable-image";
 import { createClientRequestId } from "@/utils/requestKeys";
+import { useUserRole } from "@/hooks/useUserRole";
+import { Pencil, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 interface SupplierPaymentDialogProps {
   open: boolean;
@@ -23,11 +26,17 @@ interface SupplierPaymentDialogProps {
 export function SupplierPaymentDialog({ open, onOpenChange, supplier }: SupplierPaymentDialogProps) {
   const queryClient = useQueryClient();
   const { settings } = useShopSettings();
+  const { isAdmin } = useUserRole();
   const [amount, setAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [notes, setNotes] = useState("");
   const [selectedPurchaseId, setSelectedPurchaseId] = useState("");
   const paymentRequestIdRef = useRef<string | null>(null);
+  const [editingPay, setEditingPay] = useState<any>(null);
+  const [editAmt, setEditAmt] = useState("");
+  const [editMethod, setEditMethod] = useState("cash");
+  const [editNotes, setEditNotes] = useState("");
+  const [deletingPay, setDeletingPay] = useState<any>(null);
 
   const { data: supplierPurchases } = useQuery({
     queryKey: ["supplier-purchases", supplier?.id],
@@ -131,6 +140,45 @@ export function SupplierPaymentDialog({ open, onOpenChange, supplier }: Supplier
       paymentRequestIdRef.current = null;
       toast.error(err.message);
     },
+  });
+
+  const invalidateSupplierPayments = () => {
+    queryClient.invalidateQueries({ queryKey: ["supplier-payments"] });
+    queryClient.invalidateQueries({ queryKey: ["supplier-purchases"] });
+    queryClient.invalidateQueries({ queryKey: ["purchases"] });
+    queryClient.invalidateQueries({ queryKey: ["supplier-payments-all"] });
+  };
+
+  const editSupplierPaymentMutation = useMutation({
+    mutationFn: async ({ id, amt, method, notes, purchaseId }: any) => {
+      if (purchaseId) {
+        const { data: others, error: pe } = await supabase
+          .from("supplier_payments").select("amount").eq("purchase_id", purchaseId).neq("id", id);
+        if (pe) throw pe;
+        const otherSum = (others || []).reduce((s: number, p: any) => s + Number(p.amount), 0);
+        const { data: pur, error: se } = await supabase
+          .from("purchases").select("total_amount").eq("id", purchaseId).maybeSingle();
+        if (se) throw se;
+        const cap = Math.max(0, Number(pur?.total_amount || 0) - otherSum);
+        if (amt > cap) throw new Error(`এই ক্রয়ের সর্বোচ্চ পেমেন্ট ৳${cap.toLocaleString('bn-BD')}`);
+      }
+      const { error } = await supabase
+        .from("supplier_payments")
+        .update({ amount: amt, payment_method: method, notes: notes || null })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { invalidateSupplierPayments(); toast.success("পেমেন্ট আপডেট হয়েছে"); setEditingPay(null); },
+    onError: (e: any) => toast.error(e.message || "আপডেট ব্যর্থ"),
+  });
+
+  const deleteSupplierPaymentMutation = useMutation({
+    mutationFn: async (pay: any) => {
+      const { error } = await supabase.from("supplier_payments").delete().eq("id", pay.id);
+      if (error) throw error;
+    },
+    onSuccess: () => { invalidateSupplierPayments(); toast.success("পেমেন্ট মুছে ফেলা হয়েছে"); setDeletingPay(null); },
+    onError: (e: any) => toast.error(e.message || "মুছতে ব্যর্থ"),
   });
 
   const handleQuickPay = (val: number) => setAmount(val);
@@ -300,7 +348,21 @@ export function SupplierPaymentDialog({ open, onOpenChange, supplier }: Supplier
                       {p.notes && ` — ${p.notes}`}
                     </p>
                   </div>
-                  <span className="text-xs text-muted-foreground">{new Date(p.created_at).toLocaleDateString('bn-BD')}</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-muted-foreground">{new Date(p.created_at).toLocaleDateString('bn-BD')}</span>
+                    {isAdmin && !p.supplier_return_id && (
+                      <>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => {
+                          setEditingPay(p); setEditAmt(String(p.amount)); setEditMethod(p.payment_method || "cash"); setEditNotes(p.notes || "");
+                        }}>
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => setDeletingPay(p)}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
               ))
             ) : (
@@ -426,6 +488,68 @@ export function SupplierPaymentDialog({ open, onOpenChange, supplier }: Supplier
           </TabsContent>
         </Tabs>
       </DialogContent>
+
+      {/* Edit Supplier Payment */}
+      <Dialog open={!!editingPay} onOpenChange={(o) => !o && setEditingPay(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>✏️ পেমেন্ট সম্পাদনা</DialogTitle></DialogHeader>
+          {editingPay && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">পরিমাণ *</label>
+                <Input type="number" value={editAmt} onChange={(e) => setEditAmt(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">পদ্ধতি</label>
+                <Select value={editMethod} onValueChange={setEditMethod}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">💵 নগদ</SelectItem>
+                    <SelectItem value="bank">🏦 ব্যাংক</SelectItem>
+                    <SelectItem value="cheque">📝 চেক</SelectItem>
+                    <SelectItem value="mobile">📱 মোবাইল</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">নোট</label>
+                <Input value={editNotes} onChange={(e) => setEditNotes(e.target.value)} />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setEditingPay(null)}>বাতিল</Button>
+                <Button
+                  disabled={editSupplierPaymentMutation.isPending}
+                  onClick={() => {
+                    const amt = parseFloat(editAmt);
+                    if (!amt || amt <= 0) { toast.error("সঠিক পরিমাণ লিখুন"); return; }
+                    editSupplierPaymentMutation.mutate({ id: editingPay.id, amt, method: editMethod, notes: editNotes, purchaseId: editingPay.purchase_id });
+                  }}
+                >
+                  {editSupplierPaymentMutation.isPending ? "সংরক্ষণ..." : "সংরক্ষণ"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deletingPay} onOpenChange={(o) => !o && setDeletingPay(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>পেমেন্ট মুছে ফেলবেন?</AlertDialogTitle>
+            <AlertDialogDescription>
+              মুছে গেলে সংশ্লিষ্ট ক্রয়ের বাকি স্বয়ংক্রিয়ভাবে পুনঃগণনা হবে।
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>বাতিল</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deletingPay && deleteSupplierPaymentMutation.mutate(deletingPay)}
+            >মুছে ফেলুন</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
