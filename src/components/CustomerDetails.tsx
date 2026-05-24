@@ -22,6 +22,12 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 
 export function CustomerDetails() {
   const { settings } = useShopSettings();
+  const { isAdmin } = useUserRole();
+  const [editingPayment, setEditingPayment] = useState<any>(null);
+  const [editAmount, setEditAmount] = useState("");
+  const [editMethod, setEditMethod] = useState("cash");
+  const [editNotes, setEditNotes] = useState("");
+  const [deletingPayment, setDeletingPayment] = useState<any>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [selectedSale, setSelectedSale] = useState<any>(null);
