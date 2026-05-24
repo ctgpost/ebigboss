@@ -389,7 +389,7 @@ export function CustomerDetails() {
                 </div>
                 {(() => {
                   // Build combined timeline
-                  type LedgerRow = { date: string; type: 'sale' | 'payment'; label: string; amount: number; sign: 1 | -1; balance?: number; method?: string };
+                  type LedgerRow = { date: string; type: 'sale' | 'payment'; label: string; amount: number; sign: 1 | -1; balance?: number; method?: string; payment?: any };
                   const rows: LedgerRow[] = [];
                   customerSales?.forEach(s => {
                     rows.push({
@@ -423,6 +423,7 @@ export function CustomerDetails() {
                       // Refund (negative amount) increases due (sign +1); collected payment decreases due (-1)
                       sign: isRefund ? 1 : -1,
                       method: p.payment_method,
+                      payment: p,
                     });
                   });
                   rows.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -435,30 +436,51 @@ export function CustomerDetails() {
 
                   return (
                     <div className="space-y-2">
-                      {rows.slice().reverse().map((r, idx) => (
-                        <div key={idx} className="flex items-center justify-between border border-border rounded-lg p-3 gap-2">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <Badge variant={r.type === 'sale' ? 'destructive' : 'default'} className="text-[10px] shrink-0">
-                              {r.type === 'sale' ? '🛒 বিক্রয়' : '💵 পরিশোধ'}
-                            </Badge>
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium truncate">{r.label}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {format(new Date(r.date), "dd MMM yyyy, hh:mm a")}
-                                {r.method ? ` • ${r.method === 'cash' ? 'নগদ' : r.method === 'card' ? 'কার্ড' : 'মোবাইল'}` : ''}
-                              </p>
+                      {rows.slice().reverse().map((r, idx) => {
+                        const p = r.payment;
+                        const canEdit = isAdmin && p && !p.return_id && Number(p.amount) > 0;
+                        return (
+                          <div key={idx} className="flex items-center justify-between border border-border rounded-lg p-3 gap-2">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <Badge variant={r.type === 'sale' ? 'destructive' : 'default'} className="text-[10px] shrink-0">
+                                {r.type === 'sale' ? '🛒 বিক্রয়' : '💵 পরিশোধ'}
+                              </Badge>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium truncate">{r.label}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {format(new Date(r.date), "dd MMM yyyy, hh:mm a")}
+                                  {r.method ? ` • ${r.method === 'cash' ? 'নগদ' : r.method === 'card' ? 'কার্ড' : 'মোবাইল'}` : ''}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <div className="text-right">
+                                <p className={`text-sm font-bold ${r.sign === 1 ? 'text-destructive' : 'text-green-600'}`}>
+                                  {r.sign === 1 ? '+' : '−'}৳{r.amount.toLocaleString('bn-BD')}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground">
+                                  বাকি: ৳{(r.balance || 0).toLocaleString('bn-BD')}
+                                </p>
+                              </div>
+                              {canEdit && (
+                                <>
+                                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => {
+                                    setEditingPayment(p);
+                                    setEditAmount(String(p.amount));
+                                    setEditMethod(p.payment_method || "cash");
+                                    setEditNotes(p.notes || "");
+                                  }}>
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </Button>
+                                  <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => setDeletingPayment(p)}>
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                </>
+                              )}
                             </div>
                           </div>
-                          <div className="text-right shrink-0">
-                            <p className={`text-sm font-bold ${r.sign === 1 ? 'text-destructive' : 'text-green-600'}`}>
-                              {r.sign === 1 ? '+' : '−'}৳{r.amount.toLocaleString('bn-BD')}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground">
-                              বাকি: ৳{(r.balance || 0).toLocaleString('bn-BD')}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   );
                 })()}
