@@ -185,20 +185,41 @@ export function Suppliers() {
 
   const getSupplierTotals = (supplierId: string) => {
     const sup = suppliers?.find(s => s.id === supplierId);
-    if (!sup) return { totalPur: 0, totalPaid: 0, totalDue: 0, mismatch: false } as any;
+    if (!sup) return { totalPur: 0, totalPaid: 0, totalDue: 0, mismatch: false, ledgerDue: 0, purchaseRowDue: 0, diff: 0 } as any;
     const cardT = computeSupplierTotals(sup, purchases as any, allSupplierPayments as any, products as any);
-    // Reconciliation: re-derive due directly from purchases.due_amount + standalone payments
-    // so we can flag any drift between the card view and what the DB stores per-purchase.
     const sumDueOnPurchases = (purchases || [])
       .filter(p => p.supplier_id === supplierId)
       .reduce((a, x) => a + Number(x.due_amount || 0), 0);
     const ledgerDue = cardT.totalDue;
     const purchaseRowDue = sumDueOnPurchases;
-    // Only meaningful when formal POs exist for this supplier.
-    const mismatch = cardT.purchasesTotal > 0 && Math.abs(purchaseRowDue - ledgerDue) > 0.5;
-    return { ...cardT, mismatch };
+    const diff = purchaseRowDue - ledgerDue;
+    const mismatch = cardT.purchasesTotal > 0 && Math.abs(diff) > 0.5;
+    return { ...cardT, mismatch, ledgerDue, purchaseRowDue, diff };
   };
   const getSupplierDue = (supplierId: string) => getSupplierTotals(supplierId).totalDue;
+
+  const handleReconcile = async (supplierId?: string) => {
+    setReconciling(true);
+    try {
+      const { error } = await (supabase.rpc as any)("recalculate_supplier_balances", {
+        _supplier_id: supplierId ?? null,
+      });
+      if (error) throw error;
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["suppliers"] }),
+        queryClient.invalidateQueries({ queryKey: ["purchases"] }),
+        queryClient.invalidateQueries({ queryKey: ["supplier-payments-all"] }),
+        queryClient.invalidateQueries({ queryKey: ["sup-ledger-purchases"] }),
+        queryClient.invalidateQueries({ queryKey: ["sup-ledger-payments"] }),
+      ]);
+      toast.success("✅ ব্যালেন্স রিক্যালকুলেশন সম্পন্ন");
+    } catch (e: any) {
+      toast.error("রিক্যালকুলেশন ব্যর্থ: " + (e?.message || ""));
+    } finally {
+      setReconciling(false);
+    }
+  };
+
 
   const toggleCardExpand = (id: string) => {
     setExpandedCards(prev => {
