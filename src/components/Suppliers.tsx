@@ -335,13 +335,22 @@ export function Suppliers() {
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredSuppliers?.map((supplier) => {
-                const due = getSupplierDue(supplier.id);
+                const t = getSupplierTotals(supplier.id);
+                const due = t.totalDue;
                 const isExpanded = expandedCards.has(supplier.id);
                 return (
-                  <Card key={supplier.id} className="p-4 card-hover">
+                  <Card key={supplier.id} className={`p-4 card-hover ${t.mismatch ? 'border-amber-500 border-2' : ''}`}>
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-base text-foreground">{supplier.name}</h3>
+                        <h3 className="font-semibold text-base text-foreground flex items-center gap-1">
+                          {supplier.name}
+                          {t.mismatch && (
+                            <AlertTriangle
+                              className="w-4 h-4 text-amber-500"
+                              aria-label="ব্যালেন্স অসামঞ্জস্য — লেজার ও ক্রয় অর্ডারের বাকি মিলছে না"
+                            />
+                          )}
+                        </h3>
                         {supplier.phone && <p className="text-sm text-muted-foreground">📞 {supplier.phone}</p>}
                       </div>
                       <div className="flex items-center gap-1">
@@ -356,14 +365,27 @@ export function Suppliers() {
                       </div>
                     </div>
 
+                    {/* Per-supplier mini totals */}
+                    <div className="grid grid-cols-3 gap-2 text-[11px] mb-2">
+                      <div><span className="text-muted-foreground">ক্রয়:</span> <span className="font-semibold text-primary">৳{t.totalPur.toLocaleString('bn-BD')}</span></div>
+                      <div><span className="text-muted-foreground">পরিশোধ:</span> <span className="font-semibold text-green-600">৳{t.totalPaid.toLocaleString('bn-BD')}</span></div>
+                      <div><span className="text-muted-foreground">বাকি:</span> <span className={`font-semibold ${due > 0 ? 'text-red-600' : 'text-green-600'}`}>৳{due.toLocaleString('bn-BD')}</span></div>
+                    </div>
+
                     {/* Expandable Details */}
                     {isExpanded && (
                       <div className="space-y-1 mb-3 pt-2 border-t border-border animate-fade-in">
                         {supplier.email && <p className="text-sm text-muted-foreground">📧 {supplier.email}</p>}
                         {supplier.address && <p className="text-sm text-muted-foreground">📍 {supplier.address}</p>}
                         {supplier.notes && <p className="text-sm text-muted-foreground">📝 {supplier.notes}</p>}
+                        {t.mismatch && (
+                          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium pt-1">
+                            ⚠️ অসামঞ্জস্য: ক্রয় অর্ডারের বাকির যোগফল লেজার ব্যালেন্সের সাথে মিলছে না — অনুগ্রহ করে অ্যাডমিনকে জানান।
+                          </p>
+                        )}
                       </div>
                     )}
+
 
                     <div className="flex gap-1.5 flex-wrap">
                       <Button variant="outline" size="sm" onClick={() => setPaymentSupplier(supplier)}>💰 হিসাব</Button>
