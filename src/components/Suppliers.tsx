@@ -511,6 +511,66 @@ export function Suppliers() {
         onOpenChange={(open) => { if (!open) setPaymentSupplier(null); }}
         supplier={paymentSupplier}
       />
+
+      <Dialog open={!!mismatchSupplier} onOpenChange={(o) => { if (!o) setMismatchSupplier(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              ব্যালেন্স অসামঞ্জস্য — {mismatchSupplier?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {mismatchSupplier && (
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20">
+                  <p className="text-xs text-muted-foreground">লেজার বাকি (গণনাকৃত)</p>
+                  <p className="text-lg font-bold text-blue-700 dark:text-blue-400">
+                    ৳{Number(mismatchSupplier._totals.ledgerDue).toLocaleString('bn-BD')}
+                  </p>
+                </div>
+                <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-950/20">
+                  <p className="text-xs text-muted-foreground">ক্রয় অর্ডার due যোগফল</p>
+                  <p className="text-lg font-bold text-purple-700 dark:text-purple-400">
+                    ৳{Number(mismatchSupplier._totals.purchaseRowDue).toLocaleString('bn-BD')}
+                  </p>
+                </div>
+              </div>
+              <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-300">
+                <p className="text-xs text-muted-foreground">পার্থক্য</p>
+                <p className="text-xl font-bold text-amber-700 dark:text-amber-400">
+                  ৳{Math.abs(Number(mismatchSupplier._totals.diff)).toLocaleString('bn-BD')}
+                </p>
+              </div>
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p className="font-semibold text-foreground">সম্ভাব্য কারণ:</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>সরাসরি পণ্য এন্ট্রি (supplier_name ম্যাচ) যার জন্য কোনো ক্রয় অর্ডার নেই — এগুলো লেজারে যোগ হয়, কিন্তু purchases.due_amount-এ থাকে না।</li>
+                  <li>Standalone সাপ্লায়ার পেমেন্ট (purchase_id ছাড়া) — পরিশোধ গণনায় যুক্ত, কিন্তু কোনো নির্দিষ্ট PO-এর due কমায় না।</li>
+                  <li>পুরোনো পেমেন্ট যেগুলো ট্রিগারের আগে যুক্ত হয়েছিল এবং purchases.paid_amount রিক্যাল হয়নি।</li>
+                  <li>সাপ্লায়ার রিটার্নের ফাইন্যান্স অ্যাডজাস্টমেন্ট যা purchases.total_amount পরিবর্তন করেছে।</li>
+                </ul>
+                <p className="pt-2">
+                  সমাধানের জন্য নিচের বোতাম দিয়ে এই সাপ্লায়ারের সকল PO রিক্যালকুলেট করুন।
+                </p>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => setMismatchSupplier(null)}>বন্ধ</Button>
+                <Button
+                  onClick={async () => {
+                    await handleReconcile(mismatchSupplier.id);
+                    setMismatchSupplier(null);
+                  }}
+                  disabled={reconciling}
+                >
+                  <RefreshCcw className={`h-4 w-4 mr-1 ${reconciling ? 'animate-spin' : ''}`} />
+                  এই সাপ্লায়ার রিক্যালকুলেট করুন
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
