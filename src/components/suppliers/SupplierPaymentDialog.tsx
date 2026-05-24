@@ -13,6 +13,9 @@ import { generateSupplierReport } from "@/utils/supplierPdfReport";
 import { useShopSettings } from "@/hooks/useShopSettings";
 import { ZoomableImage } from "@/components/ui/zoomable-image";
 import { createClientRequestId } from "@/utils/requestKeys";
+import { useUserRole } from "@/hooks/useUserRole";
+import { Pencil, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 interface SupplierPaymentDialogProps {
   open: boolean;
