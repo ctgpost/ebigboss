@@ -181,13 +181,22 @@ export function Suppliers() {
     });
   };
 
-  const getSupplierDue = (supplierId: string) => {
-    const supplierPurchaseTotal = purchases?.filter(p => p.supplier_id === supplierId)
-      .reduce((sum, p) => sum + Number(p.total_amount), 0) || 0;
-    const supplierPaid = allSupplierPayments?.filter(p => p.supplier_id === supplierId)
-      .reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-    return supplierPurchaseTotal - supplierPaid;
+  const getSupplierTotals = (supplierId: string) => {
+    const sup = suppliers?.find(s => s.id === supplierId);
+    if (!sup) return { totalPur: 0, totalPaid: 0, totalDue: 0, mismatch: false } as any;
+    const cardT = computeSupplierTotals(sup, purchases as any, allSupplierPayments as any, products as any);
+    // Reconciliation: re-derive due directly from purchases.due_amount + standalone payments
+    // so we can flag any drift between the card view and what the DB stores per-purchase.
+    const sumDueOnPurchases = (purchases || [])
+      .filter(p => p.supplier_id === supplierId)
+      .reduce((a, x) => a + Number(x.due_amount || 0), 0);
+    const ledgerDue = cardT.totalDue;
+    const purchaseRowDue = sumDueOnPurchases;
+    // Only meaningful when formal POs exist for this supplier.
+    const mismatch = cardT.purchasesTotal > 0 && Math.abs(purchaseRowDue - ledgerDue) > 0.5;
+    return { ...cardT, mismatch };
   };
+  const getSupplierDue = (supplierId: string) => getSupplierTotals(supplierId).totalDue;
 
   const toggleCardExpand = (id: string) => {
     setExpandedCards(prev => {
