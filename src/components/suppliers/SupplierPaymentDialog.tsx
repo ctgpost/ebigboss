@@ -348,7 +348,21 @@ export function SupplierPaymentDialog({ open, onOpenChange, supplier }: Supplier
                       {p.notes && ` — ${p.notes}`}
                     </p>
                   </div>
-                  <span className="text-xs text-muted-foreground">{new Date(p.created_at).toLocaleDateString('bn-BD')}</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-muted-foreground">{new Date(p.created_at).toLocaleDateString('bn-BD')}</span>
+                    {isAdmin && !p.supplier_return_id && (
+                      <>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => {
+                          setEditingPay(p); setEditAmt(String(p.amount)); setEditMethod(p.payment_method || "cash"); setEditNotes(p.notes || "");
+                        }}>
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => setDeletingPay(p)}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
               ))
             ) : (
