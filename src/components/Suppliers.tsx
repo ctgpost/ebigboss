@@ -27,6 +27,8 @@ export function Suppliers() {
   const [sortBy, setSortBy] = useState<string>("name-asc");
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [showSummary, setShowSummary] = useState(true);
+  const [mismatchSupplier, setMismatchSupplier] = useState<any>(null);
+  const [reconciling, setReconciling] = useState(false);
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", address: "", notes: "", image_url: "" });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const supplierRequestIdRef = useRef<string | null>(null);
