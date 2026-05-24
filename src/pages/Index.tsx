@@ -6,8 +6,10 @@ import { Products } from "@/components/Products";
 import { POS } from "@/components/POS";
 import { Customers } from "@/components/Customers";
 import { CustomerDetails } from "@/components/CustomerDetails";
+import { CustomerLedgerReport } from "@/components/CustomerLedgerReport";
 import { Suppliers } from "@/components/Suppliers";
 import { SupplierReturns } from "@/components/SupplierReturns";
+import { SupplierLedgerReport } from "@/components/SupplierLedgerReport";
 import { Reports } from "@/components/Reports";
 import { Settings } from "@/components/Settings";
 import { Categories } from "@/components/Categories";
@@ -31,7 +33,8 @@ import {
   FileText, 
   Settings as SettingsIcon,
   Truck,
-  Users
+  Users,
+  BookOpen
 } from "lucide-react";
 
 interface IndexProps {
@@ -131,9 +134,11 @@ export default function Index({ user }: IndexProps) {
     { id: "products", label: "Products", icon: Package, permission: 'canManageProducts' },
     { id: "pos", label: "POS", icon: ShoppingCart, permission: 'canAccessPOS' },
     { id: "customers", label: "Customers", icon: Users, permission: 'canManageCustomers' },
+    { id: "customer-ledger", label: "Customer Ledger", icon: BookOpen, permission: 'canManageCustomers' },
     { id: "sales", label: "Sales", icon: TrendingUp, permission: 'canAccessSales' },
     { id: "returns", label: "Returns", icon: RefreshCcw, permission: 'canAccessSales' },
     { id: "suppliers", label: "Suppliers", icon: Truck, permission: 'canManageSuppliers' },
+    { id: "supplier-ledger", label: "Supplier Ledger", icon: BookOpen, permission: 'canManageSuppliers' },
     { id: "supplier-returns", label: "Supplier Returns", icon: RefreshCcw, permission: 'canManageSuppliers' },
     { id: "reports", label: "Reports", icon: FileText, permission: 'canAccessReports' },
     { id: "settings", label: "Settings", icon: SettingsIcon, permission: 'canAccessSettings' },
@@ -179,8 +184,12 @@ export default function Index({ user }: IndexProps) {
         return <Customers />;
       case "customer-details":
         return <CustomerDetails />;
+      case "customer-ledger":
+        return <CustomerLedgerReport />;
       case "suppliers":
         return <Suppliers />;
+      case "supplier-ledger":
+        return <SupplierLedgerReport />;
       case "supplier-returns":
         return <SupplierReturns />;
       case "reports":
