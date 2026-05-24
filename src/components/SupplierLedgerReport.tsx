@@ -10,8 +10,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Pencil, Trash2, Search, Truck, Wallet, CreditCard, ArrowDownLeft } from "lucide-react";
+import { Pencil, Trash2, Search, Truck, Wallet, CreditCard, ArrowDownLeft, AlertTriangle } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
+import { computeSupplierTotals } from "@/utils/supplierBalance";
 
 export function SupplierLedgerReport() {
   const queryClient = useQueryClient();
