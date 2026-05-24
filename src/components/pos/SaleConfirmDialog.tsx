@@ -16,6 +16,7 @@ interface SaleConfirmDialogProps {
   cart: CartItem[];
   total: number;
   paidAmount: number;
+  isProcessing?: boolean;
   onConfirm: () => void;
 }
 
@@ -25,6 +26,7 @@ export function SaleConfirmDialog({
   cart,
   total,
   paidAmount,
+  isProcessing = false,
   onConfirm,
 }: SaleConfirmDialogProps) {
   const dueAmount = Math.max(0, total - (paidAmount > 0 ? paidAmount : total));
@@ -81,8 +83,8 @@ export function SaleConfirmDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>বাতিল</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm} className="bg-primary">
-            ✓ নিশ্চিত করুন
+          <AlertDialogAction onClick={onConfirm} disabled={isProcessing} className="bg-primary">
+            {isProcessing ? "প্রক্রিয়াকরণ..." : "✓ নিশ্চিত করুন"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
