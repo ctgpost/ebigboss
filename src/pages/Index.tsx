@@ -33,7 +33,8 @@ import {
   FileText, 
   Settings as SettingsIcon,
   Truck,
-  Users
+  Users,
+  BookOpen
 } from "lucide-react";
 
 interface IndexProps {
