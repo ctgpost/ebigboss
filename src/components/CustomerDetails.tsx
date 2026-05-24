@@ -629,6 +629,68 @@ export function CustomerDetails() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Edit Payment Dialog */}
+      <Dialog open={!!editingPayment} onOpenChange={(o) => !o && setEditingPayment(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>✏️ পেমেন্ট সম্পাদনা</DialogTitle></DialogHeader>
+          {editingPayment && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">পরিমাণ *</label>
+                <Input type="number" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">পদ্ধতি</label>
+                <Select value={editMethod} onValueChange={setEditMethod}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">💵 নগদ</SelectItem>
+                    <SelectItem value="card">💳 কার্ড</SelectItem>
+                    <SelectItem value="mobile">📱 মোবাইল</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">নোট</label>
+                <Input value={editNotes} onChange={(e) => setEditNotes(e.target.value)} />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setEditingPayment(null)}>বাতিল</Button>
+                <Button
+                  disabled={editPaymentMutation.isPending}
+                  onClick={() => {
+                    const amt = parseFloat(editAmount);
+                    if (!amt || amt <= 0) { toast.error("সঠিক পরিমাণ লিখুন"); return; }
+                    editPaymentMutation.mutate({ id: editingPayment.id, amount: amt, method: editMethod, notes: editNotes, saleId: editingPayment.sale_id });
+                  }}
+                >
+                  {editPaymentMutation.isPending ? "সংরক্ষণ..." : "সংরক্ষণ"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirm */}
+      <AlertDialog open={!!deletingPayment} onOpenChange={(o) => !o && setDeletingPayment(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>পেমেন্ট মুছে ফেলবেন?</AlertDialogTitle>
+            <AlertDialogDescription>
+              এই পেমেন্ট রেকর্ড মুছে গেলে সংশ্লিষ্ট বিক্রয়ের বাকি স্বয়ংক্রিয়ভাবে পুনঃগণনা হবে।
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>বাতিল</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deletingPayment && deletePaymentMutation.mutate(deletingPayment)}
+            >মুছে ফেলুন</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
