@@ -223,9 +223,17 @@ export function Suppliers() {
     return filtered;
   }, [suppliers, searchQuery, sortBy, purchases, allSupplierPayments]);
 
-  const totalPurchaseAmount = purchases?.reduce((sum, p) => sum + Number(p.total_amount), 0) || 0;
-  const totalPaid = allSupplierPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-  const totalDue = totalPurchaseAmount - totalPaid;
+  // Sum totals via the shared util so the summary cards exactly match each card.
+  const grandTotals = useMemo(() => {
+    if (!suppliers) return { pur: 0, paid: 0, due: 0 };
+    return suppliers.reduce((acc, s) => {
+      const t = computeSupplierTotals(s as any, purchases as any, allSupplierPayments as any, products as any);
+      return { pur: acc.pur + t.totalPur, paid: acc.paid + t.totalPaid, due: acc.due + t.totalDue };
+    }, { pur: 0, paid: 0, due: 0 });
+  }, [suppliers, purchases, allSupplierPayments, products]);
+  const totalPurchaseAmount = grandTotals.pur;
+  const totalPaid = grandTotals.paid;
+  const totalDue = grandTotals.due;
 
   return (
     <div className="flex flex-col h-screen animate-fade-in">
