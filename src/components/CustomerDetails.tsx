@@ -114,7 +114,54 @@ export function CustomerDetails() {
     },
   });
 
-  const handleCollectPayment = () => {
+  const invalidatePaymentQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ["customer-sales", selectedCustomerId] });
+    queryClient.invalidateQueries({ queryKey: ["customer-payments", selectedCustomerId] });
+    queryClient.invalidateQueries({ queryKey: ["sales-with-dues"] });
+    queryClient.invalidateQueries({ queryKey: ["sales"] });
+    queryClient.invalidateQueries({ queryKey: ["payments"] });
+    queryClient.invalidateQueries({ queryKey: ["customers"] });
+  };
+
+  const editPaymentMutation = useMutation({
+    mutationFn: async ({ id, amount, method, notes, saleId }: any) => {
+      // Cap edit to (sale.total - other payments)
+      const { data: others, error: pe } = await supabase
+        .from("payments").select("amount").eq("sale_id", saleId).neq("id", id);
+      if (pe) throw pe;
+      const otherSum = (others || []).reduce((s, p) => s + Number(p.amount), 0);
+      const { data: sale, error: se } = await supabase
+        .from("sales").select("total_amount").eq("id", saleId).maybeSingle();
+      if (se) throw se;
+      const cap = Math.max(0, Number(sale?.total_amount || 0) - otherSum);
+      if (amount > cap) throw new Error(`এই বিক্রয়ের সর্বোচ্চ আদায় ৳${cap.toLocaleString('bn-BD')}`);
+      const { error } = await supabase
+        .from("payments")
+        .update({ amount, payment_method: method, notes: notes || null })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidatePaymentQueries();
+      toast.success("পেমেন্ট আপডেট হয়েছে");
+      setEditingPayment(null);
+    },
+    onError: (e: any) => toast.error(e.message || "আপডেট ব্যর্থ"),
+  });
+
+  const deletePaymentMutation = useMutation({
+    mutationFn: async (payment: any) => {
+      const { error } = await supabase.from("payments").delete().eq("id", payment.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidatePaymentQueries();
+      toast.success("পেমেন্ট মুছে ফেলা হয়েছে");
+      setDeletingPayment(null);
+    },
+    onError: (e: any) => toast.error(e.message || "মুছতে ব্যর্থ"),
+  });
+
     const amount = parseFloat(paymentAmount);
     if (!amount || amount <= 0) {
       toast.error("সঠিক পরিমাণ লিখুন (০ এর বেশি)");
