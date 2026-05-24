@@ -162,14 +162,29 @@ export function SupplierLedgerReport() {
         )}
         {filtered.map(r => {
           const isOpen = expanded === r.id;
-          type Row = { date: string; kind: 'pur' | 'pay'; label: string; amount: number; sign: 1 | -1; method?: string; payment?: any; balance?: number };
+          type Row = { date: string; kind: 'pur' | 'pay' | 'prod'; label: string; amount: number; sign: 1 | -1; method?: string; payment?: any; balance?: number };
           const ledger: Row[] = [];
           r.sPur.forEach(p => {
             ledger.push({ date: p.created_at, kind: 'pur', label: `ক্রয় ${p.purchase_number || '#' + p.id.slice(0, 8)}`, amount: Number(p.total_amount), sign: 1 });
-            if (Number(p.paid_amount) > 0) {
-              ledger.push({ date: p.created_at, kind: 'pay', label: `প্রাথমিক পরিশোধ`, amount: Number(p.paid_amount), sign: -1 });
+            // Initial paid at creation = paid_amount minus all linked supplier_payments
+            // (since the recalc trigger keeps purchases.paid_amount in sync with linked payments).
+            const linkedSum = r.sPay.filter((sp: any) => sp.purchase_id === p.id)
+              .reduce((a: number, x: any) => a + Number(x.amount || 0), 0);
+            const initialAtCreate = Math.max(0, Number(p.paid_amount || 0) - linkedSum);
+            if (initialAtCreate > 0) {
+              ledger.push({ date: p.created_at, kind: 'pay', label: `প্রাথমিক পরিশোধ`, amount: initialAtCreate, sign: -1 });
             }
           });
+          // If there are no formal POs, surface direct product entries as ledger lines so
+          // the running balance reflects the actual debt owed to the supplier.
+          if (r.purchasesTotal === 0) {
+            (r.sProd || []).forEach((p: any) => {
+              const cost = Number(p.cost || 0);
+              if (cost > 0) {
+                ledger.push({ date: p.created_at, kind: 'prod', label: `📦 ${p.name}`, amount: cost, sign: 1 });
+              }
+            });
+          }
           r.sPay.forEach(p => {
             const isRefund = Number(p.amount) < 0;
             ledger.push({
@@ -186,11 +201,14 @@ export function SupplierLedgerReport() {
           ledger.forEach(x => { bal += x.sign * x.amount; x.balance = bal; });
 
           return (
-            <Card key={r.id} className="p-3">
+            <Card key={r.id} className={`p-3 ${r.mismatch ? 'border-amber-500 border-2' : ''}`}>
               <div className="flex items-center justify-between gap-2 cursor-pointer" onClick={() => setExpanded(isOpen ? null : r.id)}>
                 <div className="min-w-0 flex-1">
-                  <p className="font-bold truncate">{r.name}</p>
-                  <p className="text-xs text-muted-foreground">{r.phone || '—'} • {r.sPur.length}টি ক্রয়</p>
+                  <p className="font-bold truncate flex items-center gap-1">
+                    {r.name}
+                    {r.mismatch && <AlertTriangle className="w-4 h-4 text-amber-500" aria-label="ব্যালেন্স অসামঞ্জস্য" />}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{r.phone || '—'} • {r.sPur.length}টি ক্রয়{(r.sProd?.length || 0) > 0 ? ` • ${r.sProd.length}টি প্রোডাক্ট` : ''}</p>
                 </div>
                 <div className="text-right grid grid-cols-3 gap-3 text-xs">
                   <div><p className="text-muted-foreground">ক্রয়</p><p className="font-bold text-primary">৳{r.totalPur.toLocaleString('bn-BD')}</p></div>
@@ -198,6 +216,12 @@ export function SupplierLedgerReport() {
                   <div><p className="text-muted-foreground">বাকি</p><p className={`font-bold ${r.totalDue > 0 ? 'text-destructive' : 'text-green-600'}`}>৳{r.totalDue.toLocaleString('bn-BD')}</p></div>
                 </div>
               </div>
+              {r.mismatch && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+                  ⚠️ ক্রয় অর্ডারের বাকি (৳{r.purchaseRowDue.toLocaleString('bn-BD')}) ও লেজার বাকি (৳{r.totalDue.toLocaleString('bn-BD')}) মিলছে না।
+                </p>
+              )}
+
 
               {isOpen && (
                 <div className="mt-3 space-y-2 border-t pt-3">
