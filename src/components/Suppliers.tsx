@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { ChevronDown, ChevronUp, RefreshCcw, Search } from "lucide-react";
 import { CloudinaryImageUpload } from "./CloudinaryImageUpload";
 import { getCloudinaryThumbnail } from "@/utils/cloudinary";
 import { supplierSchema, validateInline } from "@/utils/validation";
+import { createClientRequestId } from "@/utils/requestKeys";
 
 export function Suppliers() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -27,6 +28,7 @@ export function Suppliers() {
   const [showSummary, setShowSummary] = useState(true);
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", address: "", notes: "", image_url: "" });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const supplierRequestIdRef = useRef<string | null>(null);
   const clearFormError = (key: string) =>
     setFormErrors((p) => {
       if (!p[key]) return p;
@@ -84,8 +86,13 @@ export function Suppliers() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       toast.success("সাপ্লায়ার যুক্ত হয়েছে!");
+      supplierRequestIdRef.current = null;
       setIsAddDialogOpen(false);
       resetForm();
+    },
+    onError: (error: any) => {
+      supplierRequestIdRef.current = null;
+      toast.error(error.message || "সাপ্লায়ার যুক্ত করতে ব্যর্থ");
     },
   });
 
@@ -160,7 +167,8 @@ export function Suppliers() {
     if (editingSupplier) {
       updateSupplierMutation.mutate({ id: editingSupplier.id, data: formData });
     } else {
-      addSupplierMutation.mutate(formData);
+      supplierRequestIdRef.current ||= createClientRequestId("supplier");
+      addSupplierMutation.mutate({ ...formData, client_request_id: supplierRequestIdRef.current });
     }
   };
 
