@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { generateSupplierReport } from "@/utils/supplierPdfReport";
 import { useShopSettings } from "@/hooks/useShopSettings";
 import { ZoomableImage } from "@/components/ui/zoomable-image";
+import { createClientRequestId } from "@/utils/requestKeys";
 
 interface SupplierPaymentDialogProps {
   open: boolean;
@@ -26,6 +27,7 @@ export function SupplierPaymentDialog({ open, onOpenChange, supplier }: Supplier
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [notes, setNotes] = useState("");
   const [selectedPurchaseId, setSelectedPurchaseId] = useState("");
+  const paymentRequestIdRef = useRef<string | null>(null);
 
   const { data: supplierPurchases } = useQuery({
     queryKey: ["supplier-purchases", supplier?.id],
@@ -101,32 +103,18 @@ export function SupplierPaymentDialog({ open, onOpenChange, supplier }: Supplier
 
   const payMutation = useMutation({
     mutationFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
       if (amount <= 0) throw new Error("পরিমাণ সঠিক নয়");
 
-      const { error } = await supabase.from("supplier_payments").insert({
-        supplier_id: supplier.id,
-        purchase_id: selectedPurchaseId || null,
-        amount,
-        payment_method: paymentMethod,
-        notes,
-        paid_by: user.id,
+      paymentRequestIdRef.current ||= createClientRequestId("supplier-payment");
+      const { error } = await (supabase as any).rpc("collect_supplier_payment_idempotent", {
+        _request_id: paymentRequestIdRef.current,
+        _supplier_id: supplier.id,
+        _purchase_id: selectedPurchaseId || null,
+        _amount: amount,
+        _payment_method: paymentMethod,
+        _notes: notes || null,
       });
       if (error) throw error;
-
-      if (selectedPurchaseId) {
-        const purchase = supplierPurchases?.find(p => p.id === selectedPurchaseId);
-        if (purchase) {
-          const newPaid = Number(purchase.paid_amount) + amount;
-          const newDue = Math.max(0, Number(purchase.total_amount) - newPaid);
-          await supabase.from("purchases").update({
-            paid_amount: newPaid,
-            due_amount: newDue,
-            status: newDue <= 0 ? "paid" : purchase.status,
-          }).eq("id", selectedPurchaseId);
-        }
-      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["supplier-payments"] });
@@ -137,8 +125,12 @@ export function SupplierPaymentDialog({ open, onOpenChange, supplier }: Supplier
       setAmount(0);
       setNotes("");
       setSelectedPurchaseId("");
+      paymentRequestIdRef.current = null;
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: any) => {
+      paymentRequestIdRef.current = null;
+      toast.error(err.message);
+    },
   });
 
   const handleQuickPay = (val: number) => setAmount(val);
@@ -280,10 +272,10 @@ export function SupplierPaymentDialog({ open, onOpenChange, supplier }: Supplier
             <Textarea placeholder="নোট (ঐচ্ছিক)..." value={notes} onChange={(e) => setNotes(e.target.value)} className="h-14" />
             <Button
               onClick={() => payMutation.mutate()}
-              disabled={amount <= 0}
+              disabled={amount <= 0 || payMutation.isPending}
               className="w-full bg-gradient-to-r from-primary to-accent"
             >
-              💰 ৳{amount.toLocaleString('bn-BD')} পরিশোধ করুন
+              {payMutation.isPending ? "প্রক্রিয়াকরণ..." : `💰 ৳${amount.toLocaleString('bn-BD')} পরিশোধ করুন`}
             </Button>
           </div>
         </Card>

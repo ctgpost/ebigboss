@@ -6,6 +6,7 @@ import { InvoiceModal } from "./InvoiceModal";
 import { BarcodeScanner } from "./BarcodeScanner";
 import { ActivityLogger } from "@/hooks/useActivityLog";
 import { queueIfOffline } from "@/utils/offlineQueue";
+import { createClientRequestId } from "@/utils/requestKeys";
 
 // Sub-components
 import { CartItem, Product, Customer } from "./pos/types";
@@ -32,6 +33,7 @@ export function POS() {
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [saleImageUrl, setSaleImageUrl] = useState("");
   const [useInstantCustomer, setUseInstantCustomer] = useState(false);
+  const [activeSaleRequestId, setActiveSaleRequestId] = useState<string | null>(null);
   const [paymentErrors, setPaymentErrors] = useState<{
     instant_customer_name?: string;
     instant_customer_phone?: string;
@@ -79,55 +81,18 @@ export function POS() {
 
       let sale: any;
       try {
-        const { data, error: saleError } = await supabase
-        .from("sales")
-        .insert([salePayload])
-        .select("*, customers(*)")
-        .single();
+        const { data, error: saleError } = await (supabase as any)
+          .rpc("complete_sale_idempotent", {
+            _request_id: saleData.client_request_id,
+            _sale: salePayload,
+            _items: saleData.items,
+          });
 
         if (saleError) throw saleError;
         sale = data;
       } catch (error) {
-        queueIfOffline("sales_complete", { sale: salePayload, items: saleData.items }, error);
+        queueIfOffline("sales_complete", { sale: salePayload, items: saleData.items, client_request_id: saleData.client_request_id }, error);
         return { ...salePayload, id: `offline-${Date.now()}`, created_at: new Date().toISOString(), sale_items: saleData.items.map((item: any) => ({ ...item, products: cart.find((c) => c.product.id === item.product_id)?.product })) };
-      }
-
-      for (const item of saleData.items) {
-        const { error: itemError } = await supabase
-          .from("sale_items")
-          .insert([{
-            sale_id: sale.id,
-            product_id: item.product_id,
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-            total_price: item.total_price,
-          }]);
-
-        if (itemError) throw itemError;
-
-        const { data: product, error: productFetchError } = await supabase
-          .from("products")
-          .select("stock_quantity")
-          .eq("id", item.product_id)
-          .single();
-
-        if (productFetchError) {
-          console.error("Failed to fetch product for stock update:", productFetchError);
-          throw new Error(`স্টক আপডেট করতে ব্যর্থ: ${item.product_id}`);
-        }
-
-        if (product) {
-          const newStockQuantity = Math.max(0, product.stock_quantity - item.quantity);
-          const { error: stockUpdateError } = await supabase
-            .from("products")
-            .update({ stock_quantity: newStockQuantity })
-            .eq("id", item.product_id);
-
-          if (stockUpdateError) {
-            console.error("Failed to update stock:", stockUpdateError);
-            throw new Error(`স্টক আপডেট করতে ব্যর্থ: ${item.product_id}`);
-          }
-        }
       }
 
       const { data: fullSale } = await supabase
@@ -156,6 +121,7 @@ export function POS() {
       setPaidAmount(0);
       setSaleImageUrl("");
       setUseInstantCustomer(false);
+      setActiveSaleRequestId(null);
       setPaymentErrors({});
       setCartPriceErrors({});
     },
@@ -265,6 +231,7 @@ export function POS() {
   };
 
   const confirmSale = () => {
+    if (completeSaleMutation.isPending) return;
     if (getTotal() <= 0) {
       toast.error("বিক্রয় মূল্য ০ হতে পারে না");
       return;
@@ -284,6 +251,7 @@ export function POS() {
       instant_customer_name: instantCustomerName || null,
       instant_customer_phone: instantCustomerPhone || null,
       sale_image_url: saleImageUrl || null,
+      client_request_id: activeSaleRequestId || createClientRequestId("sale"),
       items: cart.map(item => ({
         product_id: item.product.id,
         quantity: item.quantity,
@@ -293,6 +261,7 @@ export function POS() {
     };
 
     setShowConfirmDialog(false);
+    setActiveSaleRequestId(saleData.client_request_id);
     completeSaleMutation.mutate(saleData);
   };
 
@@ -409,6 +378,7 @@ export function POS() {
         cart={cart}
         total={total}
         paidAmount={paidAmount}
+        isProcessing={completeSaleMutation.isPending}
         onConfirm={confirmSale}
       />
 

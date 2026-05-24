@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { ChevronDown, ChevronUp, FileText, User, Wallet, CreditCard, ArrowDownLe
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ZoomableImage } from "@/components/ui/zoomable-image";
+import { createClientRequestId } from "@/utils/requestKeys";
 
 export function CustomerDetails() {
   const { settings } = useShopSettings();
@@ -23,6 +24,7 @@ export function CustomerDetails() {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [selectedSale, setSelectedSale] = useState<any>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
+  const paymentRequestIdRef = useRef<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentNotes, setPaymentNotes] = useState("");
   const [showTransactions, setShowTransactions] = useState(true);
@@ -74,33 +76,16 @@ export function CustomerDetails() {
 
   const collectPaymentMutation = useMutation({
     mutationFn: async ({ saleId, customerId, amount, method, notes }: any) => {
-      const { data: { user } } = await supabase.auth.getUser();
-
-      const { error: paymentError } = await supabase.from("payments").insert([{
-        sale_id: saleId,
-        customer_id: customerId,
-        amount,
-        payment_method: method,
-        notes,
-        collected_by: user?.id,
-      }]);
-      if (paymentError) throw paymentError;
-
-      const { data: sale, error: fetchError } = await supabase
-        .from("sales")
-        .select("paid_amount, due_amount, total_amount")
-        .eq("id", saleId)
-        .single();
-      if (fetchError) throw fetchError;
-
-      const newPaid = Number(sale.paid_amount) + amount;
-      const newDue = Math.max(0, Number(sale.total_amount) - newPaid);
-
-      const { error: updateError } = await supabase
-        .from("sales")
-        .update({ paid_amount: newPaid, due_amount: newDue })
-        .eq("id", saleId);
-      if (updateError) throw updateError;
+      paymentRequestIdRef.current ||= createClientRequestId("customer-detail-payment");
+      const { error } = await (supabase as any).rpc("collect_customer_payment_idempotent", {
+        _request_id: paymentRequestIdRef.current,
+        _sale_id: saleId,
+        _customer_id: customerId,
+        _amount: amount,
+        _payment_method: method,
+        _notes: notes || null,
+      });
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customer-sales", selectedCustomerId] });
@@ -113,8 +98,10 @@ export function CustomerDetails() {
       setSelectedSale(null);
       setPaymentAmount("");
       setPaymentNotes("");
+      paymentRequestIdRef.current = null;
     },
     onError: (error: any) => {
+      paymentRequestIdRef.current = null;
       toast.error(error.message || "বাকি আদায় করতে ব্যর্থ");
     },
   });

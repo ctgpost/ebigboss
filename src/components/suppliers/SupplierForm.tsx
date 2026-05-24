@@ -21,9 +21,10 @@ interface SupplierFormProps {
   isEditing: boolean;
   errors?: Record<string, string>;
   onClearError?: (key: string) => void;
+  isSubmitting?: boolean;
 }
 
-export function SupplierForm({ formData, onChange, onSubmit, onCancel, isEditing, errors = {}, onClearError }: SupplierFormProps) {
+export function SupplierForm({ formData, onChange, onSubmit, onCancel, isEditing, errors = {}, onClearError, isSubmitting = false }: SupplierFormProps) {
   const clear = (k: string) => onClearError?.(k);
   return (
     <form onSubmit={onSubmit} className="space-y-4">
@@ -87,8 +88,8 @@ export function SupplierForm({ formData, onChange, onSubmit, onCancel, isEditing
       </div>
       <div className="flex gap-2 justify-end">
         <Button type="button" variant="outline" onClick={onCancel}>বাতিল</Button>
-        <Button type="submit" className="bg-gradient-to-r from-primary to-accent">
-          {isEditing ? "আপডেট" : "যুক্ত"} করুন
+        <Button type="submit" disabled={isSubmitting} className="bg-gradient-to-r from-primary to-accent">
+          {isSubmitting ? "প্রক্রিয়াকরণ..." : `${isEditing ? "আপডেট" : "যুক্ত"} করুন`}
         </Button>
       </div>
     </form>

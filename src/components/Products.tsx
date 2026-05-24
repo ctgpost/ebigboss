@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { ProductQuickView } from "./ProductQuickView";
 import { Eye, ScanBarcode, Download, FileSpreadsheet, FileText, ChevronDown, ChevronUp, Filter, ArrowUpDown, LayoutGrid, List } from "lucide-react";
 import { ActivityLogger } from "@/hooks/useActivityLog";
 import { queueIfOffline } from "@/utils/offlineQueue";
+import { createClientRequestId } from "@/utils/requestKeys";
 import * as XLSX from "xlsx";
 import { CloudinaryImageUpload } from "./CloudinaryImageUpload";
 import { getCloudinaryThumbnail } from "@/utils/cloudinary";
@@ -40,6 +41,7 @@ export function Products() {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const productRequestIdRef = useRef<string | null>(null);
   const clearError = (key: string) => setFormErrors(p => { if (!p[key]) return p; const n = { ...p }; delete n[key]; return n; });
   const [formData, setFormData] = useState({
     name: "",
@@ -110,12 +112,14 @@ export function Products() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success("Product added successfully!");
+      productRequestIdRef.current = null;
       ActivityLogger.productAdded(result.name, result.id, result.condition);
       setIsAddDialogOpen(false);
       resetForm();
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to add product");
+      productRequestIdRef.current = null;
     },
   });
 
@@ -290,7 +294,8 @@ export function Products() {
     if (editingProduct) {
       updateMutation.mutate({ id: editingProduct.id, data: submitData });
     } else {
-      addMutation.mutate(submitData);
+      productRequestIdRef.current ||= createClientRequestId("product");
+      addMutation.mutate({ ...submitData, client_request_id: productRequestIdRef.current });
     }
   };
 
@@ -948,8 +953,8 @@ export function Products() {
                 >
                   Cancel
                 </Button>
-                <Button type="submit" className="bg-gradient-to-r from-primary to-accent">
-                  {editingProduct ? "Update" : "Add"} Product
+                <Button type="submit" disabled={addMutation.isPending || updateMutation.isPending} className="bg-gradient-to-r from-primary to-accent">
+                  {addMutation.isPending || updateMutation.isPending ? "Processing..." : `${editingProduct ? "Update" : "Add"} Product`}
                 </Button>
               </div>
             </form>

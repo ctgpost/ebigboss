@@ -76,11 +76,13 @@ async function replayAction(action: OfflineAction) {
   }
 
   if (action.type === "purchase_create") {
-    const { purchase, items } = p;
-    const { data, error } = await (supabase as any).from("purchases").insert(purchase).select().single();
+    const { purchase, items, client_request_id } = p;
+    const { error } = await (supabase as any).rpc("create_purchase_idempotent", {
+      _request_id: client_request_id || purchase.client_request_id,
+      _purchase: purchase,
+      _items: items,
+    });
     if (error) throw error;
-    const { error: itemsError } = await (supabase as any).from("purchase_items").insert(items.map((it: any) => ({ ...it, purchase_id: data.id })));
-    if (itemsError) throw itemsError;
     return;
   }
 
@@ -103,15 +105,13 @@ async function replayAction(action: OfflineAction) {
   }
 
   if (action.type === "sales_complete") {
-    const { sale, items } = p;
-    const { data, error } = await (supabase as any).from("sales").insert([sale]).select("*, customers(*)").single();
+    const { sale, items, client_request_id } = p;
+    const { error } = await (supabase as any).rpc("complete_sale_idempotent", {
+      _request_id: client_request_id || sale.client_request_id,
+      _sale: sale,
+      _items: items,
+    });
     if (error) throw error;
-    for (const item of items) {
-      const { error: itemError } = await (supabase as any).from("sale_items").insert([{ ...item, sale_id: data.id }]);
-      if (itemError) throw itemError;
-      const { data: product } = await (supabase as any).from("products").select("stock_quantity").eq("id", item.product_id).single();
-      if (product) await (supabase as any).from("products").update({ stock_quantity: Math.max(0, Number(product.stock_quantity || 0) - Number(item.quantity || 0)) }).eq("id", item.product_id);
-    }
     return;
   }
 

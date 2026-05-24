@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { filterCacheKey, getPurchaseFilterResult, savePurchaseFilterResult } from "@/utils/offlineAssets";
 import { queueIfOffline } from "@/utils/offlineQueue";
+import { createClientRequestId } from "@/utils/requestKeys";
 import { Filter, ScanLine, Search } from "lucide-react";
 
 interface CreatePurchaseDialogProps {
@@ -33,6 +34,7 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products, 
   const [items, setItems] = useState<{ product_id: string; quantity: number; unit_cost: number }[]>([
     { product_id: "", quantity: 1, unit_cost: 0 },
   ]);
+  const purchaseRequestIdRef = useRef<string | null>(null);
 
   const validItems = useMemo(
     () => items.filter((item) => item.product_id && Number(item.quantity) > 0),
@@ -70,6 +72,8 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products, 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
+      purchaseRequestIdRef.current ||= createClientRequestId("purchase");
+      const requestId = purchaseRequestIdRef.current;
       const purchaseNumber = `PO-${Date.now()}`;
       if (validItems.length === 0) throw new Error("কমপক্ষে একটি আইটেম যুক্ত করুন");
       if (!supplierId) throw new Error("সাপ্লায়ার নির্বাচন করুন");
@@ -82,6 +86,7 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products, 
         due_amount: totalAmount,
         status: "pending",
         notes,
+        client_request_id: requestId,
       };
       const purchaseItems = validItems.map(item => ({
         product_id: item.product_id,
@@ -90,31 +95,31 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products, 
         total_cost: item.quantity * item.unit_cost,
       }));
 
-      let purchase: any;
       try {
-        const { data, error: purchaseError } = await supabase
-        .from("purchases")
-        .insert(purchasePayload)
-        .select()
-        .single();
+        const { data, error: purchaseError } = await (supabase as any)
+          .rpc("create_purchase_idempotent", {
+            _request_id: requestId,
+            _purchase: purchasePayload,
+            _items: purchaseItems,
+          });
 
         if (purchaseError) throw purchaseError;
-        purchase = data;
       } catch (error) {
-        queueIfOffline("purchase_create", { purchase: purchasePayload, items: purchaseItems }, error);
+        queueIfOffline("purchase_create", { purchase: purchasePayload, items: purchaseItems, client_request_id: requestId }, error);
         return;
       }
-
-      const { error: itemsError } = await supabase.from("purchase_items").insert(purchaseItems.map((item) => ({ ...item, purchase_id: purchase.id })));
-      if (itemsError) throw itemsError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["purchases"] });
       toast.success("ক্রয় অর্ডার তৈরি হয়েছে!");
+      purchaseRequestIdRef.current = null;
       onOpenChange(false);
       resetForm();
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: any) => {
+      purchaseRequestIdRef.current = null;
+      toast.error(err.message);
+    },
   });
 
   const resetForm = () => {
