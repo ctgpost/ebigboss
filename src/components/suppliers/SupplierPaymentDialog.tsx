@@ -26,11 +26,17 @@ interface SupplierPaymentDialogProps {
 export function SupplierPaymentDialog({ open, onOpenChange, supplier }: SupplierPaymentDialogProps) {
   const queryClient = useQueryClient();
   const { settings } = useShopSettings();
+  const { isAdmin } = useUserRole();
   const [amount, setAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [notes, setNotes] = useState("");
   const [selectedPurchaseId, setSelectedPurchaseId] = useState("");
   const paymentRequestIdRef = useRef<string | null>(null);
+  const [editingPay, setEditingPay] = useState<any>(null);
+  const [editAmt, setEditAmt] = useState("");
+  const [editMethod, setEditMethod] = useState("cash");
+  const [editNotes, setEditNotes] = useState("");
+  const [deletingPay, setDeletingPay] = useState<any>(null);
 
   const { data: supplierPurchases } = useQuery({
     queryKey: ["supplier-purchases", supplier?.id],
