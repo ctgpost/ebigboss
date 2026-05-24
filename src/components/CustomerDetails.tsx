@@ -537,7 +537,24 @@ export function CustomerDetails() {
                             </p>
                             {payment.notes && <p className="text-xs text-muted-foreground">📝 {payment.notes}</p>}
                           </div>
-                          <Badge variant="outline" className="text-[10px]">#{payment.sale_id.slice(0, 8)}</Badge>
+                          <div className="flex items-center gap-1">
+                            <Badge variant="outline" className="text-[10px]">#{payment.sale_id.slice(0, 8)}</Badge>
+                            {isAdmin && !isRefund && !payment.return_id && (
+                              <>
+                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => {
+                                  setEditingPayment(payment);
+                                  setEditAmount(String(payment.amount));
+                                  setEditMethod(payment.payment_method || "cash");
+                                  setEditNotes(payment.notes || "");
+                                }}>
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => setDeletingPayment(payment)}>
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
