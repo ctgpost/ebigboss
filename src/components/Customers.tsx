@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,9 @@ export function Customers() {
     image_url: "",
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const customerRequestIdRef = useRef<string | null>(null);
+  const paymentRequestIdRef = useRef<string | null>(null);
+  const bulkPaymentRequestIdsRef = useRef<Record<string, string>>({});
   const clearError = (key: string) =>
     setFormErrors((p) => {
       if (!p[key]) return p;
@@ -120,11 +123,13 @@ export function Customers() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       toast.success("কাস্টমার সফলভাবে যুক্ত হয়েছে!");
+      customerRequestIdRef.current = null;
       setIsAddDialogOpen(false);
       resetForm();
     },
     onError: (error: any) => {
       toast.error(error.message || "কাস্টমার যুক্ত করতে ব্যর্থ");
+      customerRequestIdRef.current = null;
     },
   });
 
@@ -165,8 +170,9 @@ export function Customers() {
   // Collect due payment
   const collectPaymentMutation = useMutation({
     mutationFn: async ({ saleId, customerId, amount, method, notes }: any) => {
+      paymentRequestIdRef.current ||= createClientRequestId("customer-payment");
       const { error } = await (supabase as any).rpc("collect_customer_payment_idempotent", {
-        _request_id: createClientRequestId("customer-payment"),
+        _request_id: paymentRequestIdRef.current,
         _sale_id: saleId,
         _customer_id: customerId,
         _amount: amount,
@@ -183,9 +189,11 @@ export function Customers() {
       setPaymentAmount("");
       setPaymentNotes("");
       setSelectedCustomerDue(null);
+      paymentRequestIdRef.current = null;
     },
     onError: (error: any) => {
       toast.error(error.message || "বাকি আদায় করতে ব্যর্থ");
+      paymentRequestIdRef.current = null;
     },
   });
 
@@ -197,7 +205,7 @@ export function Customers() {
         if (!sale) continue;
         const amount = Number(sale.due_amount);
         const { error } = await (supabase as any).rpc("collect_customer_payment_idempotent", {
-          _request_id: createClientRequestId(`customer-bulk-payment-${saleId}`),
+          _request_id: bulkPaymentRequestIdsRef.current[saleId] ||= createClientRequestId(`customer-bulk-payment-${saleId}`),
           _sale_id: saleId,
           _customer_id: sale.customer_id,
           _amount: amount,
@@ -215,9 +223,11 @@ export function Customers() {
       setSelectedDueSales(new Set());
       setShowBulkPayment(false);
       setBulkPaymentNotes("");
+      bulkPaymentRequestIdsRef.current = {};
     },
     onError: (error: any) => {
       toast.error(error.message || "বাল্ক আদায় করতে ব্যর্থ");
+      bulkPaymentRequestIdsRef.current = {};
     },
   });
 
