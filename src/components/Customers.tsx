@@ -192,7 +192,6 @@ export function Customers() {
   // Bulk payment mutation
   const bulkCollectMutation = useMutation({
     mutationFn: async ({ saleIds, method, notes }: { saleIds: string[], method: string, notes: string }) => {
-      const { data: { user } } = await supabase.auth.getUser();
       for (const saleId of saleIds) {
         const sale = salesWithDues?.find(s => s.id === saleId);
         if (!sale) continue;
@@ -204,7 +203,7 @@ export function Customers() {
           _amount: amount,
           _payment_method: method,
           _notes: notes || null,
-        }]);
+        });
         if (error) throw error;
       }
     },
