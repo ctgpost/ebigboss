@@ -11,11 +11,12 @@ import { toast } from "sonner";
 import { SupplierForm } from "./suppliers/SupplierForm";
 import { CreatePurchaseDialog } from "./suppliers/CreatePurchaseDialog";
 import { SupplierPaymentDialog } from "./suppliers/SupplierPaymentDialog";
-import { ChevronDown, ChevronUp, RefreshCcw, Search } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronUp, RefreshCcw, Search } from "lucide-react";
 import { CloudinaryImageUpload } from "./CloudinaryImageUpload";
 import { getCloudinaryThumbnail } from "@/utils/cloudinary";
 import { supplierSchema, validateInline } from "@/utils/validation";
 import { createClientRequestId } from "@/utils/requestKeys";
+import { computeSupplierTotals } from "@/utils/supplierBalance";
 
 export function Suppliers() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
