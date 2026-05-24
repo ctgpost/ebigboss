@@ -74,6 +74,7 @@ export type Database = {
       customers: {
         Row: {
           address: string | null
+          client_request_id: string | null
           created_at: string
           email: string | null
           id: string
@@ -87,6 +88,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          client_request_id?: string | null
           created_at?: string
           email?: string | null
           id?: string
@@ -100,6 +102,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          client_request_id?: string | null
           created_at?: string
           email?: string | null
           id?: string
@@ -116,6 +119,7 @@ export type Database = {
       payments: {
         Row: {
           amount: number
+          client_request_id: string | null
           collected_by: string | null
           created_at: string
           customer_id: string | null
@@ -127,6 +131,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          client_request_id?: string | null
           collected_by?: string | null
           created_at?: string
           customer_id?: string | null
@@ -138,6 +143,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          client_request_id?: string | null
           collected_by?: string | null
           created_at?: string
           customer_id?: string | null
@@ -170,6 +176,7 @@ export type Database = {
           battery: string | null
           brand: string | null
           category_id: string | null
+          client_request_id: string | null
           condition: string | null
           cost: number
           created_at: string
@@ -198,6 +205,7 @@ export type Database = {
           battery?: string | null
           brand?: string | null
           category_id?: string | null
+          client_request_id?: string | null
           condition?: string | null
           cost?: number
           created_at?: string
@@ -226,6 +234,7 @@ export type Database = {
           battery?: string | null
           brand?: string | null
           category_id?: string | null
+          client_request_id?: string | null
           condition?: string | null
           cost?: number
           created_at?: string
@@ -336,6 +345,7 @@ export type Database = {
       }
       purchases: {
         Row: {
+          client_request_id: string | null
           created_at: string
           due_amount: number
           expected_date: string | null
@@ -350,6 +360,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          client_request_id?: string | null
           created_at?: string
           due_amount?: number
           expected_date?: string | null
@@ -364,6 +375,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          client_request_id?: string | null
           created_at?: string
           due_amount?: number
           expected_date?: string | null
@@ -609,6 +621,7 @@ export type Database = {
       }
       sales: {
         Row: {
+          client_request_id: string | null
           created_at: string
           customer_id: string | null
           due_amount: number
@@ -625,6 +638,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          client_request_id?: string | null
           created_at?: string
           customer_id?: string | null
           due_amount?: number
@@ -641,6 +655,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          client_request_id?: string | null
           created_at?: string
           customer_id?: string | null
           due_amount?: number
@@ -705,6 +720,7 @@ export type Database = {
       supplier_payments: {
         Row: {
           amount: number
+          client_request_id: string | null
           created_at: string
           id: string
           notes: string | null
@@ -716,6 +732,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          client_request_id?: string | null
           created_at?: string
           id?: string
           notes?: string | null
@@ -727,6 +744,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          client_request_id?: string | null
           created_at?: string
           id?: string
           notes?: string | null
@@ -885,6 +903,7 @@ export type Database = {
       suppliers: {
         Row: {
           address: string | null
+          client_request_id: string | null
           created_at: string
           email: string | null
           id: string
@@ -896,6 +915,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          client_request_id?: string | null
           created_at?: string
           email?: string | null
           id?: string
@@ -907,6 +927,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          client_request_id?: string | null
           created_at?: string
           email?: string | null
           id?: string
@@ -977,6 +998,112 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      collect_customer_payment_idempotent: {
+        Args: {
+          _amount: number
+          _customer_id: string
+          _notes: string
+          _payment_method: string
+          _request_id: string
+          _sale_id: string
+        }
+        Returns: {
+          amount: number
+          client_request_id: string | null
+          collected_by: string | null
+          created_at: string
+          customer_id: string | null
+          id: string
+          notes: string | null
+          payment_method: string
+          return_id: string | null
+          sale_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "payments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      collect_supplier_payment_idempotent: {
+        Args: {
+          _amount: number
+          _notes: string
+          _payment_method: string
+          _purchase_id: string
+          _request_id: string
+          _supplier_id: string
+        }
+        Returns: {
+          amount: number
+          client_request_id: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          paid_by: string | null
+          payment_method: string
+          purchase_id: string | null
+          supplier_id: string
+          supplier_return_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "supplier_payments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      complete_sale_idempotent: {
+        Args: { _items: Json; _request_id: string; _sale: Json }
+        Returns: {
+          client_request_id: string | null
+          created_at: string
+          customer_id: string | null
+          due_amount: number
+          id: string
+          instant_customer_name: string | null
+          instant_customer_phone: string | null
+          notes: string | null
+          paid_amount: number
+          payment_method: string | null
+          sale_image_url: string | null
+          status: string | null
+          total_amount: number
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sales"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_purchase_idempotent: {
+        Args: { _items: Json; _purchase: Json; _request_id: string }
+        Returns: {
+          client_request_id: string | null
+          created_at: string
+          due_amount: number
+          expected_date: string | null
+          id: string
+          notes: string | null
+          paid_amount: number
+          purchase_number: string
+          status: string | null
+          supplier_id: string | null
+          total_amount: number
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "purchases"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
