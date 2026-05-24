@@ -162,6 +162,7 @@ export function CustomerDetails() {
     onError: (e: any) => toast.error(e.message || "মুছতে ব্যর্থ"),
   });
 
+  const handleCollectPayment = () => {
     const amount = parseFloat(paymentAmount);
     if (!amount || amount <= 0) {
       toast.error("সঠিক পরিমাণ লিখুন (০ এর বেশি)");
