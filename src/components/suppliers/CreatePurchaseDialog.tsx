@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { filterCacheKey, getPurchaseFilterResult, savePurchaseFilterResult } from "@/utils/offlineAssets";
 import { queueIfOffline } from "@/utils/offlineQueue";
+import { createClientRequestId } from "@/utils/requestKeys";
 import { Filter, ScanLine, Search } from "lucide-react";
 
 interface CreatePurchaseDialogProps {
@@ -70,6 +71,7 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products, 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
+      const requestId = createClientRequestId("purchase");
       const purchaseNumber = `PO-${Date.now()}`;
       if (validItems.length === 0) throw new Error("কমপক্ষে একটি আইটেম যুক্ত করুন");
       if (!supplierId) throw new Error("সাপ্লায়ার নির্বাচন করুন");
@@ -82,6 +84,7 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products, 
         due_amount: totalAmount,
         status: "pending",
         notes,
+        client_request_id: requestId,
       };
       const purchaseItems = validItems.map(item => ({
         product_id: item.product_id,
@@ -92,21 +95,19 @@ export function CreatePurchaseDialog({ open, onOpenChange, suppliers, products, 
 
       let purchase: any;
       try {
-        const { data, error: purchaseError } = await supabase
-        .from("purchases")
-        .insert(purchasePayload)
-        .select()
-        .single();
+        const { data, error: purchaseError } = await (supabase as any)
+          .rpc("create_purchase_idempotent", {
+            _request_id: requestId,
+            _purchase: purchasePayload,
+            _items: purchaseItems,
+          });
 
         if (purchaseError) throw purchaseError;
         purchase = data;
       } catch (error) {
-        queueIfOffline("purchase_create", { purchase: purchasePayload, items: purchaseItems }, error);
+        queueIfOffline("purchase_create", { purchase: purchasePayload, items: purchaseItems, client_request_id: requestId }, error);
         return;
       }
-
-      const { error: itemsError } = await supabase.from("purchase_items").insert(purchaseItems.map((item) => ({ ...item, purchase_id: purchase.id })));
-      if (itemsError) throw itemsError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["purchases"] });
