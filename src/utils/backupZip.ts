@@ -164,14 +164,18 @@ export function downloadBlob(blob: Blob, filename: string) {
 
 export async function downloadFullZipBackup(): Promise<{ counts: Record<string, number>; filename: string }> {
   const bundle = await buildBackup();
-  const zip = new JSZip();
-  zip.file("database.json", JSON.stringify(bundle, null, 2));
-  zip.file("metadata.json", JSON.stringify({
-    version: bundle.version, timestamp: bundle.timestamp, counts: bundle.counts,
-  }, null, 2));
   const blob = await buildBackupZip();
   const stamp = new Date().toISOString().split("T")[0];
   const filename = `bigboss-backup-${stamp}.zip`;
+  downloadBlob(blob, filename);
+  return { counts: bundle.counts, filename };
+}
+
+export async function downloadFullJsonBackup(): Promise<{ counts: Record<string, number>; filename: string }> {
+  const bundle = await buildBackup();
+  const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
+  const stamp = new Date().toISOString().split("T")[0];
+  const filename = `bigboss-backup-${stamp}.json`;
   downloadBlob(blob, filename);
   return { counts: bundle.counts, filename };
 }

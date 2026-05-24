@@ -27,6 +27,8 @@ export function Suppliers() {
   const [sortBy, setSortBy] = useState<string>("name-asc");
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [showSummary, setShowSummary] = useState(true);
+  const [mismatchSupplier, setMismatchSupplier] = useState<any>(null);
+  const [reconciling, setReconciling] = useState(false);
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", address: "", notes: "", image_url: "" });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const supplierRequestIdRef = useRef<string | null>(null);
@@ -183,20 +185,41 @@ export function Suppliers() {
 
   const getSupplierTotals = (supplierId: string) => {
     const sup = suppliers?.find(s => s.id === supplierId);
-    if (!sup) return { totalPur: 0, totalPaid: 0, totalDue: 0, mismatch: false } as any;
+    if (!sup) return { totalPur: 0, totalPaid: 0, totalDue: 0, mismatch: false, ledgerDue: 0, purchaseRowDue: 0, diff: 0 } as any;
     const cardT = computeSupplierTotals(sup, purchases as any, allSupplierPayments as any, products as any);
-    // Reconciliation: re-derive due directly from purchases.due_amount + standalone payments
-    // so we can flag any drift between the card view and what the DB stores per-purchase.
     const sumDueOnPurchases = (purchases || [])
       .filter(p => p.supplier_id === supplierId)
       .reduce((a, x) => a + Number(x.due_amount || 0), 0);
     const ledgerDue = cardT.totalDue;
     const purchaseRowDue = sumDueOnPurchases;
-    // Only meaningful when formal POs exist for this supplier.
-    const mismatch = cardT.purchasesTotal > 0 && Math.abs(purchaseRowDue - ledgerDue) > 0.5;
-    return { ...cardT, mismatch };
+    const diff = purchaseRowDue - ledgerDue;
+    const mismatch = cardT.purchasesTotal > 0 && Math.abs(diff) > 0.5;
+    return { ...cardT, mismatch, ledgerDue, purchaseRowDue, diff };
   };
   const getSupplierDue = (supplierId: string) => getSupplierTotals(supplierId).totalDue;
+
+  const handleReconcile = async (supplierId?: string) => {
+    setReconciling(true);
+    try {
+      const { error } = await (supabase.rpc as any)("recalculate_supplier_balances", {
+        _supplier_id: supplierId ?? null,
+      });
+      if (error) throw error;
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["suppliers"] }),
+        queryClient.invalidateQueries({ queryKey: ["purchases"] }),
+        queryClient.invalidateQueries({ queryKey: ["supplier-payments-all"] }),
+        queryClient.invalidateQueries({ queryKey: ["sup-ledger-purchases"] }),
+        queryClient.invalidateQueries({ queryKey: ["sup-ledger-payments"] }),
+      ]);
+      toast.success("✅ ব্যালেন্স রিক্যালকুলেশন সম্পন্ন");
+    } catch (e: any) {
+      toast.error("রিক্যালকুলেশন ব্যর্থ: " + (e?.message || ""));
+    } finally {
+      setReconciling(false);
+    }
+  };
+
 
   const toggleCardExpand = (id: string) => {
     setExpandedCards(prev => {
@@ -243,7 +266,16 @@ export function Suppliers() {
             <h1 className="text-3xl font-bold text-foreground">সাপ্লায়ার ম্যানেজমেন্ট</h1>
             <p className="text-muted-foreground mt-1">সাপ্লায়ার, ক্রয় অর্ডার ও হিসাব নিকাশ</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              onClick={() => handleReconcile()}
+              disabled={reconciling}
+              title="সার্ভারে চলমান হিসাবের সাথে সকল ক্রয় অর্ডার ব্যালেন্স মিলিয়ে নিন"
+            >
+              <RefreshCcw className={`h-4 w-4 mr-1 ${reconciling ? 'animate-spin' : ''}`} />
+              {reconciling ? "চলছে..." : "🔄 Reconcile & Recalculate"}
+            </Button>
             <Button variant="outline" onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-supplier-returns'))}>
               <RefreshCcw className="h-4 w-4 mr-1" /> সাপ্লায়ার রিটার্ন
             </Button>
@@ -345,10 +377,15 @@ export function Suppliers() {
                         <h3 className="font-semibold text-base text-foreground flex items-center gap-1">
                           {supplier.name}
                           {t.mismatch && (
-                            <AlertTriangle
-                              className="w-4 h-4 text-amber-500"
-                              aria-label="ব্যালেন্স অসামঞ্জস্য — লেজার ও ক্রয় অর্ডারের বাকি মিলছে না"
-                            />
+                            <button
+                              type="button"
+                              onClick={() => setMismatchSupplier({ ...supplier, _totals: t })}
+                              className="inline-flex"
+                              aria-label="ব্যালেন্স অসামঞ্জস্যের বিস্তারিত দেখুন"
+                              title="বিস্তারিত দেখুন"
+                            >
+                              <AlertTriangle className="w-4 h-4 text-amber-500 hover:text-amber-600" />
+                            </button>
                           )}
                         </h3>
                         {supplier.phone && <p className="text-sm text-muted-foreground">📞 {supplier.phone}</p>}
@@ -474,6 +511,66 @@ export function Suppliers() {
         onOpenChange={(open) => { if (!open) setPaymentSupplier(null); }}
         supplier={paymentSupplier}
       />
+
+      <Dialog open={!!mismatchSupplier} onOpenChange={(o) => { if (!o) setMismatchSupplier(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              ব্যালেন্স অসামঞ্জস্য — {mismatchSupplier?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {mismatchSupplier && (
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20">
+                  <p className="text-xs text-muted-foreground">লেজার বাকি (গণনাকৃত)</p>
+                  <p className="text-lg font-bold text-blue-700 dark:text-blue-400">
+                    ৳{Number(mismatchSupplier._totals.ledgerDue).toLocaleString('bn-BD')}
+                  </p>
+                </div>
+                <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-950/20">
+                  <p className="text-xs text-muted-foreground">ক্রয় অর্ডার due যোগফল</p>
+                  <p className="text-lg font-bold text-purple-700 dark:text-purple-400">
+                    ৳{Number(mismatchSupplier._totals.purchaseRowDue).toLocaleString('bn-BD')}
+                  </p>
+                </div>
+              </div>
+              <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-300">
+                <p className="text-xs text-muted-foreground">পার্থক্য</p>
+                <p className="text-xl font-bold text-amber-700 dark:text-amber-400">
+                  ৳{Math.abs(Number(mismatchSupplier._totals.diff)).toLocaleString('bn-BD')}
+                </p>
+              </div>
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p className="font-semibold text-foreground">সম্ভাব্য কারণ:</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>সরাসরি পণ্য এন্ট্রি (supplier_name ম্যাচ) যার জন্য কোনো ক্রয় অর্ডার নেই — এগুলো লেজারে যোগ হয়, কিন্তু purchases.due_amount-এ থাকে না।</li>
+                  <li>Standalone সাপ্লায়ার পেমেন্ট (purchase_id ছাড়া) — পরিশোধ গণনায় যুক্ত, কিন্তু কোনো নির্দিষ্ট PO-এর due কমায় না।</li>
+                  <li>পুরোনো পেমেন্ট যেগুলো ট্রিগারের আগে যুক্ত হয়েছিল এবং purchases.paid_amount রিক্যাল হয়নি।</li>
+                  <li>সাপ্লায়ার রিটার্নের ফাইন্যান্স অ্যাডজাস্টমেন্ট যা purchases.total_amount পরিবর্তন করেছে।</li>
+                </ul>
+                <p className="pt-2">
+                  সমাধানের জন্য নিচের বোতাম দিয়ে এই সাপ্লায়ারের সকল PO রিক্যালকুলেট করুন।
+                </p>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => setMismatchSupplier(null)}>বন্ধ</Button>
+                <Button
+                  onClick={async () => {
+                    await handleReconcile(mismatchSupplier.id);
+                    setMismatchSupplier(null);
+                  }}
+                  disabled={reconciling}
+                >
+                  <RefreshCcw className={`h-4 w-4 mr-1 ${reconciling ? 'animate-spin' : ''}`} />
+                  এই সাপ্লায়ার রিক্যালকুলেট করুন
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
