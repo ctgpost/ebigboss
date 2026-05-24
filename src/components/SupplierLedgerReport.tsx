@@ -115,15 +115,16 @@ export function SupplierLedgerReport() {
     return suppliers.map(s => {
       const sPur = purchases?.filter(p => p.supplier_id === s.id) || [];
       const sPay = payments?.filter(p => p.supplier_id === s.id) || [];
-      const totalPur = sPur.reduce((a, x) => a + Number(x.total_amount || 0), 0);
-      // Initial paid recorded on purchase row + all subsequent supplier_payments (signed: refunds are negative)
-      const initialPaid = sPur.reduce((a, x) => a + Number(x.paid_amount || 0), 0);
-      const paymentsNet = sPay.reduce((a, x) => a + Number(x.amount || 0), 0);
-      const totalPaid = Math.max(0, initialPaid + paymentsNet);
-      const totalDue = Math.max(0, totalPur - totalPaid);
-      return { ...s, sPur, sPay, totalPur, totalPaid, totalDue };
+      const sProd = (directProducts || []).filter(
+        p => (p.supplier_name || "").trim().toLowerCase() === (s.name || "").trim().toLowerCase()
+      );
+      const t = computeSupplierTotals(s as any, purchases as any, payments as any, directProducts as any);
+      const purchaseRowDue = sPur.reduce((a, x) => a + Number(x.due_amount || 0), 0);
+      const mismatch = t.purchasesTotal > 0 && Math.abs(purchaseRowDue - t.totalDue) > 0.5;
+      return { ...s, sPur, sPay, sProd, ...t, mismatch, purchaseRowDue };
     });
-  }, [suppliers, purchases, payments]);
+  }, [suppliers, purchases, payments, directProducts]);
+
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
