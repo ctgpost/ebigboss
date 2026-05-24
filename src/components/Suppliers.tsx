@@ -266,7 +266,16 @@ export function Suppliers() {
             <h1 className="text-3xl font-bold text-foreground">সাপ্লায়ার ম্যানেজমেন্ট</h1>
             <p className="text-muted-foreground mt-1">সাপ্লায়ার, ক্রয় অর্ডার ও হিসাব নিকাশ</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              onClick={() => handleReconcile()}
+              disabled={reconciling}
+              title="সার্ভারে চলমান হিসাবের সাথে সকল ক্রয় অর্ডার ব্যালেন্স মিলিয়ে নিন"
+            >
+              <RefreshCcw className={`h-4 w-4 mr-1 ${reconciling ? 'animate-spin' : ''}`} />
+              {reconciling ? "চলছে..." : "🔄 Reconcile & Recalculate"}
+            </Button>
             <Button variant="outline" onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-supplier-returns'))}>
               <RefreshCcw className="h-4 w-4 mr-1" /> সাপ্লায়ার রিটার্ন
             </Button>
