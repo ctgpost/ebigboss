@@ -101,9 +101,12 @@ export function SupplierLedgerReport() {
     return suppliers.map(s => {
       const sPur = purchases?.filter(p => p.supplier_id === s.id) || [];
       const sPay = payments?.filter(p => p.supplier_id === s.id) || [];
-      const totalPur = sPur.reduce((a, x) => a + Number(x.total_amount), 0);
-      const totalPaid = sPur.reduce((a, x) => a + Number(x.paid_amount), 0);
-      const totalDue = sPur.reduce((a, x) => a + Number(x.due_amount), 0);
+      const totalPur = sPur.reduce((a, x) => a + Number(x.total_amount || 0), 0);
+      // Initial paid recorded on purchase row + all subsequent supplier_payments (signed: refunds are negative)
+      const initialPaid = sPur.reduce((a, x) => a + Number(x.paid_amount || 0), 0);
+      const paymentsNet = sPay.reduce((a, x) => a + Number(x.amount || 0), 0);
+      const totalPaid = Math.max(0, initialPaid + paymentsNet);
+      const totalDue = Math.max(0, totalPur - totalPaid);
       return { ...s, sPur, sPay, totalPur, totalPaid, totalDue };
     });
   }, [suppliers, purchases, payments]);
