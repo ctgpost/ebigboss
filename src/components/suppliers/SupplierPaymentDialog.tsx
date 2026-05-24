@@ -16,6 +16,7 @@ import { createClientRequestId } from "@/utils/requestKeys";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Pencil, Trash2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { computeSupplierTotals } from "@/utils/supplierBalance";
 
 interface SupplierPaymentDialogProps {
   open: boolean;
