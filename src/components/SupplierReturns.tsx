@@ -100,9 +100,12 @@ export function SupplierReturns() {
   }, [queryClient]);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [returnMode, setReturnMode] = useState<"po" | "direct">("po");
   const [selectedSupplierId, setSelectedSupplierId] = useState("all");
   const [selectedPurchaseId, setSelectedPurchaseId] = useState("all");
   const [selectedItemId, setSelectedItemId] = useState("");
+  const [selectedDirectProductId, setSelectedDirectProductId] = useState("");
+  const [directSupplierId, setDirectSupplierId] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [reasonCode, setReasonCode] = useState("defective");
   const [reasonNotes, setReasonNotes] = useState("");
@@ -127,6 +130,7 @@ export function SupplierReturns() {
   const [listScrollTop, setListScrollTop] = useState(0);
   const [renderLimit, setRenderLimit] = useState(40);
   const deferredSearchTerm = useDeferredValue(searchTerm.trim());
+
 
   const { data: suppliers } = useQuery({
     queryKey: ["supplier-return-suppliers"],
