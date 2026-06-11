@@ -267,14 +267,48 @@ export function SupplierReturns() {
 
   const createReturnMutation = useMutation({
     mutationFn: async () => {
-      if (selectedPurchaseId === "all" || !selectedPurchase) throw new Error("ক্রয় অর্ডার নির্বাচন করুন");
-      if (!selectedItem) throw new Error("রিটার্ন আইটেম নির্বাচন করুন");
-      if (quantity < 1 || quantity > Number(selectedItem.received_quantity || selectedItem.quantity)) throw new Error("রিটার্ন পরিমাণ সঠিক নয়");
+      const isDirect = returnMode === "direct";
+      let supplierId: string;
+      let supplierName: string;
+      let purchaseIdForReturn: string | null = null;
+      let returnItem: any;
+
+      if (isDirect) {
+        if (!directSupplierId || !directSupplier) throw new Error("সাপ্লায়ার নির্বাচন করুন");
+        if (!selectedDirectProduct) throw new Error("অবিক্রিত প্রোডাক্ট নির্বাচন করুন");
+        const maxQty = Number(selectedDirectProduct.stock_quantity || 0);
+        if (quantity < 1 || quantity > maxQty) throw new Error("রিটার্ন পরিমাণ সঠিক নয়");
+        supplierId = directSupplierId;
+        supplierName = directSupplier.name;
+        returnItem = {
+          purchase_item_id: null,
+          product_id: selectedDirectProduct.id,
+          quantity,
+          unit_cost: Number(selectedDirectProduct.cost),
+          total_cost: refundAmount,
+          stock_deducted: false,
+        };
+      } else {
+        if (selectedPurchaseId === "all" || !selectedPurchase) throw new Error("ক্রয় অর্ডার নির্বাচন করুন");
+        if (!selectedItem) throw new Error("রিটার্ন আইটেম নির্বাচন করুন");
+        if (quantity < 1 || quantity > Number(selectedItem.received_quantity || selectedItem.quantity)) throw new Error("রিটার্ন পরিমাণ সঠিক নয়");
+        supplierId = selectedPurchase.supplier_id;
+        supplierName = selectedPurchase.suppliers?.name || "সাপ্লায়ার";
+        purchaseIdForReturn = selectedPurchase.id;
+        returnItem = {
+          purchase_item_id: selectedItem.id,
+          product_id: selectedItem.product_id,
+          quantity,
+          unit_cost: Number(selectedItem.unit_cost),
+          total_cost: refundAmount,
+          stock_deducted: false,
+        };
+      }
 
       const autoApprove = isAdmin;
       const returnPayload = {
-        supplier_id: selectedPurchase.supplier_id,
-        purchase_id: selectedPurchase.id,
+        supplier_id: supplierId,
+        purchase_id: purchaseIdForReturn,
         reason_code: reasonCode,
         reason_notes: reasonNotes || null,
         return_method: returnMethod,
@@ -289,15 +323,6 @@ export function SupplierReturns() {
         approved_at: null,
       };
 
-      const returnItem = {
-        purchase_item_id: selectedItem.id,
-        product_id: selectedItem.product_id,
-        quantity,
-        unit_cost: Number(selectedItem.unit_cost),
-        total_cost: refundAmount,
-        stock_deducted: false,
-      };
-
       let ret: any;
       try {
         const { data, error } = await db.from("supplier_returns").insert(returnPayload).select("*").single();
@@ -307,14 +332,15 @@ export function SupplierReturns() {
         if (itemError) throw itemError;
       } catch (error) {
         queueIfOffline("supplier_return_create", { ...returnPayload, returnItem, autoApprove, actorId: userId }, error);
-        return { ...returnPayload, id: `offline-${Date.now()}`, supplier_return_items: [returnItem], status: "pending", suppliers: selectedPurchase.suppliers, purchases: selectedPurchase };
+        return { ...returnPayload, id: `offline-${Date.now()}`, supplier_return_items: [returnItem], status: "pending", suppliers: { name: supplierName }, purchases: selectedPurchase || null };
       }
 
       const finalReturn = autoApprove ? await processSupplierReturn(ret, "approve") : ret;
 
-      await ActivityLogger.supplierReturnCreated?.(ret.return_number, selectedPurchase.suppliers?.name || "সাপ্লায়ার", refundAmount, finalReturn?.status || ret.status);
+      await ActivityLogger.supplierReturnCreated?.(ret.return_number, supplierName, refundAmount, finalReturn?.status || ret.status);
       return finalReturn || ret;
     },
+
     onSuccess: () => {
       invalidateSupplierReturnData();
       toast.success(isAdmin ? "সাপ্লায়ার রিটার্ন সম্পন্ন হয়েছে" : "সাপ্লায়ার রিটার্ন অনুমোদনের অপেক্ষায় সংরক্ষিত");
