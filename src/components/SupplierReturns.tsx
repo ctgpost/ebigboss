@@ -521,29 +521,54 @@ export function SupplierReturns() {
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild><Button className="bg-gradient-to-r from-primary to-accent gap-2"><RefreshCcw className="h-4 w-4" />নতুন সাপ্লায়ার রিটার্ন</Button></DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" onPointerDownOutside={(e) => e.preventDefault()}>
-              <DialogHeader><DialogTitle>সাপ্লায়ার রিটার্ন তৈরি করুন</DialogTitle><DialogDescription>ক্রয় অর্ডারের আইটেম, স্টক অ্যাকশন, ফাইন্যান্স অ্যাকশন ও প্রমাণসহ রিটার্ন রেকর্ড করুন।</DialogDescription></DialogHeader>
+              <DialogHeader><DialogTitle>সাপ্লায়ার রিটার্ন তৈরি করুন</DialogTitle><DialogDescription>ক্রয় অর্ডার থেকে বা সরাসরি অবিক্রিত পণ্য — উভয় ধরনের রিটার্ন স্টক ও সাপ্লায়ারের হিসাবসহ রেকর্ড করুন।</DialogDescription></DialogHeader>
               <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div><Label className="mb-2 block">সাপ্লায়ার</Label><Select value={selectedSupplierId} onValueChange={(v) => { setSelectedSupplierId(v); setSelectedPurchaseId("all"); setSelectedItemId(""); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">সব সাপ্লায়ার</SelectItem>{suppliers?.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent></Select></div>
-                  <div><Label className="mb-2 block">ক্রয় অর্ডার</Label><Select value={selectedPurchaseId} onValueChange={(v) => { setSelectedPurchaseId(v); setSelectedItemId(""); }}><SelectTrigger><SelectValue placeholder="PO নির্বাচন" /></SelectTrigger><SelectContent><SelectItem value="all">PO নির্বাচন করুন</SelectItem>{purchases?.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.purchase_number} — {p.suppliers?.name}</SelectItem>)}</SelectContent></Select></div>
-                </div>
+                <Tabs value={returnMode} onValueChange={(v) => { setReturnMode(v as "po" | "direct"); setSelectedPurchaseId("all"); setSelectedItemId(""); setSelectedDirectProductId(""); setQuantity(1); }}>
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="po">📦 ক্রয় অর্ডার (PO) থেকে</TabsTrigger>
+                    <TabsTrigger value="direct">🆕 অবিক্রিত পণ্য (সরাসরি)</TabsTrigger>
+                  </TabsList>
+                </Tabs>
 
-                {selectedPurchase && <Card className="p-3 bg-muted/40"><div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm"><div><p className="text-muted-foreground">মোট</p><b>৳{Number(selectedPurchase.total_amount).toLocaleString("bn-BD")}</b></div><div><p className="text-muted-foreground">পরিশোধ</p><b>৳{Number(selectedPurchase.paid_amount || 0).toLocaleString("bn-BD")}</b></div><div><p className="text-muted-foreground">বাকি</p><b>৳{Number(selectedPurchase.due_amount || 0).toLocaleString("bn-BD")}</b></div><div><p className="text-muted-foreground">তারিখ</p><b>{format(new Date(selectedPurchase.created_at), "dd MMM yyyy", { locale: bn })}</b></div></div></Card>}
+                {returnMode === "po" ? (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div><Label className="mb-2 block">সাপ্লায়ার</Label><Select value={selectedSupplierId} onValueChange={(v) => { setSelectedSupplierId(v); setSelectedPurchaseId("all"); setSelectedItemId(""); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">সব সাপ্লায়ার</SelectItem>{suppliers?.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent></Select></div>
+                      <div><Label className="mb-2 block">ক্রয় অর্ডার</Label><Select value={selectedPurchaseId} onValueChange={(v) => { setSelectedPurchaseId(v); setSelectedItemId(""); }}><SelectTrigger><SelectValue placeholder="PO নির্বাচন" /></SelectTrigger><SelectContent><SelectItem value="all">PO নির্বাচন করুন</SelectItem>{purchases?.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.purchase_number} — {p.suppliers?.name}</SelectItem>)}</SelectContent></Select></div>
+                    </div>
+                    {selectedPurchase && <Card className="p-3 bg-muted/40"><div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm"><div><p className="text-muted-foreground">মোট</p><b>৳{Number(selectedPurchase.total_amount).toLocaleString("bn-BD")}</b></div><div><p className="text-muted-foreground">পরিশোধ</p><b>৳{Number(selectedPurchase.paid_amount || 0).toLocaleString("bn-BD")}</b></div><div><p className="text-muted-foreground">বাকি</p><b>৳{Number(selectedPurchase.due_amount || 0).toLocaleString("bn-BD")}</b></div><div><p className="text-muted-foreground">তারিখ</p><b>{format(new Date(selectedPurchase.created_at), "dd MMM yyyy", { locale: bn })}</b></div></div></Card>}
+                    <div><Label className="mb-2 block">রিটার্ন আইটেম</Label><Select value={selectedItemId} onValueChange={(v) => { setSelectedItemId(v); setQuantity(1); }} disabled={!selectedPurchase}><SelectTrigger><SelectValue placeholder="আইটেম নির্বাচন" /></SelectTrigger><SelectContent>{selectedPurchase?.purchase_items?.map((it: any) => <SelectItem key={it.id} value={it.id}>{it.products?.name} {it.products?.imei ? `(${it.products.imei})` : ""} — Qty {it.received_quantity || it.quantity}</SelectItem>)}</SelectContent></Select></div>
+                  </>
+                ) : (
+                  <>
+                    <div><Label className="mb-2 block">সাপ্লায়ার</Label><Select value={directSupplierId} onValueChange={(v) => { setDirectSupplierId(v); setSelectedDirectProductId(""); setQuantity(1); }}><SelectTrigger><SelectValue placeholder="সাপ্লায়ার নির্বাচন করুন" /></SelectTrigger><SelectContent>{suppliers?.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent></Select></div>
+                    <div>
+                      <Label className="mb-2 block">অবিক্রিত প্রোডাক্ট (স্টকে আছে, কখনো বিক্রি হয়নি)</Label>
+                      <Select value={selectedDirectProductId} onValueChange={(v) => { setSelectedDirectProductId(v); setQuantity(1); }} disabled={!directSupplierId}>
+                        <SelectTrigger><SelectValue placeholder={directSupplierId ? "প্রোডাক্ট নির্বাচন" : "প্রথমে সাপ্লায়ার নির্বাচন করুন"} /></SelectTrigger>
+                        <SelectContent>
+                          {directEligibleProducts?.length === 0 && <div className="p-2 text-sm text-muted-foreground">এই সাপ্লায়ারের কোনো অবিক্রিত প্রোডাক্ট নেই</div>}
+                          {directEligibleProducts?.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name} {p.imei ? `(${p.imei})` : ""} — স্টক {p.stock_quantity} · ক্রয়মূল্য ৳{Number(p.cost).toLocaleString("bn-BD")}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">শুধু সেই প্রোডাক্টগুলো দেখানো হচ্ছে যা এই সাপ্লায়ার থেকে এসেছে, স্টকে আছে এবং কখনো বিক্রি হয়নি।</p>
+                    </div>
+                  </>
+                )}
 
-                <div><Label className="mb-2 block">রিটার্ন আইটেম</Label><Select value={selectedItemId} onValueChange={(v) => { setSelectedItemId(v); setQuantity(1); }} disabled={!selectedPurchase}><SelectTrigger><SelectValue placeholder="আইটেম নির্বাচন" /></SelectTrigger><SelectContent>{selectedPurchase?.purchase_items?.map((it: any) => <SelectItem key={it.id} value={it.id}>{it.products?.name} {it.products?.imei ? `(${it.products.imei})` : ""} — Qty {it.received_quantity || it.quantity}</SelectItem>)}</SelectContent></Select></div>
-
-                {selectedItem && <>
-                  <div className="grid grid-cols-2 gap-3"><div><Label className="mb-2 block">পরিমাণ</Label><Input type="number" min={1} max={selectedItem.received_quantity || selectedItem.quantity} value={quantity} onChange={(e) => setQuantity(Number(e.target.value) || 1)} /></div><div><Label className="mb-2 block">রিটার্ন মূল্য</Label><Input value={`৳${refundAmount.toLocaleString("bn-BD")}`} readOnly /></div></div>
+                {(selectedItem || selectedDirectProduct) && <>
+                  <div className="grid grid-cols-2 gap-3"><div><Label className="mb-2 block">পরিমাণ</Label><Input type="number" min={1} max={returnMode === "direct" ? Number(selectedDirectProduct?.stock_quantity || 1) : Number(selectedItem?.received_quantity || selectedItem?.quantity || 1)} value={quantity} onChange={(e) => setQuantity(Number(e.target.value) || 1)} /></div><div><Label className="mb-2 block">রিটার্ন মূল্য</Label><Input value={`৳${refundAmount.toLocaleString("bn-BD")}`} readOnly /></div></div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3"><div><Label className="mb-2 block">কারণ</Label><Select value={reasonCode} onValueChange={setReasonCode}>{<SelectTrigger><SelectValue /></SelectTrigger>}<SelectContent>{Object.entries(REASON_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent></Select></div><div><Label className="mb-2 block">রিটার্ন পদ্ধতি</Label><Select value={returnMethod} onValueChange={(v) => setReturnMethod(v as ReturnMethod)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="due_adjust">📒 বাকি সমন্বয়</SelectItem><SelectItem value="cash_refund">💵 সাপ্লায়ার নগদ ফেরত</SelectItem><SelectItem value="replacement">🔄 রিপ্লেসমেন্ট</SelectItem></SelectContent></Select></div></div>
                   <Card className="p-4 bg-muted/30"><div className="flex items-center justify-between gap-3"><div><Label className="font-semibold">স্টক থেকে কমানো হবে</Label><p className="text-xs text-muted-foreground">অফ করলে শুধু অডিট/ফাইন্যান্স থাকবে, স্টক অপরিবর্তিত থাকবে</p></div><Switch checked={stockAction === "deduct_stock"} onCheckedChange={(v) => setStockAction(v ? "deduct_stock" : "no_stock_change")} /></div></Card>
                   {returnMethod === "replacement" && <div><Label className="mb-2 block">রিপ্লেসমেন্ট নোট</Label><Textarea value={replacementNote} onChange={(e) => setReplacementNote(e.target.value)} placeholder="কবে/কোন পণ্য বদলি আসবে..." /></div>}
                   <div><Label className="mb-2 block">ত্রুটির ছবি/প্রমাণ</Label><ReturnPhotoUpload currentUrl={defectPhotoUrl} onChange={setDefectPhotoUrl} /></div>
                   <div><Label className="mb-2 block">বিস্তারিত মন্তব্য</Label><Textarea value={reasonNotes} onChange={(e) => setReasonNotes(e.target.value)} placeholder="সাপ্লায়ারের সাথে কথা, শর্ত, সমস্যা ইত্যাদি" /></div>
-                  <Card className="p-3 border-primary/20"><div className="flex justify-between text-sm"><span>ফাইন্যান্স ইমপ্যাক্ট</span><b>{financeAction === "supplier_refund" ? "ক্যাশ রিফান্ড লেজার" : financeAction === "due_adjust" ? "PO টোটাল/বাকি কমবে" : "ফাইন্যান্স অপরিবর্তিত"}</b></div><div className="flex justify-between text-lg mt-2"><span>মোট রিটার্ন</span><b className="text-primary">৳{refundAmount.toLocaleString("bn-BD")}</b></div></Card>
+                  <Card className="p-3 border-primary/20"><div className="flex justify-between text-sm"><span>ফাইন্যান্স ইমপ্যাক্ট</span><b>{returnMode === "direct" ? (financeAction === "supplier_refund" ? "সাপ্লায়ার থেকে নগদ ফেরত (লেজারে ঋণাত্মক পেমেন্ট)" : financeAction === "due_adjust" ? "সাপ্লায়ারের প্রাপ্য কমবে" : "ফাইন্যান্স অপরিবর্তিত") : (financeAction === "supplier_refund" ? "ক্যাশ রিফান্ড লেজার" : financeAction === "due_adjust" ? "PO টোটাল/বাকি কমবে" : "ফাইন্যান্স অপরিবর্তিত")}</b></div><div className="flex justify-between text-lg mt-2"><span>মোট রিটার্ন</span><b className="text-primary">৳{refundAmount.toLocaleString("bn-BD")}</b></div></Card>
                 </>}
 
                 <div className="flex justify-end gap-2"><Button variant="outline" onClick={resetForm}>বাতিল</Button><Button onClick={() => createReturnMutation.mutate()} disabled={createReturnMutation.isPending}>সংরক্ষণ করুন</Button></div>
               </div>
+
             </DialogContent>
           </Dialog>
         </div>
