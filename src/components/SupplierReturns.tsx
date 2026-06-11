@@ -198,14 +198,42 @@ export function SupplierReturns() {
     gcTime: 24 * 60 * 60_000,
   });
 
+  // Eligible "unsold direct" products: have stock, supplier_name matches selected supplier, never been sold
+  const directSupplier = suppliers?.find((s: any) => s.id === directSupplierId);
+  const { data: directEligibleProducts } = useQuery({
+    queryKey: ["supplier-return-direct-products", directSupplierId, directSupplier?.name],
+    enabled: returnMode === "direct" && !!directSupplier?.name,
+    queryFn: async () => {
+      const { data: prods, error } = await db
+        .from("products")
+        .select("id, name, imei, brand, model, condition, stock_quantity, cost, supplier_name")
+        .gt("stock_quantity", 0)
+        .ilike("supplier_name", directSupplier.name.trim())
+        .order("name");
+      if (error) throw error;
+      if (!prods?.length) return [];
+      const ids = prods.map((p: any) => p.id);
+      const { data: sold } = await db.from("sale_items").select("product_id").in("product_id", ids);
+      const soldSet = new Set((sold || []).map((s: any) => s.product_id));
+      return prods.filter((p: any) => !soldSet.has(p.id));
+    },
+    staleTime: 30_000,
+  });
+  const selectedDirectProduct = directEligibleProducts?.find((p: any) => p.id === selectedDirectProductId);
+
   const selectedPurchase = purchases?.find((p: any) => p.id === selectedPurchaseId);
   const selectedItem = selectedPurchase?.purchase_items?.find((i: any) => i.id === selectedItemId);
-  const refundAmount = selectedItem ? Number(selectedItem.unit_cost) * quantity : 0;
+  const refundAmount = returnMode === "direct"
+    ? (selectedDirectProduct ? Number(selectedDirectProduct.cost) * quantity : 0)
+    : (selectedItem ? Number(selectedItem.unit_cost) * quantity : 0);
   const financeAction: FinanceAction = returnMethod === "cash_refund" ? "supplier_refund" : returnMethod === "due_adjust" ? "due_adjust" : "none";
 
   const resetForm = () => {
+    setReturnMode("po");
     setSelectedPurchaseId("all");
     setSelectedItemId("");
+    setSelectedDirectProductId("");
+    setDirectSupplierId("");
     setQuantity(1);
     setReasonCode("defective");
     setReasonNotes("");
@@ -215,6 +243,7 @@ export function SupplierReturns() {
     setReplacementNote("");
     setIsDialogOpen(false);
   };
+
 
   const invalidateSupplierReturnData = () => {
     queryClient.invalidateQueries({ queryKey: ["supplier-returns"] });
