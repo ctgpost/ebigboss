@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,10 +9,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
-import { Search, Calendar, User, CreditCard, Package, Filter, X, FileDown, FileSpreadsheet, Image, TrendingUp, TrendingDown, DollarSign, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, Calendar, User, CreditCard, Package, Filter, X, FileDown, FileSpreadsheet, Image, TrendingUp, TrendingDown, DollarSign, ChevronDown, ChevronUp, ScanBarcode, Loader2 } from "lucide-react";
 import { useReactToPrint } from "react-to-print";
 import * as XLSX from "xlsx";
 import { getCloudinaryThumbnail } from "@/utils/cloudinary";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { BarcodeScanner } from "./BarcodeScanner";
 
 interface SaleDetail {
   id: string;
@@ -66,8 +69,18 @@ export function Sales() {
   const [currentPage, setCurrentPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [mobileVisibleCount, setMobileVisibleCount] = useState(20);
   const itemsPerPage = 10;
+  const mobilePageSize = 20;
   const printRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  // Debounced search terms (server/local search stays responsive even on slow mobiles)
+  const debouncedSearch = useDebouncedValue(searchTerm, 300);
+  const debouncedImei = useDebouncedValue(imeiSearch, 300);
+  const isTyping = searchTerm !== debouncedSearch || imeiSearch !== debouncedImei;
 
   // Fetch sales data
   const { data: sales = [], isLoading } = useQuery({
@@ -111,11 +124,11 @@ export function Sales() {
     },
   });
 
-  // Filter and search logic
+  // Filter and search logic (uses debounced search terms for fast typing on mobile)
   const filteredSales = useMemo(() => {
+    const searchLower = debouncedSearch.trim().toLowerCase();
+    const imeiLower = debouncedImei.trim().toLowerCase();
     return sales.filter((sale) => {
-      // Search filter (general)
-      const searchLower = searchTerm.trim().toLowerCase();
       const matchesSearch =
         !searchLower ||
         sale.id.toLowerCase().includes(searchLower) ||
@@ -133,61 +146,66 @@ export function Sales() {
             item?.products?.model?.toLowerCase().includes(searchLower)
         );
 
-      // Dedicated IMEI search
-      const imeiLower = imeiSearch.trim().toLowerCase();
       const matchesImei =
         !imeiLower ||
         (sale.sale_items || []).some((item) =>
           item?.products?.imei?.toLowerCase().includes(imeiLower)
         );
 
-      // Payment method filter
       const matchesPaymentMethod =
         filterPaymentMethod === "all" || sale.payment_method === filterPaymentMethod;
-
-      // Status filter
       const matchesStatus = filterStatus === "all" || sale.status === filterStatus;
-
-      // Due-only filter
       const matchesDue = !filterDueOnly || Number(sale.due_amount) > 0;
-
-      // Customer filter
       const matchesCustomer =
         filterCustomer === "all" || sale.customer_id === filterCustomer;
 
-      // Amount range
       const total = Number(sale.total_amount) || 0;
       const matchesMin = !minAmount || total >= Number(minAmount);
       const matchesMax = !maxAmount || total <= Number(maxAmount);
 
-      // Date filters
       const saleDate = new Date(sale.created_at);
-      const matchesDateFrom =
-        !filterDateFrom || saleDate >= new Date(filterDateFrom);
-      const matchesDateTo =
-        !filterDateTo || saleDate <= new Date(filterDateTo + "T23:59:59");
+      const matchesDateFrom = !filterDateFrom || saleDate >= new Date(filterDateFrom);
+      const matchesDateTo = !filterDateTo || saleDate <= new Date(filterDateTo + "T23:59:59");
 
       return (
-        matchesSearch &&
-        matchesImei &&
-        matchesPaymentMethod &&
-        matchesStatus &&
-        matchesDue &&
-        matchesCustomer &&
-        matchesMin &&
-        matchesMax &&
-        matchesDateFrom &&
-        matchesDateTo
+        matchesSearch && matchesImei && matchesPaymentMethod && matchesStatus &&
+        matchesDue && matchesCustomer && matchesMin && matchesMax &&
+        matchesDateFrom && matchesDateTo
       );
     });
-  }, [sales, searchTerm, imeiSearch, filterPaymentMethod, filterStatus, filterDueOnly, filterCustomer, minAmount, maxAmount, filterDateFrom, filterDateTo]);
+  }, [sales, debouncedSearch, debouncedImei, filterPaymentMethod, filterStatus, filterDueOnly, filterCustomer, minAmount, maxAmount, filterDateFrom, filterDateTo]);
 
-  // Pagination
+  // Reset pagination / infinite-scroll window whenever the active filter set changes
+  useEffect(() => {
+    setCurrentPage(1);
+    setMobileVisibleCount(mobilePageSize);
+  }, [debouncedSearch, debouncedImei, filterPaymentMethod, filterStatus, filterDueOnly, filterCustomer, minAmount, maxAmount, filterDateFrom, filterDateTo]);
+
+  // Pagination (desktop) / Infinite scroll window (mobile)
   const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
-  const paginatedSales = filteredSales.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const paginatedSales = isMobile
+    ? filteredSales.slice(0, mobileVisibleCount)
+    : filteredSales.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  // Mobile infinite scroll via IntersectionObserver
+  useEffect(() => {
+    if (!isMobile) return;
+    const el = loadMoreRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setMobileVisibleCount((c) => {
+            if (c >= filteredSales.length) return c;
+            return Math.min(c + mobilePageSize, filteredSales.length);
+          });
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [isMobile, filteredSales.length]);
 
   // Stats
   const totalSales = filteredSales.length;
@@ -383,8 +401,11 @@ export function Sales() {
                   placeholder="Search by ID, customer, product..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 text-sm md:text-base"
+                  className="pl-9 pr-9 text-sm md:text-base"
                 />
+                {isTyping && (
+                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
+                )}
               </div>
             </div>
 
@@ -443,17 +464,32 @@ export function Sales() {
               </Select>
             </div>
 
-            {/* IMEI Dedicated Search */}
+            {/* IMEI Dedicated Search + Camera Scanner */}
             <div className="sm:col-span-2 lg:col-span-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="📱 IMEI দিয়ে সার্চ করুন..."
-                  value={imeiSearch}
-                  onChange={(e) => setImeiSearch(e.target.value)}
-                  inputMode="numeric"
-                  className="pl-9 text-sm md:text-base font-mono"
-                />
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="📱 IMEI / বারকোড দিয়ে সার্চ করুন..."
+                    value={imeiSearch}
+                    onChange={(e) => setImeiSearch(e.target.value)}
+                    inputMode="numeric"
+                    className="pl-9 pr-9 text-sm md:text-base font-mono"
+                  />
+                  {isTyping && (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setScannerOpen(true)}
+                  title="ক্যামেরা দিয়ে IMEI/বারকোড স্ক্যান করুন"
+                  className="shrink-0"
+                >
+                  <ScanBarcode className="h-4 w-4" />
+                </Button>
               </div>
             </div>
 
@@ -642,33 +678,33 @@ export function Sales() {
             </div>
           )}
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 md:mt-6 pt-4 md:pt-6 border-t">
-              <div className="text-xs md:text-sm text-muted-foreground">
-                পৃষ্ঠা {currentPage} / {totalPages}
+          {/* Pagination (desktop) / Infinite-scroll sentinel (mobile) */}
+          {isMobile ? (
+            filteredSales.length > 0 && (
+              <div ref={loadMoreRef} className="py-6 text-center text-xs text-muted-foreground">
+                {mobileVisibleCount < filteredSales.length ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-3 w-3 animate-spin" /> আরও লোড হচ্ছে...
+                  </span>
+                ) : (
+                  <span>সব {filteredSales.length}টি বিক্রয় দেখানো হয়েছে</span>
+                )}
               </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="text-xs md:text-sm"
-                >
-                  পূর্ববর্তী
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="text-xs md:text-sm"
-                >
-                  পরবর্তী
-                </Button>
+            )
+          ) : (
+            totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 md:mt-6 pt-4 md:pt-6 border-t">
+                <div className="text-xs md:text-sm text-muted-foreground">
+                  পৃষ্ঠা {currentPage} / {totalPages} • মোট {filteredSales.length}টি
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="text-xs md:text-sm">« প্রথম</Button>
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="text-xs md:text-sm">পূর্ববর্তী</Button>
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="text-xs md:text-sm">পরবর্তী</Button>
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="text-xs md:text-sm">শেষ »</Button>
+                </div>
               </div>
-            </div>
+            )
           )}
         </CardContent>
         </Card>
@@ -930,6 +966,18 @@ export function Sales() {
           </div>
         </div>
       </div>
+
+      {/* Barcode / IMEI Scanner */}
+      <BarcodeScanner
+        isOpen={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScan={(code) => {
+          const digits = (code.match(/\d+/g)?.join("") || code).slice(-15);
+          setImeiSearch(digits || code);
+          setShowFilters(true);
+        }}
+        title="IMEI/বারকোড স্ক্যান করুন"
+      />
     </div>
   );
 }

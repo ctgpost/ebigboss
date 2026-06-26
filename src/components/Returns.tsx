@@ -16,7 +16,7 @@ import { format } from "date-fns";
 import { bn } from "date-fns/locale";
 import {
   RotateCcw, Search, Package, Calendar, CheckCircle, XCircle, Clock,
-  BarChart3, FileText, Printer, Image as ImageIcon, MessageSquare, History, Banknote,
+  BarChart3, FileText, Printer, Image as ImageIcon, MessageSquare, History, Banknote, ScanBarcode,
 } from "lucide-react";
 import { ActivityLogger } from "@/hooks/useActivityLog";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -26,6 +26,7 @@ import { ReturnPhotoUpload } from "./returns/ReturnPhotoUpload";
 import { ZoomableImage } from "@/components/ui/zoomable-image";
 import { queueIfOffline } from "@/utils/offlineQueue";
 import { ReturnAuditTrail } from "./returns/ReturnAuditTrail";
+import { BarcodeScanner } from "./BarcodeScanner";
 
 const db = supabase as any;
 
@@ -78,6 +79,7 @@ export function Returns() {
   const [expandedHistoryItemId, setExpandedHistoryItemId] = useState<string | null>(null);
 
   const [expandedAuditId, setExpandedAuditId] = useState<string | null>(null);
+  const [returnScannerOpen, setReturnScannerOpen] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -456,8 +458,19 @@ export function Returns() {
                           placeholder="Invoice #, Sale ID, IMEI, barcode, mobile..." className="pl-9"
                           onKeyDown={(e) => e.key === "Enter" && searchSale()} />
                       </div>
+                      <Button type="button" variant="outline" size="icon" onClick={() => setReturnScannerOpen(true)} title="IMEI/বারকোড স্ক্যান করুন"><ScanBarcode className="h-4 w-4" /></Button>
                       <Button onClick={searchSale}><Search className="h-4 w-4 mr-1" />খুঁজুন</Button>
                     </div>
+                    <BarcodeScanner
+                      isOpen={returnScannerOpen}
+                      onClose={() => setReturnScannerOpen(false)}
+                      onScan={(code) => {
+                        const digits = (code.match(/\d+/g)?.join("") || code).slice(-15);
+                        setSearchSaleId(digits || code);
+                        setTimeout(() => searchSale(), 50);
+                      }}
+                      title="IMEI/বারকোড স্ক্যান করুন"
+                    />
                     {saleSearchResults.length > 0 && (
                       <div className="space-y-2">
                         <p className="text-sm font-medium">মিল পাওয়া বিক্রয়</p>
