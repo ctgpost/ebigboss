@@ -458,8 +458,19 @@ export function Returns() {
                           placeholder="Invoice #, Sale ID, IMEI, barcode, mobile..." className="pl-9"
                           onKeyDown={(e) => e.key === "Enter" && searchSale()} />
                       </div>
+                      <Button type="button" variant="outline" size="icon" onClick={() => setReturnScannerOpen(true)} title="IMEI/বারকোড স্ক্যান করুন"><ScanBarcode className="h-4 w-4" /></Button>
                       <Button onClick={searchSale}><Search className="h-4 w-4 mr-1" />খুঁজুন</Button>
                     </div>
+                    <BarcodeScanner
+                      isOpen={returnScannerOpen}
+                      onClose={() => setReturnScannerOpen(false)}
+                      onScan={(code) => {
+                        const digits = (code.match(/\d+/g)?.join("") || code).slice(-15);
+                        setSearchSaleId(digits || code);
+                        setTimeout(() => searchSale(), 50);
+                      }}
+                      title="IMEI/বারকোড স্ক্যান করুন"
+                    />
                     {saleSearchResults.length > 0 && (
                       <div className="space-y-2">
                         <p className="text-sm font-medium">মিল পাওয়া বিক্রয়</p>
