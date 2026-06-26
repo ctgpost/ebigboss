@@ -539,7 +539,15 @@ export function Sales() {
             <div className="space-y-2 md:space-y-3">
               {paginatedSales.map((sale) => {
                 const firstProductImage = (sale.sale_items || []).find(i => i?.products?.image_url)?.products?.image_url;
-                const displayImage = sale.sale_image_url || firstProductImage;
+                const customerImage = sale.customers?.image_url;
+                const displayImage = sale.sale_image_url || customerImage || firstProductImage;
+                const imeiList = (sale.sale_items || [])
+                  .map(i => i?.products?.imei)
+                  .filter(Boolean) as string[];
+                const modelList = (sale.sale_items || [])
+                  .map(i => [i?.products?.brand, i?.products?.model].filter(Boolean).join(' '))
+                  .filter(Boolean);
+                const customerPhone = sale.customers?.phone || sale.instant_customer_phone;
                 
                 return (
                 <div
