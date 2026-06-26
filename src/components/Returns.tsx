@@ -81,6 +81,10 @@ export function Returns() {
 
   const [expandedAuditId, setExpandedAuditId] = useState<string | null>(null);
   const [returnScannerOpen, setReturnScannerOpen] = useState(false);
+  const [listSearch, setListSearch] = useState("");
+  const [listScannerOpen, setListScannerOpen] = useState(false);
+  const debouncedListSearch = useDebouncedValue(listSearch.trim(), 300);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const queryClient = useQueryClient();
 
