@@ -131,7 +131,9 @@ export function SupplierReturns() {
   const listScrollRef = useRef<HTMLDivElement | null>(null);
   const [listScrollTop, setListScrollTop] = useState(0);
   const [renderLimit, setRenderLimit] = useState(40);
-  const deferredSearchTerm = useDeferredValue(searchTerm.trim());
+  const debouncedSearchTerm = useDebouncedValue(searchTerm.trim(), 300);
+  const deferredSearchTerm = useDeferredValue(debouncedSearchTerm);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
 
   const { data: suppliers } = useQuery({
