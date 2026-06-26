@@ -104,36 +104,102 @@ export function Returns() {
   }, [queryClient]);
 
   // ─── Queries ─────────────────────────────────────────────────
-  const { data: returns, isLoading } = useQuery({
-    queryKey: ["returns"],
+  const PAGE_SIZE = 20;
+
+  // Lightweight stats (all rows, small columns) for counters
+  const { data: returnsStats } = useQuery({
+    queryKey: ["returns-stats"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("returns")
-        .select(`
-          *,
+        .select("id, status, refund_amount, is_audit_only")
+        .limit(5000);
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 60_000,
+  });
+
+  // Resolve search term → server-side filters
+  const resolveSearchFilter = async (term: string): Promise<{ saleIds: string[]; productIds: string[]; textMatch: string } | null> => {
+    if (!term) return null;
+    const out: { saleIds: string[]; productIds: string[]; textMatch: string } = { saleIds: [], productIds: [], textMatch: term };
+    // IMEI/barcode/sku → products
+    if (/^[A-Za-z0-9-]{4,}$/.test(term)) {
+      const { data: prods } = await supabase
+        .from("products")
+        .select("id")
+        .or(`imei.ilike.%${term}%,sku.ilike.%${term}%,barcode.ilike.%${term}%,name.ilike.%${term}%`)
+        .limit(50);
+      out.productIds = (prods || []).map((p: any) => p.id);
+    }
+    // sale / invoice / customer phone → sale ids via RPC
+    try {
+      const { data: ids } = await db.rpc("search_sale_ids_for_return", { _search: term, _limit: 50 });
+      out.saleIds = (ids || []).map((m: any) => m.id);
+    } catch { /* no-op */ }
+    return out;
+  };
+
+  const { data: returnsPages, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+    queryKey: ["returns", filterStatus, debouncedListSearch],
+    initialPageParam: 0,
+    queryFn: async ({ pageParam = 0 }) => {
+      const from = (pageParam as number) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const filter = await resolveSearchFilter(debouncedListSearch);
+      let query = supabase
+        .from("returns")
+        .select(`*,
           sales (id, total_amount, created_at, customer_id, instant_customer_name, instant_customer_phone, customers (name, phone)),
           sale_items (quantity, unit_price, total_price),
           products (name, imei, brand, model, condition, supplier_name)
         `)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(from, to);
+      if (filterStatus !== "all") query = query.eq("status", filterStatus);
+      if (filter) {
+        const orParts: string[] = [
+          `return_number.ilike.%${filter.textMatch}%`,
+          `reason_notes.ilike.%${filter.textMatch}%`,
+          `rejected_reason.ilike.%${filter.textMatch}%`,
+        ];
+        if (filter.saleIds.length) orParts.push(`sale_id.in.(${filter.saleIds.join(",")})`);
+        if (filter.productIds.length) orParts.push(`product_id.in.(${filter.productIds.join(",")})`);
+        query = query.or(orParts.join(","));
+      }
+      const { data, error } = await query;
       if (error) throw error;
-      // Hydrate processor/approver names from profiles (separate query — no FK)
-      const ids = Array.from(new Set(
-        (data || []).flatMap((r: any) => [r.processed_by, r.approved_by]).filter(Boolean),
-      ));
+
+      // Hydrate processor/approver names
+      const ids = Array.from(new Set((data || []).flatMap((r: any) => [r.processed_by, r.approved_by]).filter(Boolean)));
       let profileMap: Record<string, { full_name: string | null; email: string | null }> = {};
       if (ids.length) {
-        const { data: profs } = await supabase
-          .from("profiles").select("id, full_name, email").in("id", ids);
+        const { data: profs } = await supabase.from("profiles").select("id, full_name, email").in("id", ids);
         profileMap = Object.fromEntries((profs || []).map(p => [p.id, { full_name: p.full_name, email: p.email }]));
       }
-      return (data || []).map((r: any) => ({
+      const rows = (data || []).map((r: any) => ({
         ...r,
         processed_by_profile: r.processed_by ? profileMap[r.processed_by] : null,
         approved_by_profile: r.approved_by ? profileMap[r.approved_by] : null,
       }));
+      return { rows, nextPage: rows.length === PAGE_SIZE ? (pageParam as number) + 1 : undefined };
     },
+    getNextPageParam: (last) => last.nextPage,
   });
+
+  const returns = useMemo(() => (returnsPages?.pages || []).flatMap(p => p.rows), [returnsPages]);
+
+  // Infinite-scroll sentinel
+  useEffect(() => {
+    if (!sentinelRef.current || !hasNextPage) return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && !isFetchingNextPage) fetchNextPage();
+    }, { rootMargin: "300px" });
+    io.observe(sentinelRef.current);
+    return () => io.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, returns.length]);
 
   const { data: stockProducts } = useQuery({
     queryKey: ["return-exchange-products"],
