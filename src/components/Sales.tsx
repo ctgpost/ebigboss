@@ -464,17 +464,32 @@ export function Sales() {
               </Select>
             </div>
 
-            {/* IMEI Dedicated Search */}
+            {/* IMEI Dedicated Search + Camera Scanner */}
             <div className="sm:col-span-2 lg:col-span-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="📱 IMEI দিয়ে সার্চ করুন..."
-                  value={imeiSearch}
-                  onChange={(e) => setImeiSearch(e.target.value)}
-                  inputMode="numeric"
-                  className="pl-9 text-sm md:text-base font-mono"
-                />
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="📱 IMEI / বারকোড দিয়ে সার্চ করুন..."
+                    value={imeiSearch}
+                    onChange={(e) => setImeiSearch(e.target.value)}
+                    inputMode="numeric"
+                    className="pl-9 pr-9 text-sm md:text-base font-mono"
+                  />
+                  {isTyping && (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setScannerOpen(true)}
+                  title="ক্যামেরা দিয়ে IMEI/বারকোড স্ক্যান করুন"
+                  className="shrink-0"
+                >
+                  <ScanBarcode className="h-4 w-4" />
+                </Button>
               </div>
             </div>
 
