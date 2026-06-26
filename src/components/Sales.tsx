@@ -442,6 +442,72 @@ export function Sales() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* IMEI Dedicated Search */}
+            <div className="sm:col-span-2 lg:col-span-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="📱 IMEI দিয়ে সার্চ করুন..."
+                  value={imeiSearch}
+                  onChange={(e) => setImeiSearch(e.target.value)}
+                  inputMode="numeric"
+                  className="pl-9 text-sm md:text-base font-mono"
+                />
+              </div>
+            </div>
+
+            {/* Status Filter */}
+            <div>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="text-sm md:text-base">
+                  <SelectValue placeholder="স্ট্যাটাস" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">সকল স্ট্যাটাস</SelectItem>
+                  <SelectItem value="completed">সম্পন্ন</SelectItem>
+                  <SelectItem value="pending">পেন্ডিং</SelectItem>
+                  <SelectItem value="returned">রিটার্ন</SelectItem>
+                  <SelectItem value="cancelled">বাতিল</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Min Amount */}
+            <div>
+              <Input
+                type="number"
+                placeholder="সর্বনিম্ন ৳"
+                value={minAmount}
+                onChange={(e) => setMinAmount(e.target.value)}
+                className="text-sm md:text-base"
+              />
+            </div>
+
+            {/* Max Amount */}
+            <div>
+              <Input
+                type="number"
+                placeholder="সর্বোচ্চ ৳"
+                value={maxAmount}
+                onChange={(e) => setMaxAmount(e.target.value)}
+                className="text-sm md:text-base"
+              />
+            </div>
+
+            {/* Due Only */}
+            <div className="flex items-center gap-2 px-2">
+              <input
+                id="due-only"
+                type="checkbox"
+                checked={filterDueOnly}
+                onChange={(e) => setFilterDueOnly(e.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
+              <label htmlFor="due-only" className="text-sm cursor-pointer select-none">
+                শুধু বাকি আছে এমন বিক্রয়
+              </label>
+            </div>
           </div>
         </CardContent>
         )}
