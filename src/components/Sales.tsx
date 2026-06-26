@@ -57,9 +57,6 @@ interface SaleDetail {
 export function Sales() {
   const [searchTerm, setSearchTerm] = useState("");
   const [imeiSearch, setImeiSearch] = useState("");
-export function Sales() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [imeiSearch, setImeiSearch] = useState("");
   const [filterPaymentMethod, setFilterPaymentMethod] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterDueOnly, setFilterDueOnly] = useState(false);
