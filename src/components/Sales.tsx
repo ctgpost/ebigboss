@@ -31,6 +31,8 @@ interface SaleDetail {
     name: string;
     phone: string | null;
     email: string | null;
+    address: string | null;
+    image_url: string | null;
   } | null;
   sale_items: Array<{
     quantity: number;
@@ -41,6 +43,7 @@ interface SaleDetail {
       name: string;
       sku: string | null;
       imei: string | null;
+      barcode: string | null;
       brand: string | null;
       model: string | null;
       image_url: string | null;
@@ -50,10 +53,15 @@ interface SaleDetail {
 
 export function Sales() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [imeiSearch, setImeiSearch] = useState("");
   const [filterPaymentMethod, setFilterPaymentMethod] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterDueOnly, setFilterDueOnly] = useState(false);
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
   const [filterCustomer, setFilterCustomer] = useState<string>("all");
+  const [minAmount, setMinAmount] = useState("");
+  const [maxAmount, setMaxAmount] = useState("");
   const [selectedSale, setSelectedSale] = useState<SaleDetail | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
@@ -69,13 +77,13 @@ export function Sales() {
         .from("sales")
         .select(`
           *,
-          customers (name, phone, email),
+          customers (name, phone, email, address, image_url),
           sale_items (
             quantity,
             unit_price,
             total_price,
             condition,
-            products (name, sku, imei, brand, model, image_url)
+            products (name, sku, imei, barcode, brand, model, image_url)
           )
         `)
         .order("created_at", { ascending: false });
@@ -106,26 +114,51 @@ export function Sales() {
   // Filter and search logic
   const filteredSales = useMemo(() => {
     return sales.filter((sale) => {
-      // Search filter
-      const searchLower = searchTerm.toLowerCase();
+      // Search filter (general)
+      const searchLower = searchTerm.trim().toLowerCase();
       const matchesSearch =
-        !searchTerm ||
+        !searchLower ||
         sale.id.toLowerCase().includes(searchLower) ||
-        sale.customers?.name.toLowerCase().includes(searchLower) ||
+        sale.customers?.name?.toLowerCase().includes(searchLower) ||
+        sale.customers?.phone?.toLowerCase().includes(searchLower) ||
+        sale.instant_customer_name?.toLowerCase().includes(searchLower) ||
+        sale.instant_customer_phone?.toLowerCase().includes(searchLower) ||
         (sale.sale_items || []).some(
           (item) =>
             item?.products?.name?.toLowerCase().includes(searchLower) ||
             item?.products?.imei?.toLowerCase().includes(searchLower) ||
-            item?.products?.brand?.toLowerCase().includes(searchLower)
+            item?.products?.sku?.toLowerCase().includes(searchLower) ||
+            item?.products?.barcode?.toLowerCase().includes(searchLower) ||
+            item?.products?.brand?.toLowerCase().includes(searchLower) ||
+            item?.products?.model?.toLowerCase().includes(searchLower)
+        );
+
+      // Dedicated IMEI search
+      const imeiLower = imeiSearch.trim().toLowerCase();
+      const matchesImei =
+        !imeiLower ||
+        (sale.sale_items || []).some((item) =>
+          item?.products?.imei?.toLowerCase().includes(imeiLower)
         );
 
       // Payment method filter
       const matchesPaymentMethod =
         filterPaymentMethod === "all" || sale.payment_method === filterPaymentMethod;
 
+      // Status filter
+      const matchesStatus = filterStatus === "all" || sale.status === filterStatus;
+
+      // Due-only filter
+      const matchesDue = !filterDueOnly || Number(sale.due_amount) > 0;
+
       // Customer filter
       const matchesCustomer =
         filterCustomer === "all" || sale.customer_id === filterCustomer;
+
+      // Amount range
+      const total = Number(sale.total_amount) || 0;
+      const matchesMin = !minAmount || total >= Number(minAmount);
+      const matchesMax = !maxAmount || total <= Number(maxAmount);
 
       // Date filters
       const saleDate = new Date(sale.created_at);
@@ -136,13 +169,18 @@ export function Sales() {
 
       return (
         matchesSearch &&
+        matchesImei &&
         matchesPaymentMethod &&
+        matchesStatus &&
+        matchesDue &&
         matchesCustomer &&
+        matchesMin &&
+        matchesMax &&
         matchesDateFrom &&
         matchesDateTo
       );
     });
-  }, [sales, searchTerm, filterPaymentMethod, filterCustomer, filterDateFrom, filterDateTo]);
+  }, [sales, searchTerm, imeiSearch, filterPaymentMethod, filterStatus, filterDueOnly, filterCustomer, minAmount, maxAmount, filterDateFrom, filterDateTo]);
 
   // Pagination
   const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
@@ -158,19 +196,29 @@ export function Sales() {
 
   const clearFilters = () => {
     setSearchTerm("");
+    setImeiSearch("");
     setFilterPaymentMethod("all");
+    setFilterStatus("all");
+    setFilterDueOnly(false);
     setFilterCustomer("all");
+    setMinAmount("");
+    setMaxAmount("");
     setFilterDateFrom("");
     setFilterDateTo("");
     setCurrentPage(1);
   };
 
   const hasActiveFilters =
-    searchTerm ||
+    !!searchTerm ||
+    !!imeiSearch ||
     filterPaymentMethod !== "all" ||
+    filterStatus !== "all" ||
+    filterDueOnly ||
     filterCustomer !== "all" ||
-    filterDateFrom ||
-    filterDateTo;
+    !!minAmount ||
+    !!maxAmount ||
+    !!filterDateFrom ||
+    !!filterDateTo;
 
   // PDF Export
   const handlePrint = useReactToPrint({
@@ -394,6 +442,72 @@ export function Sales() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* IMEI Dedicated Search */}
+            <div className="sm:col-span-2 lg:col-span-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="📱 IMEI দিয়ে সার্চ করুন..."
+                  value={imeiSearch}
+                  onChange={(e) => setImeiSearch(e.target.value)}
+                  inputMode="numeric"
+                  className="pl-9 text-sm md:text-base font-mono"
+                />
+              </div>
+            </div>
+
+            {/* Status Filter */}
+            <div>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="text-sm md:text-base">
+                  <SelectValue placeholder="স্ট্যাটাস" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">সকল স্ট্যাটাস</SelectItem>
+                  <SelectItem value="completed">সম্পন্ন</SelectItem>
+                  <SelectItem value="pending">পেন্ডিং</SelectItem>
+                  <SelectItem value="returned">রিটার্ন</SelectItem>
+                  <SelectItem value="cancelled">বাতিল</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Min Amount */}
+            <div>
+              <Input
+                type="number"
+                placeholder="সর্বনিম্ন ৳"
+                value={minAmount}
+                onChange={(e) => setMinAmount(e.target.value)}
+                className="text-sm md:text-base"
+              />
+            </div>
+
+            {/* Max Amount */}
+            <div>
+              <Input
+                type="number"
+                placeholder="সর্বোচ্চ ৳"
+                value={maxAmount}
+                onChange={(e) => setMaxAmount(e.target.value)}
+                className="text-sm md:text-base"
+              />
+            </div>
+
+            {/* Due Only */}
+            <div className="flex items-center gap-2 px-2">
+              <input
+                id="due-only"
+                type="checkbox"
+                checked={filterDueOnly}
+                onChange={(e) => setFilterDueOnly(e.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
+              <label htmlFor="due-only" className="text-sm cursor-pointer select-none">
+                শুধু বাকি আছে এমন বিক্রয়
+              </label>
+            </div>
           </div>
         </CardContent>
         )}
@@ -425,7 +539,15 @@ export function Sales() {
             <div className="space-y-2 md:space-y-3">
               {paginatedSales.map((sale) => {
                 const firstProductImage = (sale.sale_items || []).find(i => i?.products?.image_url)?.products?.image_url;
-                const displayImage = sale.sale_image_url || firstProductImage;
+                const customerImage = sale.customers?.image_url;
+                const displayImage = sale.sale_image_url || customerImage || firstProductImage;
+                const imeiList = (sale.sale_items || [])
+                  .map(i => i?.products?.imei)
+                  .filter(Boolean) as string[];
+                const modelList = (sale.sale_items || [])
+                  .map(i => [i?.products?.brand, i?.products?.model].filter(Boolean).join(' '))
+                  .filter(Boolean);
+                const customerPhone = sale.customers?.phone || sale.instant_customer_phone;
                 
                 return (
                 <div
@@ -469,6 +591,12 @@ export function Sales() {
                             <span className="truncate max-w-[120px]">{sale.customers?.name || sale.instant_customer_name}</span>
                           </div>
                         )}
+                        {customerPhone && (
+                          <div className="flex items-center gap-1">
+                            <span>📞</span>
+                            <span className="truncate">{customerPhone}</span>
+                          </div>
+                        )}
                         <div className="flex items-center gap-1">
                           <Package className="h-3 w-3" />
                           {(sale.sale_items || []).length}টি পণ্য
@@ -479,7 +607,18 @@ export function Sales() {
                       <div className="text-xs text-muted-foreground mt-1 truncate">
                         {(sale.sale_items || []).map(i => i?.products?.name).filter(Boolean).join(', ')}
                       </div>
+                      {modelList.length > 0 && (
+                        <div className="text-xs text-muted-foreground mt-0.5 truncate">
+                          📱 {modelList.join(', ')}
+                        </div>
+                      )}
+                      {imeiList.length > 0 && (
+                        <div className="text-[11px] font-mono text-primary/80 mt-0.5 break-all line-clamp-1">
+                          IMEI: {imeiList.join(', ')}
+                        </div>
+                      )}
                     </div>
+
 
                     <div className="text-right shrink-0">
                       <div className="text-lg md:text-xl font-bold text-accent">
@@ -618,23 +757,45 @@ export function Sales() {
                       <User className="h-4 w-4" /> কাস্টমার তথ্য
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-2 p-3 md:p-4 pt-0">
-                    <div className="flex justify-between">
-                      <span className="text-xs text-muted-foreground">নাম:</span>
-                      <span className="text-sm font-semibold">{selectedSale.customers?.name || selectedSale.instant_customer_name}</span>
+                  <CardContent className="p-3 md:p-4 pt-0">
+                    <div className="flex gap-3">
+                      {selectedSale.customers?.image_url && (
+                        <img
+                          src={getCloudinaryThumbnail(selectedSale.customers.image_url, 96, 96)}
+                          alt={selectedSale.customers?.name || 'customer'}
+                          className="w-20 h-20 rounded-lg object-cover border border-border shrink-0"
+                        />
+                      )}
+                      <div className="flex-1 min-w-0 space-y-1.5">
+                        <div className="flex justify-between gap-2">
+                          <span className="text-xs text-muted-foreground">নাম:</span>
+                          <span className="text-sm font-semibold text-right">{selectedSale.customers?.name || selectedSale.instant_customer_name}</span>
+                        </div>
+                        {(selectedSale.customers?.phone || selectedSale.instant_customer_phone) && (
+                          <div className="flex justify-between gap-2">
+                            <span className="text-xs text-muted-foreground">ফোন:</span>
+                            <a
+                              href={`tel:${selectedSale.customers?.phone || selectedSale.instant_customer_phone}`}
+                              className="text-sm text-primary hover:underline text-right"
+                            >
+                              {selectedSale.customers?.phone || selectedSale.instant_customer_phone}
+                            </a>
+                          </div>
+                        )}
+                        {selectedSale.customers?.email && (
+                          <div className="flex justify-between gap-2">
+                            <span className="text-xs text-muted-foreground">ইমেইল:</span>
+                            <span className="text-sm text-right break-all">{selectedSale.customers.email}</span>
+                          </div>
+                        )}
+                        {selectedSale.customers?.address && (
+                          <div className="flex justify-between gap-2">
+                            <span className="text-xs text-muted-foreground">ঠিকানা:</span>
+                            <span className="text-sm text-right">📍 {selectedSale.customers.address}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    {(selectedSale.customers?.phone || selectedSale.instant_customer_phone) && (
-                      <div className="flex justify-between">
-                        <span className="text-xs text-muted-foreground">ফোন:</span>
-                        <span className="text-sm">{selectedSale.customers?.phone || selectedSale.instant_customer_phone}</span>
-                      </div>
-                    )}
-                    {selectedSale.customers?.email && (
-                      <div className="flex justify-between">
-                        <span className="text-xs text-muted-foreground">ইমেইল:</span>
-                        <span className="text-sm">{selectedSale.customers.email}</span>
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
               )}
