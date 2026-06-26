@@ -185,10 +185,27 @@ export function Sales() {
   const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
   const paginatedSales = isMobile
     ? filteredSales.slice(0, mobileVisibleCount)
-    : filteredSales.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+    : filteredSales.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  // Mobile infinite scroll via IntersectionObserver
+  useEffect(() => {
+    if (!isMobile) return;
+    const el = loadMoreRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setMobileVisibleCount((c) => {
+            if (c >= filteredSales.length) return c;
+            return Math.min(c + mobilePageSize, filteredSales.length);
+          });
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [isMobile, filteredSales.length]);
 
   // Stats
   const totalSales = filteredSales.length;
