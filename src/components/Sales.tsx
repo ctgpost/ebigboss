@@ -401,8 +401,11 @@ export function Sales() {
                   placeholder="Search by ID, customer, product..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 text-sm md:text-base"
+                  className="pl-9 pr-9 text-sm md:text-base"
                 />
+                {isTyping && (
+                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
+                )}
               </div>
             </div>
 
