@@ -23,7 +23,9 @@ import { generateSupplierReturnReceiptPdf } from "@/utils/supplierReturnReceiptP
 import { cacheSupplierReturnReceipt, getCachedObjectUrl } from "@/utils/offlineAssets";
 import { queueIfOffline } from "@/utils/offlineQueue";
 import { toast } from "sonner";
-import { BarChart3, CheckCircle, Clock, Download, Edit, Eye, FileText, History, Image as ImageIcon, Package, Printer, RefreshCcw, Search, Truck, XCircle } from "lucide-react";
+import { BarChart3, CheckCircle, Clock, Download, Edit, Eye, FileText, History, Image as ImageIcon, Package, Printer, RefreshCcw, ScanBarcode, Search, Truck, XCircle } from "lucide-react";
+import { BarcodeScanner } from "@/components/BarcodeScanner";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 type ReturnMethod = "cash_refund" | "due_adjust" | "replacement";
 type FinanceAction = "none" | "supplier_refund" | "due_adjust";
