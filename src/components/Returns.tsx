@@ -79,6 +79,7 @@ export function Returns() {
   const [expandedHistoryItemId, setExpandedHistoryItemId] = useState<string | null>(null);
 
   const [expandedAuditId, setExpandedAuditId] = useState<string | null>(null);
+  const [returnScannerOpen, setReturnScannerOpen] = useState(false);
 
   const queryClient = useQueryClient();
 
