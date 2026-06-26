@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -80,6 +81,10 @@ export function Returns() {
 
   const [expandedAuditId, setExpandedAuditId] = useState<string | null>(null);
   const [returnScannerOpen, setReturnScannerOpen] = useState(false);
+  const [listSearch, setListSearch] = useState("");
+  const [listScannerOpen, setListScannerOpen] = useState(false);
+  const debouncedListSearch = useDebouncedValue(listSearch.trim(), 300);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -89,6 +94,7 @@ export function Returns() {
       .channel("returns-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "returns" }, () => {
         queryClient.invalidateQueries({ queryKey: ["returns"] });
+        queryClient.invalidateQueries({ queryKey: ["returns-stats"] });
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "return_audit_logs" }, (payload: any) => {
         const rid = (payload.new as any)?.return_id || (payload.old as any)?.return_id;
@@ -99,36 +105,102 @@ export function Returns() {
   }, [queryClient]);
 
   // ─── Queries ─────────────────────────────────────────────────
-  const { data: returns, isLoading } = useQuery({
-    queryKey: ["returns"],
+  const PAGE_SIZE = 20;
+
+  // Lightweight stats (all rows, small columns) for counters
+  const { data: returnsStats } = useQuery({
+    queryKey: ["returns-stats"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("returns")
-        .select(`
-          *,
+        .select("id, status, refund_amount, is_audit_only")
+        .limit(5000);
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 60_000,
+  });
+
+  // Resolve search term → server-side filters
+  const resolveSearchFilter = async (term: string): Promise<{ saleIds: string[]; productIds: string[]; textMatch: string } | null> => {
+    if (!term) return null;
+    const out: { saleIds: string[]; productIds: string[]; textMatch: string } = { saleIds: [], productIds: [], textMatch: term };
+    // IMEI/barcode/sku → products
+    if (/^[A-Za-z0-9-]{4,}$/.test(term)) {
+      const { data: prods } = await supabase
+        .from("products")
+        .select("id")
+        .or(`imei.ilike.%${term}%,sku.ilike.%${term}%,barcode.ilike.%${term}%,name.ilike.%${term}%`)
+        .limit(50);
+      out.productIds = (prods || []).map((p: any) => p.id);
+    }
+    // sale / invoice / customer phone → sale ids via RPC
+    try {
+      const { data: ids } = await db.rpc("search_sale_ids_for_return", { _search: term, _limit: 50 });
+      out.saleIds = (ids || []).map((m: any) => m.id);
+    } catch { /* no-op */ }
+    return out;
+  };
+
+  const { data: returnsPages, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+    queryKey: ["returns", filterStatus, debouncedListSearch],
+    initialPageParam: 0,
+    queryFn: async ({ pageParam = 0 }) => {
+      const from = (pageParam as number) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const filter = await resolveSearchFilter(debouncedListSearch);
+      let query = supabase
+        .from("returns")
+        .select(`*,
           sales (id, total_amount, created_at, customer_id, instant_customer_name, instant_customer_phone, customers (name, phone)),
           sale_items (quantity, unit_price, total_price),
           products (name, imei, brand, model, condition, supplier_name)
         `)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(from, to);
+      if (filterStatus !== "all") query = query.eq("status", filterStatus);
+      if (filter) {
+        const orParts: string[] = [
+          `return_number.ilike.%${filter.textMatch}%`,
+          `reason_notes.ilike.%${filter.textMatch}%`,
+          `rejected_reason.ilike.%${filter.textMatch}%`,
+        ];
+        if (filter.saleIds.length) orParts.push(`sale_id.in.(${filter.saleIds.join(",")})`);
+        if (filter.productIds.length) orParts.push(`product_id.in.(${filter.productIds.join(",")})`);
+        query = query.or(orParts.join(","));
+      }
+      const { data, error } = await query;
       if (error) throw error;
-      // Hydrate processor/approver names from profiles (separate query — no FK)
-      const ids = Array.from(new Set(
-        (data || []).flatMap((r: any) => [r.processed_by, r.approved_by]).filter(Boolean),
-      ));
+
+      // Hydrate processor/approver names
+      const ids = Array.from(new Set((data || []).flatMap((r: any) => [r.processed_by, r.approved_by]).filter(Boolean)));
       let profileMap: Record<string, { full_name: string | null; email: string | null }> = {};
       if (ids.length) {
-        const { data: profs } = await supabase
-          .from("profiles").select("id, full_name, email").in("id", ids);
+        const { data: profs } = await supabase.from("profiles").select("id, full_name, email").in("id", ids);
         profileMap = Object.fromEntries((profs || []).map(p => [p.id, { full_name: p.full_name, email: p.email }]));
       }
-      return (data || []).map((r: any) => ({
+      const rows = (data || []).map((r: any) => ({
         ...r,
         processed_by_profile: r.processed_by ? profileMap[r.processed_by] : null,
         approved_by_profile: r.approved_by ? profileMap[r.approved_by] : null,
       }));
+      return { rows, nextPage: rows.length === PAGE_SIZE ? (pageParam as number) + 1 : undefined };
     },
+    getNextPageParam: (last) => last.nextPage,
   });
+
+  const returns = useMemo(() => (returnsPages?.pages || []).flatMap(p => p.rows), [returnsPages]);
+
+  // Infinite-scroll sentinel
+  useEffect(() => {
+    if (!sentinelRef.current || !hasNextPage) return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && !isFetchingNextPage) fetchNextPage();
+    }, { rootMargin: "300px" });
+    io.observe(sentinelRef.current);
+    return () => io.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, returns.length]);
 
   const { data: stockProducts } = useQuery({
     queryKey: ["return-exchange-products"],
@@ -410,12 +482,13 @@ export function Returns() {
     return <Badge className={`${m.cls} gap-1`}><Icon className="h-3 w-3" />{m.label}</Badge>;
   };
 
-  const filteredReturns = returns?.filter(r => filterStatus === "all" || r.status === filterStatus) || [];
-  const pendingCount = returns?.filter(r => r.status === "pending").length || 0;
-  const completedCount = returns?.filter(r => r.status === "completed").length || 0;
-  const auditOnlyCount = returns?.filter(r => r.is_audit_only).length || 0;
-  const totalRefund = returns?.filter(r => r.status === "completed" && !r.is_audit_only)
-    .reduce((s, r) => s + Number(r.refund_amount), 0) || 0;
+  // Server-side pagination + filtering, so don't re-filter client-side
+  const filteredReturns = returns;
+  const pendingCount = returnsStats?.filter((r: any) => r.status === "pending").length || 0;
+  const completedCount = returnsStats?.filter((r: any) => r.status === "completed").length || 0;
+  const auditOnlyCount = returnsStats?.filter((r: any) => r.is_audit_only).length || 0;
+  const totalRefund = returnsStats?.filter((r: any) => r.status === "completed" && !r.is_audit_only)
+    .reduce((s: number, r: any) => s + Number(r.refund_amount || 0), 0) || 0;
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-64 text-muted-foreground">লোড হচ্ছে...</div>;
@@ -715,8 +788,17 @@ export function Returns() {
           </div>
 
           <Card className="p-3">
-            <div className="flex items-center gap-3 flex-wrap">
-              <Label className="text-sm">স্ট্যাটাস:</Label>
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={listSearch}
+                  onChange={(e) => setListSearch(e.target.value)}
+                  placeholder="রিটার্ন নম্বর, IMEI, ইনভয়েস, ক্রেতার মোবাইল..."
+                  className="pl-9"
+                />
+              </div>
+              <Button type="button" variant="outline" size="icon" onClick={() => setListScannerOpen(true)} title="IMEI/বারকোড স্ক্যান"><ScanBarcode className="h-4 w-4" /></Button>
               <Select value={filterStatus} onValueChange={setFilterStatus}>
                 <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -727,6 +809,16 @@ export function Returns() {
                 </SelectContent>
               </Select>
             </div>
+            <BarcodeScanner
+              isOpen={listScannerOpen}
+              onClose={() => setListScannerOpen(false)}
+              onScan={(code) => {
+                const digits = (code.match(/\d+/g)?.join("") || code).slice(-15);
+                setListSearch(digits || code);
+                setListScannerOpen(false);
+              }}
+              title="IMEI/বারকোড স্ক্যান করুন"
+            />
           </Card>
 
           {filteredReturns.length > 0 ? (
@@ -861,6 +953,13 @@ export function Returns() {
                   )}
                 </Card>
               ))}
+              <div ref={sentinelRef} aria-hidden className="h-1" />
+              {isFetchingNextPage && (
+                <div className="text-center py-3 text-sm text-muted-foreground">আরও লোড হচ্ছে...</div>
+              )}
+              {!hasNextPage && returns.length > PAGE_SIZE && (
+                <div className="text-center py-3 text-xs text-muted-foreground">— শেষ —</div>
+              )}
             </div>
           ) : (
             <Card className="p-12 text-center">

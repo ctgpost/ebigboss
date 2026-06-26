@@ -23,7 +23,9 @@ import { generateSupplierReturnReceiptPdf } from "@/utils/supplierReturnReceiptP
 import { cacheSupplierReturnReceipt, getCachedObjectUrl } from "@/utils/offlineAssets";
 import { queueIfOffline } from "@/utils/offlineQueue";
 import { toast } from "sonner";
-import { BarChart3, CheckCircle, Clock, Download, Edit, Eye, FileText, History, Image as ImageIcon, Package, Printer, RefreshCcw, Search, Truck, XCircle } from "lucide-react";
+import { BarChart3, CheckCircle, Clock, Download, Edit, Eye, FileText, History, Image as ImageIcon, Package, Printer, RefreshCcw, ScanBarcode, Search, Truck, XCircle } from "lucide-react";
+import { BarcodeScanner } from "@/components/BarcodeScanner";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 type ReturnMethod = "cash_refund" | "due_adjust" | "replacement";
 type FinanceAction = "none" | "supplier_refund" | "due_adjust";
@@ -129,7 +131,9 @@ export function SupplierReturns() {
   const listScrollRef = useRef<HTMLDivElement | null>(null);
   const [listScrollTop, setListScrollTop] = useState(0);
   const [renderLimit, setRenderLimit] = useState(40);
-  const deferredSearchTerm = useDeferredValue(searchTerm.trim());
+  const debouncedSearchTerm = useDebouncedValue(searchTerm.trim(), 300);
+  const deferredSearchTerm = useDeferredValue(debouncedSearchTerm);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
 
   const { data: suppliers } = useQuery({
@@ -585,7 +589,8 @@ export function SupplierReturns() {
       <Tabs defaultValue="returns" className="flex-1 min-h-0 pt-4 flex flex-col">
         <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="returns">রিটার্ন তালিকা</TabsTrigger><TabsTrigger value="analytics">এনালিটিক্স</TabsTrigger></TabsList>
         <TabsContent value="returns" ref={listScrollRef} onScroll={(e) => { const el = e.currentTarget; setListScrollTop(el.scrollTop); if (el.scrollTop + el.clientHeight > el.scrollHeight - 900) setRenderLimit((n) => Math.min(filteredReturns.length, n + 30)); }} className="flex-1 min-h-0 overflow-y-auto space-y-3 pb-6">
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_9rem] gap-2"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input className="pl-9" placeholder="রিটার্ন নম্বর, সাপ্লায়ার, মোবাইল, PO..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div><Select value={filterStatus} onValueChange={setFilterStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">সব</SelectItem><SelectItem value="pending">অপেক্ষমাণ</SelectItem><SelectItem value="completed">সম্পন্ন</SelectItem><SelectItem value="rejected">প্রত্যাখ্যাত</SelectItem></SelectContent></Select></div>
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_2.5rem_9rem] gap-2"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input className="pl-9" placeholder="রিটার্ন নম্বর, সাপ্লায়ার, IMEI, PO, মোবাইল..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div><Button type="button" variant="outline" size="icon" onClick={() => setScannerOpen(true)} title="IMEI/বারকোড স্ক্যান করুন"><ScanBarcode className="h-4 w-4" /></Button><Select value={filterStatus} onValueChange={setFilterStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">সব</SelectItem><SelectItem value="pending">অপেক্ষমাণ</SelectItem><SelectItem value="completed">সম্পন্ন</SelectItem><SelectItem value="rejected">প্রত্যাখ্যাত</SelectItem></SelectContent></Select></div>
+          <BarcodeScanner isOpen={scannerOpen} onClose={() => setScannerOpen(false)} onScan={(code) => { const digits = (code.match(/\d+/g)?.join("") || code).slice(-15); setSearchTerm(digits || code); setScannerOpen(false); }} title="IMEI/বারকোড স্ক্যান করুন" />
 
           {topSpacer > 0 && <div style={{ height: topSpacer }} aria-hidden="true" />}
           {virtualReturns.map((ret: any) => <SupplierReturnCard key={ret.id} ret={ret} canApprove={canApprove} onDetails={setDetailsReturn} onEdit={openEditDialog} onPhoto={setPhotoPreviewUrl} onPdf={openPdf} onPrint={printReceipt} onApprove={(r: any) => approveMutation.mutate(r)} onReject={setRejectingId} />)}
