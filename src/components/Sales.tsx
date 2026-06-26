@@ -757,23 +757,45 @@ export function Sales() {
                       <User className="h-4 w-4" /> কাস্টমার তথ্য
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-2 p-3 md:p-4 pt-0">
-                    <div className="flex justify-between">
-                      <span className="text-xs text-muted-foreground">নাম:</span>
-                      <span className="text-sm font-semibold">{selectedSale.customers?.name || selectedSale.instant_customer_name}</span>
+                  <CardContent className="p-3 md:p-4 pt-0">
+                    <div className="flex gap-3">
+                      {selectedSale.customers?.image_url && (
+                        <img
+                          src={getCloudinaryThumbnail(selectedSale.customers.image_url, 96, 96)}
+                          alt={selectedSale.customers?.name || 'customer'}
+                          className="w-20 h-20 rounded-lg object-cover border border-border shrink-0"
+                        />
+                      )}
+                      <div className="flex-1 min-w-0 space-y-1.5">
+                        <div className="flex justify-between gap-2">
+                          <span className="text-xs text-muted-foreground">নাম:</span>
+                          <span className="text-sm font-semibold text-right">{selectedSale.customers?.name || selectedSale.instant_customer_name}</span>
+                        </div>
+                        {(selectedSale.customers?.phone || selectedSale.instant_customer_phone) && (
+                          <div className="flex justify-between gap-2">
+                            <span className="text-xs text-muted-foreground">ফোন:</span>
+                            <a
+                              href={`tel:${selectedSale.customers?.phone || selectedSale.instant_customer_phone}`}
+                              className="text-sm text-primary hover:underline text-right"
+                            >
+                              {selectedSale.customers?.phone || selectedSale.instant_customer_phone}
+                            </a>
+                          </div>
+                        )}
+                        {selectedSale.customers?.email && (
+                          <div className="flex justify-between gap-2">
+                            <span className="text-xs text-muted-foreground">ইমেইল:</span>
+                            <span className="text-sm text-right break-all">{selectedSale.customers.email}</span>
+                          </div>
+                        )}
+                        {selectedSale.customers?.address && (
+                          <div className="flex justify-between gap-2">
+                            <span className="text-xs text-muted-foreground">ঠিকানা:</span>
+                            <span className="text-sm text-right">📍 {selectedSale.customers.address}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    {(selectedSale.customers?.phone || selectedSale.instant_customer_phone) && (
-                      <div className="flex justify-between">
-                        <span className="text-xs text-muted-foreground">ফোন:</span>
-                        <span className="text-sm">{selectedSale.customers?.phone || selectedSale.instant_customer_phone}</span>
-                      </div>
-                    )}
-                    {selectedSale.customers?.email && (
-                      <div className="flex justify-between">
-                        <span className="text-xs text-muted-foreground">ইমেইল:</span>
-                        <span className="text-sm">{selectedSale.customers.email}</span>
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
               )}
