@@ -72,13 +72,13 @@ export function Sales() {
         .from("sales")
         .select(`
           *,
-          customers (name, phone, email),
+          customers (name, phone, email, address, image_url),
           sale_items (
             quantity,
             unit_price,
             total_price,
             condition,
-            products (name, sku, imei, brand, model, image_url)
+            products (name, sku, imei, barcode, brand, model, image_url)
           )
         `)
         .order("created_at", { ascending: false });
