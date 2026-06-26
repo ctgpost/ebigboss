@@ -788,8 +788,17 @@ export function Returns() {
           </div>
 
           <Card className="p-3">
-            <div className="flex items-center gap-3 flex-wrap">
-              <Label className="text-sm">স্ট্যাটাস:</Label>
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={listSearch}
+                  onChange={(e) => setListSearch(e.target.value)}
+                  placeholder="রিটার্ন নম্বর, IMEI, ইনভয়েস, ক্রেতার মোবাইল..."
+                  className="pl-9"
+                />
+              </div>
+              <Button type="button" variant="outline" size="icon" onClick={() => setListScannerOpen(true)} title="IMEI/বারকোড স্ক্যান"><ScanBarcode className="h-4 w-4" /></Button>
               <Select value={filterStatus} onValueChange={setFilterStatus}>
                 <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -800,6 +809,16 @@ export function Returns() {
                 </SelectContent>
               </Select>
             </div>
+            <BarcodeScanner
+              isOpen={listScannerOpen}
+              onClose={() => setListScannerOpen(false)}
+              onScan={(code) => {
+                const digits = (code.match(/\d+/g)?.join("") || code).slice(-15);
+                setListSearch(digits || code);
+                setListScannerOpen(false);
+              }}
+              title="IMEI/বারকোড স্ক্যান করুন"
+            />
           </Card>
 
           {filteredReturns.length > 0 ? (
