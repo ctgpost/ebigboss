@@ -31,6 +31,8 @@ interface SaleDetail {
     name: string;
     phone: string | null;
     email: string | null;
+    address: string | null;
+    image_url: string | null;
   } | null;
   sale_items: Array<{
     quantity: number;
@@ -41,6 +43,7 @@ interface SaleDetail {
       name: string;
       sku: string | null;
       imei: string | null;
+      barcode: string | null;
       brand: string | null;
       model: string | null;
       image_url: string | null;
