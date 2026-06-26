@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,10 +9,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
-import { Search, Calendar, User, CreditCard, Package, Filter, X, FileDown, FileSpreadsheet, Image, TrendingUp, TrendingDown, DollarSign, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, Calendar, User, CreditCard, Package, Filter, X, FileDown, FileSpreadsheet, Image, TrendingUp, TrendingDown, DollarSign, ChevronDown, ChevronUp, ScanBarcode, Loader2 } from "lucide-react";
 import { useReactToPrint } from "react-to-print";
 import * as XLSX from "xlsx";
 import { getCloudinaryThumbnail } from "@/utils/cloudinary";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { BarcodeScanner } from "./BarcodeScanner";
 
 interface SaleDetail {
   id: string;
