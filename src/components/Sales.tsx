@@ -678,33 +678,33 @@ export function Sales() {
             </div>
           )}
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 md:mt-6 pt-4 md:pt-6 border-t">
-              <div className="text-xs md:text-sm text-muted-foreground">
-                পৃষ্ঠা {currentPage} / {totalPages}
+          {/* Pagination (desktop) / Infinite-scroll sentinel (mobile) */}
+          {isMobile ? (
+            filteredSales.length > 0 && (
+              <div ref={loadMoreRef} className="py-6 text-center text-xs text-muted-foreground">
+                {mobileVisibleCount < filteredSales.length ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-3 w-3 animate-spin" /> আরও লোড হচ্ছে...
+                  </span>
+                ) : (
+                  <span>সব {filteredSales.length}টি বিক্রয় দেখানো হয়েছে</span>
+                )}
               </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="text-xs md:text-sm"
-                >
-                  পূর্ববর্তী
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="text-xs md:text-sm"
-                >
-                  পরবর্তী
-                </Button>
+            )
+          ) : (
+            totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 md:mt-6 pt-4 md:pt-6 border-t">
+                <div className="text-xs md:text-sm text-muted-foreground">
+                  পৃষ্ঠা {currentPage} / {totalPages} • মোট {filteredSales.length}টি
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="text-xs md:text-sm">« প্রথম</Button>
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="text-xs md:text-sm">পূর্ববর্তী</Button>
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="text-xs md:text-sm">পরবর্তী</Button>
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="text-xs md:text-sm">শেষ »</Button>
+                </div>
               </div>
-            </div>
+            )
           )}
         </CardContent>
         </Card>
