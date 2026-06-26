@@ -953,6 +953,13 @@ export function Returns() {
                   )}
                 </Card>
               ))}
+              <div ref={sentinelRef} aria-hidden className="h-1" />
+              {isFetchingNextPage && (
+                <div className="text-center py-3 text-sm text-muted-foreground">আরও লোড হচ্ছে...</div>
+              )}
+              {!hasNextPage && returns.length > PAGE_SIZE && (
+                <div className="text-center py-3 text-xs text-muted-foreground">— শেষ —</div>
+              )}
             </div>
           ) : (
             <Card className="p-12 text-center">
