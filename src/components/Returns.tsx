@@ -482,12 +482,13 @@ export function Returns() {
     return <Badge className={`${m.cls} gap-1`}><Icon className="h-3 w-3" />{m.label}</Badge>;
   };
 
-  const filteredReturns = returns?.filter(r => filterStatus === "all" || r.status === filterStatus) || [];
-  const pendingCount = returns?.filter(r => r.status === "pending").length || 0;
-  const completedCount = returns?.filter(r => r.status === "completed").length || 0;
-  const auditOnlyCount = returns?.filter(r => r.is_audit_only).length || 0;
-  const totalRefund = returns?.filter(r => r.status === "completed" && !r.is_audit_only)
-    .reduce((s, r) => s + Number(r.refund_amount), 0) || 0;
+  // Server-side pagination + filtering, so don't re-filter client-side
+  const filteredReturns = returns;
+  const pendingCount = returnsStats?.filter((r: any) => r.status === "pending").length || 0;
+  const completedCount = returnsStats?.filter((r: any) => r.status === "completed").length || 0;
+  const auditOnlyCount = returnsStats?.filter((r: any) => r.is_audit_only).length || 0;
+  const totalRefund = returnsStats?.filter((r: any) => r.status === "completed" && !r.is_audit_only)
+    .reduce((s: number, r: any) => s + Number(r.refund_amount || 0), 0) || 0;
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-64 text-muted-foreground">লোড হচ্ছে...</div>;
