@@ -94,6 +94,7 @@ export function Returns() {
       .channel("returns-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "returns" }, () => {
         queryClient.invalidateQueries({ queryKey: ["returns"] });
+        queryClient.invalidateQueries({ queryKey: ["returns-stats"] });
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "return_audit_logs" }, (payload: any) => {
         const rid = (payload.new as any)?.return_id || (payload.old as any)?.return_id;
