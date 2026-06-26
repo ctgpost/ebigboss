@@ -53,10 +53,15 @@ interface SaleDetail {
 
 export function Sales() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [imeiSearch, setImeiSearch] = useState("");
   const [filterPaymentMethod, setFilterPaymentMethod] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterDueOnly, setFilterDueOnly] = useState(false);
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
   const [filterCustomer, setFilterCustomer] = useState<string>("all");
+  const [minAmount, setMinAmount] = useState("");
+  const [maxAmount, setMaxAmount] = useState("");
   const [selectedSale, setSelectedSale] = useState<SaleDetail | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
