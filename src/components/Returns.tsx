@@ -16,7 +16,7 @@ import { format } from "date-fns";
 import { bn } from "date-fns/locale";
 import {
   RotateCcw, Search, Package, Calendar, CheckCircle, XCircle, Clock,
-  BarChart3, FileText, Printer, Image as ImageIcon, MessageSquare, History, Banknote,
+  BarChart3, FileText, Printer, Image as ImageIcon, MessageSquare, History, Banknote, ScanBarcode,
 } from "lucide-react";
 import { ActivityLogger } from "@/hooks/useActivityLog";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -26,6 +26,7 @@ import { ReturnPhotoUpload } from "./returns/ReturnPhotoUpload";
 import { ZoomableImage } from "@/components/ui/zoomable-image";
 import { queueIfOffline } from "@/utils/offlineQueue";
 import { ReturnAuditTrail } from "./returns/ReturnAuditTrail";
+import { BarcodeScanner } from "./BarcodeScanner";
 
 const db = supabase as any;
 
