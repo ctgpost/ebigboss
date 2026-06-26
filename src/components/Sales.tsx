@@ -124,11 +124,11 @@ export function Sales() {
     },
   });
 
-  // Filter and search logic
+  // Filter and search logic (uses debounced search terms for fast typing on mobile)
   const filteredSales = useMemo(() => {
+    const searchLower = debouncedSearch.trim().toLowerCase();
+    const imeiLower = debouncedImei.trim().toLowerCase();
     return sales.filter((sale) => {
-      // Search filter (general)
-      const searchLower = searchTerm.trim().toLowerCase();
       const matchesSearch =
         !searchLower ||
         sale.id.toLowerCase().includes(searchLower) ||
@@ -146,58 +146,46 @@ export function Sales() {
             item?.products?.model?.toLowerCase().includes(searchLower)
         );
 
-      // Dedicated IMEI search
-      const imeiLower = imeiSearch.trim().toLowerCase();
       const matchesImei =
         !imeiLower ||
         (sale.sale_items || []).some((item) =>
           item?.products?.imei?.toLowerCase().includes(imeiLower)
         );
 
-      // Payment method filter
       const matchesPaymentMethod =
         filterPaymentMethod === "all" || sale.payment_method === filterPaymentMethod;
-
-      // Status filter
       const matchesStatus = filterStatus === "all" || sale.status === filterStatus;
-
-      // Due-only filter
       const matchesDue = !filterDueOnly || Number(sale.due_amount) > 0;
-
-      // Customer filter
       const matchesCustomer =
         filterCustomer === "all" || sale.customer_id === filterCustomer;
 
-      // Amount range
       const total = Number(sale.total_amount) || 0;
       const matchesMin = !minAmount || total >= Number(minAmount);
       const matchesMax = !maxAmount || total <= Number(maxAmount);
 
-      // Date filters
       const saleDate = new Date(sale.created_at);
-      const matchesDateFrom =
-        !filterDateFrom || saleDate >= new Date(filterDateFrom);
-      const matchesDateTo =
-        !filterDateTo || saleDate <= new Date(filterDateTo + "T23:59:59");
+      const matchesDateFrom = !filterDateFrom || saleDate >= new Date(filterDateFrom);
+      const matchesDateTo = !filterDateTo || saleDate <= new Date(filterDateTo + "T23:59:59");
 
       return (
-        matchesSearch &&
-        matchesImei &&
-        matchesPaymentMethod &&
-        matchesStatus &&
-        matchesDue &&
-        matchesCustomer &&
-        matchesMin &&
-        matchesMax &&
-        matchesDateFrom &&
-        matchesDateTo
+        matchesSearch && matchesImei && matchesPaymentMethod && matchesStatus &&
+        matchesDue && matchesCustomer && matchesMin && matchesMax &&
+        matchesDateFrom && matchesDateTo
       );
     });
-  }, [sales, searchTerm, imeiSearch, filterPaymentMethod, filterStatus, filterDueOnly, filterCustomer, minAmount, maxAmount, filterDateFrom, filterDateTo]);
+  }, [sales, debouncedSearch, debouncedImei, filterPaymentMethod, filterStatus, filterDueOnly, filterCustomer, minAmount, maxAmount, filterDateFrom, filterDateTo]);
 
-  // Pagination
+  // Reset pagination / infinite-scroll window whenever the active filter set changes
+  useEffect(() => {
+    setCurrentPage(1);
+    setMobileVisibleCount(mobilePageSize);
+  }, [debouncedSearch, debouncedImei, filterPaymentMethod, filterStatus, filterDueOnly, filterCustomer, minAmount, maxAmount, filterDateFrom, filterDateTo]);
+
+  // Pagination (desktop) / Infinite scroll window (mobile)
   const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
-  const paginatedSales = filteredSales.slice(
+  const paginatedSales = isMobile
+    ? filteredSales.slice(0, mobileVisibleCount)
+    : filteredSales.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
