@@ -966,6 +966,18 @@ export function Sales() {
           </div>
         </div>
       </div>
+
+      {/* Barcode / IMEI Scanner */}
+      <BarcodeScanner
+        isOpen={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScan={(code) => {
+          const digits = (code.match(/\d+/g)?.join("") || code).slice(-15);
+          setImeiSearch(digits || code);
+          setShowFilters(true);
+        }}
+        title="IMEI/বারকোড স্ক্যান করুন"
+      />
     </div>
   );
 }
