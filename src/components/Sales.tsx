@@ -591,6 +591,12 @@ export function Sales() {
                             <span className="truncate max-w-[120px]">{sale.customers?.name || sale.instant_customer_name}</span>
                           </div>
                         )}
+                        {customerPhone && (
+                          <div className="flex items-center gap-1">
+                            <span>📞</span>
+                            <span className="truncate">{customerPhone}</span>
+                          </div>
+                        )}
                         <div className="flex items-center gap-1">
                           <Package className="h-3 w-3" />
                           {(sale.sale_items || []).length}টি পণ্য
@@ -601,7 +607,18 @@ export function Sales() {
                       <div className="text-xs text-muted-foreground mt-1 truncate">
                         {(sale.sale_items || []).map(i => i?.products?.name).filter(Boolean).join(', ')}
                       </div>
+                      {modelList.length > 0 && (
+                        <div className="text-xs text-muted-foreground mt-0.5 truncate">
+                          📱 {modelList.join(', ')}
+                        </div>
+                      )}
+                      {imeiList.length > 0 && (
+                        <div className="text-[11px] font-mono text-primary/80 mt-0.5 break-all line-clamp-1">
+                          IMEI: {imeiList.join(', ')}
+                        </div>
+                      )}
                     </div>
+
 
                     <div className="text-right shrink-0">
                       <div className="text-lg md:text-xl font-bold text-accent">
