@@ -57,6 +57,9 @@ interface SaleDetail {
 export function Sales() {
   const [searchTerm, setSearchTerm] = useState("");
   const [imeiSearch, setImeiSearch] = useState("");
+export function Sales() {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [imeiSearch, setImeiSearch] = useState("");
   const [filterPaymentMethod, setFilterPaymentMethod] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterDueOnly, setFilterDueOnly] = useState(false);
@@ -69,8 +72,18 @@ export function Sales() {
   const [currentPage, setCurrentPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [mobileVisibleCount, setMobileVisibleCount] = useState(20);
   const itemsPerPage = 10;
+  const mobilePageSize = 20;
   const printRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  // Debounced search terms (server/local search stays responsive even on slow mobiles)
+  const debouncedSearch = useDebouncedValue(searchTerm, 300);
+  const debouncedImei = useDebouncedValue(imeiSearch, 300);
+  const isTyping = searchTerm !== debouncedSearch || imeiSearch !== debouncedImei;
 
   // Fetch sales data
   const { data: sales = [], isLoading } = useQuery({
