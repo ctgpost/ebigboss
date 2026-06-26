@@ -114,26 +114,51 @@ export function Sales() {
   // Filter and search logic
   const filteredSales = useMemo(() => {
     return sales.filter((sale) => {
-      // Search filter
-      const searchLower = searchTerm.toLowerCase();
+      // Search filter (general)
+      const searchLower = searchTerm.trim().toLowerCase();
       const matchesSearch =
-        !searchTerm ||
+        !searchLower ||
         sale.id.toLowerCase().includes(searchLower) ||
-        sale.customers?.name.toLowerCase().includes(searchLower) ||
+        sale.customers?.name?.toLowerCase().includes(searchLower) ||
+        sale.customers?.phone?.toLowerCase().includes(searchLower) ||
+        sale.instant_customer_name?.toLowerCase().includes(searchLower) ||
+        sale.instant_customer_phone?.toLowerCase().includes(searchLower) ||
         (sale.sale_items || []).some(
           (item) =>
             item?.products?.name?.toLowerCase().includes(searchLower) ||
             item?.products?.imei?.toLowerCase().includes(searchLower) ||
-            item?.products?.brand?.toLowerCase().includes(searchLower)
+            item?.products?.sku?.toLowerCase().includes(searchLower) ||
+            item?.products?.barcode?.toLowerCase().includes(searchLower) ||
+            item?.products?.brand?.toLowerCase().includes(searchLower) ||
+            item?.products?.model?.toLowerCase().includes(searchLower)
+        );
+
+      // Dedicated IMEI search
+      const imeiLower = imeiSearch.trim().toLowerCase();
+      const matchesImei =
+        !imeiLower ||
+        (sale.sale_items || []).some((item) =>
+          item?.products?.imei?.toLowerCase().includes(imeiLower)
         );
 
       // Payment method filter
       const matchesPaymentMethod =
         filterPaymentMethod === "all" || sale.payment_method === filterPaymentMethod;
 
+      // Status filter
+      const matchesStatus = filterStatus === "all" || sale.status === filterStatus;
+
+      // Due-only filter
+      const matchesDue = !filterDueOnly || Number(sale.due_amount) > 0;
+
       // Customer filter
       const matchesCustomer =
         filterCustomer === "all" || sale.customer_id === filterCustomer;
+
+      // Amount range
+      const total = Number(sale.total_amount) || 0;
+      const matchesMin = !minAmount || total >= Number(minAmount);
+      const matchesMax = !maxAmount || total <= Number(maxAmount);
 
       // Date filters
       const saleDate = new Date(sale.created_at);
@@ -144,13 +169,18 @@ export function Sales() {
 
       return (
         matchesSearch &&
+        matchesImei &&
         matchesPaymentMethod &&
+        matchesStatus &&
+        matchesDue &&
         matchesCustomer &&
+        matchesMin &&
+        matchesMax &&
         matchesDateFrom &&
         matchesDateTo
       );
     });
-  }, [sales, searchTerm, filterPaymentMethod, filterCustomer, filterDateFrom, filterDateTo]);
+  }, [sales, searchTerm, imeiSearch, filterPaymentMethod, filterStatus, filterDueOnly, filterCustomer, minAmount, maxAmount, filterDateFrom, filterDateTo]);
 
   // Pagination
   const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
@@ -166,19 +196,29 @@ export function Sales() {
 
   const clearFilters = () => {
     setSearchTerm("");
+    setImeiSearch("");
     setFilterPaymentMethod("all");
+    setFilterStatus("all");
+    setFilterDueOnly(false);
     setFilterCustomer("all");
+    setMinAmount("");
+    setMaxAmount("");
     setFilterDateFrom("");
     setFilterDateTo("");
     setCurrentPage(1);
   };
 
   const hasActiveFilters =
-    searchTerm ||
+    !!searchTerm ||
+    !!imeiSearch ||
     filterPaymentMethod !== "all" ||
+    filterStatus !== "all" ||
+    filterDueOnly ||
     filterCustomer !== "all" ||
-    filterDateFrom ||
-    filterDateTo;
+    !!minAmount ||
+    !!maxAmount ||
+    !!filterDateFrom ||
+    !!filterDateTo;
 
   // PDF Export
   const handlePrint = useReactToPrint({
