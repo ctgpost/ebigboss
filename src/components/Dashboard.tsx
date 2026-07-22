@@ -84,20 +84,12 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
 
   const { data: purchases } = useQuery({
     queryKey: ["purchases"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("purchases").select("*");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () => fetchAll("purchases", (q) => q.select("*")),
   });
 
   const { data: supplierPayments } = useQuery({
     queryKey: ["supplier-payments-all"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("supplier_payments").select("*");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () => fetchAll("supplier_payments", (q) => q.select("*")),
   });
 
   const totalPurchaseAmount = purchases?.reduce((sum, p) => sum + Number(p.total_amount), 0) || 0;
