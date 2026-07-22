@@ -18,32 +18,23 @@ export function Reports() {
   const printRef = useRef<HTMLDivElement>(null);
   const { data: sales } = useQuery({
     queryKey: ["sales"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sales")
-        .select("*, sale_items(*, products(name)), customers(name)")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () =>
+      fetchAll("sales", (q) =>
+        q
+          .select("*, sale_items(*, products(name)), customers(name)")
+          .order("created_at", { ascending: false })
+      ),
   });
 
   const { data: products } = useQuery({
     queryKey: ["products"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("products").select("*");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () => fetchAll("products", (q) => q.select("*")),
   });
 
   const { data: customers } = useQuery({
     queryKey: ["customers"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("customers").select("*").order("name");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () =>
+      fetchAll("customers", (q) => q.select("*").order("name")),
   });
 
   // Filter sales based on selected filters
