@@ -44,9 +44,8 @@ export function StockSyncCheck() {
   const { data: products } = useQuery({
     queryKey: ["products"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("products").select("*");
-      if (error) throw error;
-      return data || [];
+      const { fetchAll } = await import("@/utils/fetchAll");
+      return await fetchAll("products");
     },
   });
 
@@ -54,11 +53,8 @@ export function StockSyncCheck() {
   const { data: saleItems } = useQuery({
     queryKey: ["sale_items_for_sync"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sale_items")
-        .select("product_id, quantity");
-      if (error) throw error;
-      return data || [];
+      const { fetchAll } = await import("@/utils/fetchAll");
+      return await fetchAll("sale_items", (q) => q.select("product_id, quantity"));
     },
   });
 
@@ -66,12 +62,10 @@ export function StockSyncCheck() {
   const { data: returns } = useQuery({
     queryKey: ["returns_for_sync"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("returns")
-        .select("product_id, quantity, status")
-        .eq("status", "completed");
-      if (error) throw error;
-      return data || [];
+      const { fetchAll } = await import("@/utils/fetchAll");
+      return await fetchAll("returns", (q) =>
+        q.select("product_id, quantity, status").eq("status", "completed")
+      );
     },
   });
 
