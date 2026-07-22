@@ -37,38 +37,25 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
 
   const { data: products, isLoading: productsLoading } = useQuery({
     queryKey: ["products"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("products").select("*");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () => fetchAll("products", (q) => q.select("*")),
   });
 
   const { data: sales, isLoading: salesLoading } = useQuery({
     queryKey: ["sales"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("sales").select("*, sale_items(*, products(condition, cost, name))");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () =>
+      fetchAll("sales", (q) =>
+        q.select("*, sale_items(*, products(condition, cost, name))")
+      ),
   });
 
   const { data: customers } = useQuery({
     queryKey: ["customers"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("customers").select("*");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () => fetchAll("customers", (q) => q.select("*")),
   });
 
   const { data: suppliers } = useQuery({
     queryKey: ["suppliers-dashboard"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("suppliers").select("*");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () => fetchAll("suppliers", (q) => q.select("*")),
   });
 
   const totalProducts = products?.length || 0;
