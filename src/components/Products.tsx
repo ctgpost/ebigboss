@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAll } from "@/utils/fetchAll";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -70,14 +71,10 @@ export function Products() {
 
   const { data: products } = useQuery({
     queryKey: ["products"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("products")
-        .select("*, categories(name)")
-        .order("name");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () =>
+      fetchAll("products", (q) =>
+        q.select("*, categories(name)").order("name")
+      ),
   });
 
   const { data: categories } = useQuery({

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAll } from "@/utils/fetchAll";
 import { toast } from "sonner";
 import { InvoiceModal } from "./InvoiceModal";
 import { BarcodeScanner } from "./BarcodeScanner";
@@ -45,20 +46,14 @@ export function POS() {
 
   const { data: products } = useQuery({
     queryKey: ["products"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("products").select("*").order("name");
-      if (error) throw error;
-      return data as Product[];
-    },
+    queryFn: async () =>
+      (await fetchAll<Product>("products", (q) => q.select("*").order("name"))),
   });
 
   const { data: customers } = useQuery({
     queryKey: ["customers"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("customers").select("*").order("name");
-      if (error) throw error;
-      return data as Customer[];
-    },
+    queryFn: async () =>
+      (await fetchAll<Customer>("customers", (q) => q.select("*").order("name"))),
   });
 
   const completeSaleMutation = useMutation({

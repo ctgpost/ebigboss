@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAll } from "@/utils/fetchAll";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
@@ -230,30 +231,30 @@ export function Settings() {
 
       // Fetch all data from all tables
       const [products, categories, customers, suppliers, sales, saleItems, purchases, purchaseItems, returns] = await Promise.all([
-        supabase.from("products").select("*"),
-        supabase.from("categories").select("*"),
-        supabase.from("customers").select("*"),
-        supabase.from("suppliers").select("*"),
-        supabase.from("sales").select("*"),
-        supabase.from("sale_items").select("*"),
-        supabase.from("purchases").select("*"),
-        supabase.from("purchase_items").select("*"),
-        supabase.from("returns").select("*"),
+        fetchAll("products"),
+        fetchAll("categories"),
+        fetchAll("customers"),
+        fetchAll("suppliers"),
+        fetchAll("sales"),
+        fetchAll("sale_items"),
+        fetchAll("purchases"),
+        fetchAll("purchase_items"),
+        fetchAll("returns"),
       ]);
 
       const backup = {
         version: "1.0",
         timestamp: new Date().toISOString(),
         data: {
-          products: products.data || [],
-          categories: categories.data || [],
-          customers: customers.data || [],
-          suppliers: suppliers.data || [],
-          sales: sales.data || [],
-          sale_items: saleItems.data || [],
-          purchases: purchases.data || [],
-          purchase_items: purchaseItems.data || [],
-          returns: returns.data || [],
+          products,
+          categories,
+          customers,
+          suppliers,
+          sales,
+          sale_items: saleItems,
+          purchases,
+          purchase_items: purchaseItems,
+          returns,
         },
       };
 

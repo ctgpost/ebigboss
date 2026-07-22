@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAll } from "@/utils/fetchAll";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -63,52 +64,45 @@ export function Customers() {
 
   const { data: customers } = useQuery({
     queryKey: ["customers"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("customers").select("*").order("name");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () =>
+      fetchAll("customers", (q) => q.select("*").order("name")),
   });
 
   // Fetch ALL sales for customers (for PDF reports)
   const { data: allCustomerSales } = useQuery({
     queryKey: ["all-customer-sales"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sales")
-        .select("id, customer_id, total_amount, paid_amount, due_amount, created_at, instant_customer_name, instant_customer_phone, sale_items(quantity, unit_price, products(name))")
-        .not("customer_id", "is", null)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () =>
+      fetchAll("sales", (q) =>
+        q
+          .select(
+            "id, customer_id, total_amount, paid_amount, due_amount, created_at, instant_customer_name, instant_customer_phone, sale_items(quantity, unit_price, products(name))"
+          )
+          .not("customer_id", "is", null)
+          .order("created_at", { ascending: false })
+      ),
   });
 
   // Fetch sales with dues for all customers
   const { data: salesWithDues } = useQuery({
     queryKey: ["sales-with-dues"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sales")
-        .select("id, customer_id, total_amount, paid_amount, due_amount, created_at, instant_customer_name, instant_customer_phone, sale_items(quantity, unit_price, products(name))")
-        .gt("due_amount", 0)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () =>
+      fetchAll("sales", (q) =>
+        q
+          .select(
+            "id, customer_id, total_amount, paid_amount, due_amount, created_at, instant_customer_name, instant_customer_phone, sale_items(quantity, unit_price, products(name))"
+          )
+          .gt("due_amount", 0)
+          .order("created_at", { ascending: false })
+      ),
   });
 
   // Fetch payment history
   const { data: payments } = useQuery({
     queryKey: ["payments"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("payments")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () =>
+      fetchAll("payments", (q) =>
+        q.select("*").order("created_at", { ascending: false })
+      ),
   });
 
   const addMutation = useMutation({

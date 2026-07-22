@@ -2,6 +2,7 @@ import { useMemo, useEffect, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAll } from "@/utils/fetchAll";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useShopSettings } from "@/hooks/useShopSettings";
@@ -36,38 +37,25 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
 
   const { data: products, isLoading: productsLoading } = useQuery({
     queryKey: ["products"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("products").select("*");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () => fetchAll("products", (q) => q.select("*")),
   });
 
   const { data: sales, isLoading: salesLoading } = useQuery({
     queryKey: ["sales"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("sales").select("*, sale_items(*, products(condition, cost, name))");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () =>
+      fetchAll("sales", (q) =>
+        q.select("*, sale_items(*, products(condition, cost, name))")
+      ),
   });
 
   const { data: customers } = useQuery({
     queryKey: ["customers"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("customers").select("*");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () => fetchAll("customers", (q) => q.select("*")),
   });
 
   const { data: suppliers } = useQuery({
     queryKey: ["suppliers-dashboard"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("suppliers").select("*");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () => fetchAll("suppliers", (q) => q.select("*")),
   });
 
   const totalProducts = products?.length || 0;
@@ -96,20 +84,12 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
 
   const { data: purchases } = useQuery({
     queryKey: ["purchases"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("purchases").select("*");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () => fetchAll("purchases", (q) => q.select("*")),
   });
 
   const { data: supplierPayments } = useQuery({
     queryKey: ["supplier-payments-all"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("supplier_payments").select("*");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () => fetchAll("supplier_payments", (q) => q.select("*")),
   });
 
   const totalPurchaseAmount = purchases?.reduce((sum, p) => sum + Number(p.total_amount), 0) || 0;
