@@ -71,14 +71,10 @@ export function Products() {
 
   const { data: products } = useQuery({
     queryKey: ["products"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("products")
-        .select("*, categories(name)")
-        .order("name");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () =>
+      fetchAll("products", (q) =>
+        q.select("*, categories(name)").order("name")
+      ),
   });
 
   const { data: categories } = useQuery({
