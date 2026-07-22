@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAll } from "@/utils/fetchAll";
 import { toast } from "sonner";
 import { InvoiceModal } from "./InvoiceModal";
 import { BarcodeScanner } from "./BarcodeScanner";
