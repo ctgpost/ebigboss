@@ -152,16 +152,18 @@ export function Settings() {
   const { data: profitStats } = useQuery({
     queryKey: ["profit-stats", profitDateFrom?.toISOString(), profitDateTo?.toISOString()],
     queryFn: async () => {
-      let query = supabase.from("sale_items").select("unit_price, quantity, created_at, products(cost, condition)");
-      
-      if (profitDateFrom) {
-        query = query.gte("created_at", startOfDay(profitDateFrom).toISOString());
-      }
-      if (profitDateTo) {
-        query = query.lte("created_at", endOfDay(profitDateTo).toISOString());
-      }
-      
-      const { data } = await query;
+      // NOTE: PostgREST caps a single response at 1000 rows — use fetchAll so
+      // every sale item (including the newest ones) is counted.
+      const data = await fetchAll<any>("sale_items", (q: any) => {
+        let query = q.select("unit_price, quantity, created_at, products(cost, condition)").order("created_at", { ascending: true });
+        if (profitDateFrom) {
+          query = query.gte("created_at", startOfDay(profitDateFrom).toISOString());
+        }
+        if (profitDateTo) {
+          query = query.lte("created_at", endOfDay(profitDateTo).toISOString());
+        }
+        return query;
+      });
 
       let newMobileProfit = 0;
       let usedMobileProfit = 0;

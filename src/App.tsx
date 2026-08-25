@@ -20,8 +20,13 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       networkMode: "offlineFirst",
-      staleTime: 5 * 60 * 1000,
+      // Cached data is shown instantly (offline-first) but always revalidated
+      // from the server on mount / reconnect so stats never stay stale.
+      staleTime: 30 * 1000,
       gcTime: 24 * 60 * 60 * 1000,
+      refetchOnMount: "always",
+      refetchOnReconnect: "always",
+      refetchOnWindowFocus: true,
       retry: 1,
     },
     mutations: {
@@ -32,7 +37,7 @@ const queryClient = new QueryClient({
 
 const queryPersister = createSyncStoragePersister({
   storage: typeof window !== "undefined" ? window.localStorage : undefined,
-  key: "big-boss-offline-query-cache-v1",
+  key: "big-boss-offline-query-cache-v2",
   throttleTime: 1000,
 });
 
