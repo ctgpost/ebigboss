@@ -257,8 +257,9 @@ export function Reports() {
       <div className="flex-1 overflow-y-auto pb-6 space-y-4 md:space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           <Card className="p-4 md:p-6">
-            <h3 className="text-xs md:text-sm font-medium text-muted-foreground mb-2">Total Revenue</h3>
+            <h3 className="text-xs md:text-sm font-medium text-muted-foreground mb-2">Net Revenue (রিটার্ন বাদে)</h3>
           <p className="text-2xl md:text-3xl font-bold text-primary">{fmt(totalRevenue)}</p>
+          <p className="text-xs text-muted-foreground mt-1">মোট বিক্রয়: {fmt(grossRevenue)}</p>
         </Card>
         <Card className="p-4 md:p-6">
           <h3 className="text-xs md:text-sm font-medium text-muted-foreground mb-2">Total Sales</h3>
@@ -267,6 +268,20 @@ export function Reports() {
         <Card className="p-4 md:p-6">
           <h3 className="text-xs md:text-sm font-medium text-muted-foreground mb-2">Average Sale</h3>
           <p className="text-2xl md:text-3xl font-bold text-foreground">{fmt(averageSale)}</p>
+        </Card>
+        <Card className="p-4 md:p-6">
+          <h3 className="text-xs md:text-sm font-medium text-muted-foreground mb-2">রিফান্ড (অনুমোদিত রিটার্ন)</h3>
+          <p className="text-2xl md:text-3xl font-bold text-red-600">{fmt(totalRefunds)}</p>
+          <p className="text-xs text-muted-foreground mt-1">{approvedReturns.length}টি রিটার্ন</p>
+        </Card>
+        <Card className="p-4 md:p-6">
+          <h3 className="text-xs md:text-sm font-medium text-muted-foreground mb-2">অপেক্ষমাণ রিটার্ন</h3>
+          <p className="text-2xl md:text-3xl font-bold text-amber-600">{pendingReturns}</p>
+          <p className="text-xs text-muted-foreground mt-1">অনুমোদনের অপেক্ষায় (হিসাবে যোগ হয়নি)</p>
+        </Card>
+        <Card className="p-4 md:p-6">
+          <h3 className="text-xs md:text-sm font-medium text-muted-foreground mb-2">মোট রিটার্ন এন্ট্রি</h3>
+          <p className="text-2xl md:text-3xl font-bold text-foreground">{(returns || []).length}</p>
         </Card>
         </div>
 
