@@ -64,6 +64,19 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
   const lowStockProducts = products?.filter(p => p.stock_quantity > 0 && p.stock_quantity <= p.low_stock_threshold) || [];
   const totalSales = sales?.reduce((sum, sale) => sum + Number(sale.total_amount), 0) || 0;
 
+  const { data: returnsAll } = useQuery({
+    queryKey: ["returns-dashboard"],
+    queryFn: async () => fetchAll("returns", (q) => q.select("*")),
+  });
+
+  // Only approved returns affect the ledger/revenue
+  const totalRefunds = (returnsAll || []).reduce(
+    (sum: number, r: any) =>
+      r.status === "approved" ? sum + Number(r.applied_refund_amount || r.refund_amount || 0) : sum,
+    0
+  );
+  const netSales = totalSales - totalRefunds;
+
   const today = new Date().toDateString();
   const todaySalesList = sales?.filter(s => new Date(s.created_at).toDateString() === today) || [];
   const todaySalesCount = todaySalesList.length;
