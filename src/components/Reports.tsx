@@ -37,26 +37,52 @@ export function Reports() {
       fetchAll("customers", (q) => q.select("*").order("name")),
   });
 
-  // Filter sales based on selected filters
-  const filteredSales = sales?.filter(sale => {
-    const saleDate = new Date(sale.created_at);
+  const { data: returns } = useQuery({
+    queryKey: ["returns-report"],
+    queryFn: async () => fetchAll("returns", (q) => q.select("*")),
+  });
+
+  const inDateRange = (value: string) => {
+    const d = new Date(value);
     const dateFrom = filterDateFrom ? new Date(filterDateFrom) : null;
     const dateTo = filterDateTo ? new Date(filterDateTo) : null;
-
-    if (dateFrom && saleDate < dateFrom) return false;
+    if (dateFrom && d < dateFrom) return false;
     if (dateTo) {
       dateTo.setHours(23, 59, 59, 999);
-      if (saleDate > dateTo) return false;
+      if (d > dateTo) return false;
     }
+    return true;
+  };
+
+  // Filter sales based on selected filters
+  const filteredSales = sales?.filter(sale => {
+    if (!inDateRange(sale.created_at)) return false;
     if (filterCustomer !== "all" && sale.customer_id !== filterCustomer) return false;
     if (filterPaymentMethod !== "all" && sale.payment_method !== filterPaymentMethod) return false;
 
     return true;
   });
 
-  const totalRevenue = filteredSales?.reduce((sum, sale) => sum + Number(sale.total_amount), 0) || 0;
+  const grossRevenue = filteredSales?.reduce((sum, sale) => sum + Number(sale.total_amount), 0) || 0;
+
+  // Approved returns reduce revenue
+  const approvedReturns = (returns || []).filter(
+    (r: any) => r.status === "approved" && inDateRange(r.created_at)
+  );
+  const totalRefunds = approvedReturns.reduce(
+    (sum: number, r: any) => sum + Number(r.applied_refund_amount || r.refund_amount || 0),
+    0
+  );
+  const pendingReturns = (returns || []).filter(
+    (r: any) => r.status === "pending" && inDateRange(r.created_at)
+  ).length;
+
+  const totalRevenue = grossRevenue - totalRefunds;
   const totalSales = filteredSales?.length || 0;
-  const averageSale = totalSales > 0 ? totalRevenue / totalSales : 0;
+  const averageSale = totalSales > 0 ? grossRevenue / totalSales : 0;
+
+  const fmt = (n: number) =>
+    `৳${n.toLocaleString("bn-BD", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   // Top selling products
   const productSales = new Map();
