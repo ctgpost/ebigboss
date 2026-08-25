@@ -258,7 +258,7 @@ export function Reports() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           <Card className="p-4 md:p-6">
             <h3 className="text-xs md:text-sm font-medium text-muted-foreground mb-2">Total Revenue</h3>
-          <p className="text-2xl md:text-3xl font-bold text-primary">${totalRevenue.toFixed(2)}</p>
+          <p className="text-2xl md:text-3xl font-bold text-primary">{fmt(totalRevenue)}</p>
         </Card>
         <Card className="p-4 md:p-6">
           <h3 className="text-xs md:text-sm font-medium text-muted-foreground mb-2">Total Sales</h3>
@@ -266,7 +266,7 @@ export function Reports() {
         </Card>
         <Card className="p-4 md:p-6">
           <h3 className="text-xs md:text-sm font-medium text-muted-foreground mb-2">Average Sale</h3>
-          <p className="text-2xl md:text-3xl font-bold text-foreground">${averageSale.toFixed(2)}</p>
+          <p className="text-2xl md:text-3xl font-bold text-foreground">{fmt(averageSale)}</p>
         </Card>
         </div>
 
@@ -282,7 +282,7 @@ export function Reports() {
               <div className="w-3 h-3 rounded-full bg-green-500"></div>
               <p className="text-xs md:text-sm font-medium text-muted-foreground">New Products Investment</p>
             </div>
-            <p className="text-2xl md:text-3xl font-bold text-green-600">${newProductsInvestment.toFixed(2)}</p>
+            <p className="text-2xl md:text-3xl font-bold text-green-600">{fmt(newProductsInvestment)}</p>
             <p className="text-xs text-muted-foreground mt-2">{newProducts} products • {newProductsStock} units</p>
           </Card>
           
@@ -291,7 +291,7 @@ export function Reports() {
               <div className="w-3 h-3 rounded-full bg-blue-500"></div>
               <p className="text-xs md:text-sm font-medium text-muted-foreground">Used Products Investment</p>
             </div>
-            <p className="text-2xl md:text-3xl font-bold text-blue-600">${usedProductsInvestment.toFixed(2)}</p>
+            <p className="text-2xl md:text-3xl font-bold text-blue-600">{fmt(usedProductsInvestment)}</p>
             <p className="text-xs text-muted-foreground mt-2">{usedProducts} products • {usedProductsStock} units</p>
           </Card>
           
@@ -300,7 +300,7 @@ export function Reports() {
               <div className="w-3 h-3 rounded-full bg-purple-500"></div>
               <p className="text-xs md:text-sm font-medium text-muted-foreground">Total Investment</p>
             </div>
-            <p className="text-2xl md:text-3xl font-bold text-purple-600">${totalInvestment.toFixed(2)}</p>
+            <p className="text-2xl md:text-3xl font-bold text-purple-600">{fmt(totalInvestment)}</p>
             <p className="text-xs text-muted-foreground mt-2">{newProducts + usedProducts} products • {newProductsStock + usedProductsStock} units</p>
           </Card>
         </div>
@@ -364,7 +364,7 @@ export function Reports() {
               </Card>
               <Card className="p-3 md:p-4 bg-green-50 dark:bg-green-950/20 border-green-200">
                 <p className="text-xs md:text-sm text-muted-foreground">Revenue</p>
-                <p className="text-xl md:text-2xl font-bold text-green-600">${newSalesRevenue.toFixed(2)}</p>
+                <p className="text-xl md:text-2xl font-bold text-green-600">{fmt(newSalesRevenue)}</p>
               </Card>
             </div>
           </div>
@@ -390,7 +390,7 @@ export function Reports() {
               </Card>
               <Card className="p-3 md:p-4 bg-blue-50 dark:bg-blue-950/20 border-blue-200">
                 <p className="text-xs md:text-sm text-muted-foreground">Revenue</p>
-                <p className="text-xl md:text-2xl font-bold text-blue-600">${usedSalesRevenue.toFixed(2)}</p>
+                <p className="text-xl md:text-2xl font-bold text-blue-600">{fmt(usedSalesRevenue)}</p>
               </Card>
             </div>
           </div>
@@ -406,7 +406,7 @@ export function Reports() {
                 <p className="font-medium text-foreground">{product.name}</p>
                 <p className="text-sm text-muted-foreground">{product.quantity} units sold</p>
               </div>
-              <p className="font-semibold text-primary">${product.revenue.toFixed(2)}</p>
+              <p className="font-semibold text-primary">{fmt(product.revenue)}</p>
             </div>
           ))}
           {topProducts.length === 0 && (
@@ -432,7 +432,7 @@ export function Reports() {
                 </div>
                 <div className="text-right">
                   <p className="text-xl font-bold text-primary">
-                    ${Number(sale.total_amount).toFixed(2)}
+                    {fmt(Number(sale.total_amount))}
                   </p>
                   <p className="text-xs text-muted-foreground capitalize">
                     {sale.payment_method}
@@ -446,12 +446,12 @@ export function Reports() {
                     <div className="flex-1">
                       <p className="font-medium text-foreground">{item.products?.name || "Product"}</p>
                       <p className="text-xs text-muted-foreground">
-                        Qty: {item.quantity} × ${Number(item.unit_price).toFixed(2)}
+                        Qty: {item.quantity} × {fmt(Number(item.unit_price))}
                         {item.condition && <span className="ml-2">• {item.condition}</span>}
                       </p>
                     </div>
                     <p className="font-semibold text-foreground">
-                      ${Number(item.total_price).toFixed(2)}
+                      {fmt(Number(item.total_price))}
                     </p>
                   </div>
                 ))}
