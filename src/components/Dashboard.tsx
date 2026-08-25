@@ -64,6 +64,19 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
   const lowStockProducts = products?.filter(p => p.stock_quantity > 0 && p.stock_quantity <= p.low_stock_threshold) || [];
   const totalSales = sales?.reduce((sum, sale) => sum + Number(sale.total_amount), 0) || 0;
 
+  const { data: returnsAll } = useQuery({
+    queryKey: ["returns-dashboard"],
+    queryFn: async () => fetchAll("returns", (q) => q.select("*")),
+  });
+
+  // Only approved returns affect the ledger/revenue
+  const totalRefunds = (returnsAll || []).reduce(
+    (sum: number, r: any) =>
+      r.status === "approved" ? sum + Number(r.applied_refund_amount || r.refund_amount || 0) : sum,
+    0
+  );
+  const netSales = totalSales - totalRefunds;
+
   const today = new Date().toDateString();
   const todaySalesList = sales?.filter(s => new Date(s.created_at).toDateString() === today) || [];
   const todaySalesCount = todaySalesList.length;
@@ -257,8 +270,9 @@ export function Dashboard({ onNavigateToPOS, onNavigateToProducts }: DashboardPr
   const stats = [
     { label: "মোট প্রোডাক্ট", value: totalProducts, icon: "📦", color: "from-teal-500 to-teal-600" },
     { label: "স্টকে আছে", value: inStockProducts, icon: "✅", color: "from-emerald-500 to-emerald-600" },
-    { label: "মোট বিক্রয়", value: `৳${totalSales.toLocaleString('bn-BD')}`, icon: "💰", color: "from-green-500 to-green-600" },
+    { label: "নীট বিক্রয় (রিটার্ন বাদে)", value: `৳${netSales.toLocaleString('bn-BD')}`, icon: "💰", color: "from-green-500 to-green-600" },
     { label: "মোট বাকি", value: `৳${totalDue.toLocaleString('bn-BD')}`, icon: "⏳", color: "from-orange-500 to-orange-600" },
+    { label: "রিফান্ড (রিটার্ন)", value: `৳${totalRefunds.toLocaleString('bn-BD')}`, icon: "↩️", color: "from-red-500 to-red-600" },
   ];
 
   const isLoading = productsLoading || salesLoading;

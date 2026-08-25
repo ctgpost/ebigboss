@@ -37,26 +37,52 @@ export function Reports() {
       fetchAll("customers", (q) => q.select("*").order("name")),
   });
 
-  // Filter sales based on selected filters
-  const filteredSales = sales?.filter(sale => {
-    const saleDate = new Date(sale.created_at);
+  const { data: returns } = useQuery({
+    queryKey: ["returns-report"],
+    queryFn: async () => fetchAll("returns", (q) => q.select("*")),
+  });
+
+  const inDateRange = (value: string) => {
+    const d = new Date(value);
     const dateFrom = filterDateFrom ? new Date(filterDateFrom) : null;
     const dateTo = filterDateTo ? new Date(filterDateTo) : null;
-
-    if (dateFrom && saleDate < dateFrom) return false;
+    if (dateFrom && d < dateFrom) return false;
     if (dateTo) {
       dateTo.setHours(23, 59, 59, 999);
-      if (saleDate > dateTo) return false;
+      if (d > dateTo) return false;
     }
+    return true;
+  };
+
+  // Filter sales based on selected filters
+  const filteredSales = sales?.filter(sale => {
+    if (!inDateRange(sale.created_at)) return false;
     if (filterCustomer !== "all" && sale.customer_id !== filterCustomer) return false;
     if (filterPaymentMethod !== "all" && sale.payment_method !== filterPaymentMethod) return false;
 
     return true;
   });
 
-  const totalRevenue = filteredSales?.reduce((sum, sale) => sum + Number(sale.total_amount), 0) || 0;
+  const grossRevenue = filteredSales?.reduce((sum, sale) => sum + Number(sale.total_amount), 0) || 0;
+
+  // Approved returns reduce revenue
+  const approvedReturns = (returns || []).filter(
+    (r: any) => r.status === "approved" && inDateRange(r.created_at)
+  );
+  const totalRefunds = approvedReturns.reduce(
+    (sum: number, r: any) => sum + Number(r.applied_refund_amount || r.refund_amount || 0),
+    0
+  );
+  const pendingReturns = (returns || []).filter(
+    (r: any) => r.status === "pending" && inDateRange(r.created_at)
+  ).length;
+
+  const totalRevenue = grossRevenue - totalRefunds;
   const totalSales = filteredSales?.length || 0;
-  const averageSale = totalSales > 0 ? totalRevenue / totalSales : 0;
+  const averageSale = totalSales > 0 ? grossRevenue / totalSales : 0;
+
+  const fmt = (n: number) =>
+    `৳${n.toLocaleString("bn-BD", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   // Top selling products
   const productSales = new Map();
@@ -231,8 +257,9 @@ export function Reports() {
       <div className="flex-1 overflow-y-auto pb-6 space-y-4 md:space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           <Card className="p-4 md:p-6">
-            <h3 className="text-xs md:text-sm font-medium text-muted-foreground mb-2">Total Revenue</h3>
-          <p className="text-2xl md:text-3xl font-bold text-primary">${totalRevenue.toFixed(2)}</p>
+            <h3 className="text-xs md:text-sm font-medium text-muted-foreground mb-2">Net Revenue (রিটার্ন বাদে)</h3>
+          <p className="text-2xl md:text-3xl font-bold text-primary">{fmt(totalRevenue)}</p>
+          <p className="text-xs text-muted-foreground mt-1">মোট বিক্রয়: {fmt(grossRevenue)}</p>
         </Card>
         <Card className="p-4 md:p-6">
           <h3 className="text-xs md:text-sm font-medium text-muted-foreground mb-2">Total Sales</h3>
@@ -240,7 +267,21 @@ export function Reports() {
         </Card>
         <Card className="p-4 md:p-6">
           <h3 className="text-xs md:text-sm font-medium text-muted-foreground mb-2">Average Sale</h3>
-          <p className="text-2xl md:text-3xl font-bold text-foreground">${averageSale.toFixed(2)}</p>
+          <p className="text-2xl md:text-3xl font-bold text-foreground">{fmt(averageSale)}</p>
+        </Card>
+        <Card className="p-4 md:p-6">
+          <h3 className="text-xs md:text-sm font-medium text-muted-foreground mb-2">রিফান্ড (অনুমোদিত রিটার্ন)</h3>
+          <p className="text-2xl md:text-3xl font-bold text-red-600">{fmt(totalRefunds)}</p>
+          <p className="text-xs text-muted-foreground mt-1">{approvedReturns.length}টি রিটার্ন</p>
+        </Card>
+        <Card className="p-4 md:p-6">
+          <h3 className="text-xs md:text-sm font-medium text-muted-foreground mb-2">অপেক্ষমাণ রিটার্ন</h3>
+          <p className="text-2xl md:text-3xl font-bold text-amber-600">{pendingReturns}</p>
+          <p className="text-xs text-muted-foreground mt-1">অনুমোদনের অপেক্ষায় (হিসাবে যোগ হয়নি)</p>
+        </Card>
+        <Card className="p-4 md:p-6">
+          <h3 className="text-xs md:text-sm font-medium text-muted-foreground mb-2">মোট রিটার্ন এন্ট্রি</h3>
+          <p className="text-2xl md:text-3xl font-bold text-foreground">{(returns || []).length}</p>
         </Card>
         </div>
 
@@ -256,7 +297,7 @@ export function Reports() {
               <div className="w-3 h-3 rounded-full bg-green-500"></div>
               <p className="text-xs md:text-sm font-medium text-muted-foreground">New Products Investment</p>
             </div>
-            <p className="text-2xl md:text-3xl font-bold text-green-600">${newProductsInvestment.toFixed(2)}</p>
+            <p className="text-2xl md:text-3xl font-bold text-green-600">{fmt(newProductsInvestment)}</p>
             <p className="text-xs text-muted-foreground mt-2">{newProducts} products • {newProductsStock} units</p>
           </Card>
           
@@ -265,7 +306,7 @@ export function Reports() {
               <div className="w-3 h-3 rounded-full bg-blue-500"></div>
               <p className="text-xs md:text-sm font-medium text-muted-foreground">Used Products Investment</p>
             </div>
-            <p className="text-2xl md:text-3xl font-bold text-blue-600">${usedProductsInvestment.toFixed(2)}</p>
+            <p className="text-2xl md:text-3xl font-bold text-blue-600">{fmt(usedProductsInvestment)}</p>
             <p className="text-xs text-muted-foreground mt-2">{usedProducts} products • {usedProductsStock} units</p>
           </Card>
           
@@ -274,7 +315,7 @@ export function Reports() {
               <div className="w-3 h-3 rounded-full bg-purple-500"></div>
               <p className="text-xs md:text-sm font-medium text-muted-foreground">Total Investment</p>
             </div>
-            <p className="text-2xl md:text-3xl font-bold text-purple-600">${totalInvestment.toFixed(2)}</p>
+            <p className="text-2xl md:text-3xl font-bold text-purple-600">{fmt(totalInvestment)}</p>
             <p className="text-xs text-muted-foreground mt-2">{newProducts + usedProducts} products • {newProductsStock + usedProductsStock} units</p>
           </Card>
         </div>
@@ -338,7 +379,7 @@ export function Reports() {
               </Card>
               <Card className="p-3 md:p-4 bg-green-50 dark:bg-green-950/20 border-green-200">
                 <p className="text-xs md:text-sm text-muted-foreground">Revenue</p>
-                <p className="text-xl md:text-2xl font-bold text-green-600">${newSalesRevenue.toFixed(2)}</p>
+                <p className="text-xl md:text-2xl font-bold text-green-600">{fmt(newSalesRevenue)}</p>
               </Card>
             </div>
           </div>
@@ -364,7 +405,7 @@ export function Reports() {
               </Card>
               <Card className="p-3 md:p-4 bg-blue-50 dark:bg-blue-950/20 border-blue-200">
                 <p className="text-xs md:text-sm text-muted-foreground">Revenue</p>
-                <p className="text-xl md:text-2xl font-bold text-blue-600">${usedSalesRevenue.toFixed(2)}</p>
+                <p className="text-xl md:text-2xl font-bold text-blue-600">{fmt(usedSalesRevenue)}</p>
               </Card>
             </div>
           </div>
@@ -380,7 +421,7 @@ export function Reports() {
                 <p className="font-medium text-foreground">{product.name}</p>
                 <p className="text-sm text-muted-foreground">{product.quantity} units sold</p>
               </div>
-              <p className="font-semibold text-primary">${product.revenue.toFixed(2)}</p>
+              <p className="font-semibold text-primary">{fmt(product.revenue)}</p>
             </div>
           ))}
           {topProducts.length === 0 && (
@@ -406,7 +447,7 @@ export function Reports() {
                 </div>
                 <div className="text-right">
                   <p className="text-xl font-bold text-primary">
-                    ${Number(sale.total_amount).toFixed(2)}
+                    {fmt(Number(sale.total_amount))}
                   </p>
                   <p className="text-xs text-muted-foreground capitalize">
                     {sale.payment_method}
@@ -420,12 +461,12 @@ export function Reports() {
                     <div className="flex-1">
                       <p className="font-medium text-foreground">{item.products?.name || "Product"}</p>
                       <p className="text-xs text-muted-foreground">
-                        Qty: {item.quantity} × ${Number(item.unit_price).toFixed(2)}
+                        Qty: {item.quantity} × {fmt(Number(item.unit_price))}
                         {item.condition && <span className="ml-2">• {item.condition}</span>}
                       </p>
                     </div>
                     <p className="font-semibold text-foreground">
-                      ${Number(item.total_price).toFixed(2)}
+                      {fmt(Number(item.total_price))}
                     </p>
                   </div>
                 ))}
