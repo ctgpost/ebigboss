@@ -48,6 +48,9 @@ const App = () => {
   useScheduledBackup(!!user);
 
   useEffect(() => {
+    // Drop the legacy cache blob so localStorage quota stays free for v2
+    try { window.localStorage.removeItem("big-boss-offline-query-cache-v1"); } catch { /* ignore */ }
+
     const unregisterQueueSync = registerOfflineQueueSync((count) => {
       queryClient.invalidateQueries();
       toast.success(`${count.toLocaleString("bn-BD")}টি অফলাইন কাজ sync হয়েছে`);
